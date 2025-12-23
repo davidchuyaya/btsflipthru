@@ -14,9 +14,13 @@
 	},
 	"dependencies": {
 		"@opennextjs/cloudflare": "^1.14.4",
+		"better-auth": "^1.4.7",
+		"kysely": "^0.28.9",
+		"kysely-d1": "^0.4.0",
 		"next": "15.5.9",
 		"react": "19.1.4",
-		"react-dom": "19.1.4"
+		"react-dom": "19.1.4",
+		"sharp": "^0.34.5"
 	},
 	"devDependencies": {
 		"@eslint/eslintrc": "^3",

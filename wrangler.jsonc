@@ -56,7 +56,27 @@
         {
             "pattern": "btsflipthru.com",
             "custom_domain": true
+        },
+        {
+            "pattern": "www.btsflipthru.com",
+            "custom_domain": true
         }
-    ]
-    // "vars": {  "MY_VARIABLE": "production_value" }
+    ],
+    "d1_databases": [
+        {
+            "binding": "DB",
+            "database_name": "prod",
+            "database_id": "d5dae721-28ea-4c49-9af0-3ac9e533da1c"
+        }
+    ],
+    "r2_buckets": [
+        {
+            "binding": "images",
+            "bucket_name": "images"
+        }
+    ],
+    "vars": {
+        "BETTER_AUTH_URL": "https://btsflipthru.com",
+        "GOOGLE_CLIENT_ID": "804677000168-flhn47sdilkqq1o9k9aiqk6dh1q8os0p.apps.googleusercontent.com",
+    }
 }
