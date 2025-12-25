@@ -150,9 +150,6 @@ export async function createSetInDB(
 ) {
     await errorIfLessPrivilegedThanMod();
 
-    if (photocards.length === 0) {
-        throw new Error("At least one photocard is required to create a set.");
-    }
     if (cardTypes.length !== photocards.length) {
         throw new Error("Each photocard must have a corresponding array of card types.");
     }
@@ -172,7 +169,18 @@ export async function createSetInDB(
             setId: setId,
             setTypeId: setTypeId,
         }));
-        await database.insertInto("setToSetTypes").values(setToSetTypeValues).execute();
+        await Promise.all(
+            setToSetTypeValues.map(async (setToSetType) => {
+                return database
+                    .insertInto("setToSetTypes")
+                    .values(setToSetType)
+                    .executeTakeFirstOrThrow();
+            }
+        ));
+    }
+
+    if (photocards.length === 0) {
+        return;
     }
 
     // Insert the photocards, linking them to the set and fixing any placeholder data
@@ -182,11 +190,15 @@ export async function createSetInDB(
         photocard.imageContributorId = session.user.id;
         photocard.updatedAt = date;
     }
-    const photocardIds = await database
-        .insertInto("photocards")
-        .values(photocards)
-        .execute()
-        .then((results) => results.map((result) => Number(result.insertId)));
+    const photocardIds = await Promise.all(
+        photocards.map(async (photocard) => {
+            return database
+                .insertInto("photocards")
+                .values(photocard)
+                .executeTakeFirstOrThrow()
+                .then((result) => Number(result.insertId));
+        })
+    );
 
     // Link card to card types
     const allCardToCardTypeValues: CardToCardType[] = [];
@@ -198,6 +210,13 @@ export async function createSetInDB(
         allCardToCardTypeValues.push(...cardToCardTypeValues);
     }
     if (allCardToCardTypeValues.length > 0) {
-        await database.insertInto("cardToCardTypes").values(allCardToCardTypeValues).execute();
+        await Promise.all(
+            allCardToCardTypeValues.map(async (cardToCardType) => {
+                return database
+                    .insertInto("cardToCardTypes")
+                    .values(cardToCardType)
+                    .executeTakeFirstOrThrow();
+            })
+        );
     }
 }
