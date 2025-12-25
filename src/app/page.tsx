@@ -2,6 +2,7 @@
 
 import { authClient, signInGoogle } from "@/app/auth-client";
 import CreateSetComponent from "./createset/page";
+import Link from "next/link";
 
 export default function Home() {
     const {
@@ -15,7 +16,8 @@ export default function Home() {
         <div>
             <button onClick={signInGoogle}>Sign in</button>
             <div>{JSON.stringify(session)}</div>
-            <CreateSetComponent />
+            <Link href="/createset">Go Create a Set</Link>
+            <Link href="/search">Search</Link>
         </div>
     );
 }

@@ -2,10 +2,9 @@
 
 import { errorIfLessPrivilegedThanMod, getSession } from "@/auth";
 import { db, Set, Photocard, SetType, CardType, CardSize, CardToCardType } from "@/db";
-import { MAX_IMAGE_SIZE_BYTES, THUMBNAIL_HEIGHT_PX } from "@/constants";
+import { fullSizeId, MAX_IMAGE_SIZE_BYTES, THUMBNAIL_HEIGHT_PX } from "@/constants";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import sharp from "sharp";
-import { get } from "http";
 
 function getEnv() {
     const { env } = getCloudflareContext();
@@ -130,15 +129,15 @@ export async function uploadImage(image: ArrayBuffer, id: string) {
     // Do not allow overwriting existing images
     // Note: The check and put race. That's fine; malicious uploads to the same UUID will just overwrite each other, and otherwise UUIDs are unlikely to collide.
     const r2 = getR2();
-    await r2.head(`${id}_fullSize`).then((existing) => {
+    await r2.head(fullSizeId(id)).then((existing) => {
         if (existing) {
             throw new Error("Image with the same ID already exists.");
         }
     });
 
     await Promise.all([
-        r2.put(`${id}_fullSize`, convertedImage.fullSize),
-        r2.put(`${id}_thumbnail`, convertedImage.thumbnail),
+        r2.put(fullSizeId(id), convertedImage.fullSize),
+        r2.put(thumbnailId(id), convertedImage.thumbnail),
     ]);
 }
 
@@ -219,4 +218,19 @@ export async function createSetInDB(
             })
         );
     }
+}
+
+export async function searchPhotocardsInDB() {
+    //TODO: Currently always shows the 50 most recently added cards, change later
+    const database = getDb();
+    return await database
+        .selectFrom("photocards")
+        .selectAll()
+        .orderBy("updatedAt", "desc")
+        .limit(50)
+        .execute();
+}
+
+function thumbnailId(id: string): string {
+    throw new Error("Function not implemented.");
 }

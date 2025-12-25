@@ -72,11 +72,12 @@
     "r2_buckets": [
         {
             "binding": "images",
-            "bucket_name": "images"
+            "bucket_name": "images",
         }
     ],
     "vars": {
         "BETTER_AUTH_URL": "https://btsflipthru.com",
         "GOOGLE_CLIENT_ID": "804677000168-flhn47sdilkqq1o9k9aiqk6dh1q8os0p.apps.googleusercontent.com",
+        "IMAGES_URL": "https://images.btsflipthru.com/"
     }
 }
