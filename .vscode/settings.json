@@ -1,5 +1,10 @@
 {
-	"files.associations": {
-		"wrangler.json": "jsonc"
-	}
+    "files.associations": {
+        "wrangler.json": "jsonc"
+    },
+    "editor.formatOnSave": true,
+    "editor.defaultFormatter": "prettier.prettier-vscode",
+    "editor.codeActionsOnSave": {
+        "source.fixAll.eslint": "explicit"
+    }
 }

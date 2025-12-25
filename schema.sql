@@ -4,7 +4,7 @@
 CREATE TABLE IF NOT EXISTS user (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
-    role TEXT NOT NULL DEFAULT 'USER',
+    role INTEGER NOT NULL DEFAULT 0,
     email TEXT NOT NULL,
     emailVerified INTEGER NOT NULL DEFAULT 0,
     image TEXT,
@@ -55,20 +55,30 @@ CREATE TABLE IF NOT EXISTS verification (
 
 -- Set table
 CREATE TABLE IF NOT EXISTS sets (
-    id TEXT PRIMARY KEY,
+    id INTEGER PRIMARY KEY,
     name TEXT NOT NULL,
+    press INTEGER NOT NULL DEFAULT 0,
     releaseDate INTEGER NOT NULL,
-    coverImageId TEXT NOT NULL
+    coverImageId TEXT
+);
+
+-- CardSize table
+CREATE TABLE IF NOT EXISTS cardSizes (
+    id INTEGER PRIMARY KEY,
+    name TEXT NOT NULL,
+    width INTEGER NOT NULL,
+    height INTEGER NOT NULL
 );
 
 -- Photocard table
 CREATE TABLE IF NOT EXISTS photocards (
-    id TEXT PRIMARY KEY,
-    setId TEXT NOT NULL,
+    id INTEGER PRIMARY KEY,
+    setId INTEGER NOT NULL,
     imageId TEXT,
     backImageId TEXT,
-    width INTEGER NOT NULL,
-    height INTEGER NOT NULL,
+    backImageType INTEGER NOT NULL DEFAULT 0,
+    sizeId INTEGER NOT NULL,
+    temporary INTEGER NOT NULL,
     effects TEXT,
     rm INTEGER NOT NULL DEFAULT 0,
     jimin INTEGER NOT NULL DEFAULT 0,
@@ -79,19 +89,20 @@ CREATE TABLE IF NOT EXISTS photocards (
     jhope INTEGER NOT NULL DEFAULT 0,
     imageContributorId TEXT NOT NULL,
     updatedAt INTEGER NOT NULL,
-    FOREIGN KEY (setId) REFERENCES sets(id) ON DELETE CASCADE
+    FOREIGN KEY (setId) REFERENCES sets(rowid),
+    FOREIGN KEY (sizeId) REFERENCES cardSizes(rowid)
 );
 
 -- SetType table
 CREATE TABLE IF NOT EXISTS setTypes (
-    id TEXT PRIMARY KEY,
+    id INTEGER PRIMARY KEY,
     name TEXT NOT NULL
 );
 
 -- SetToSetType junction table
 CREATE TABLE IF NOT EXISTS setToSetTypes (
-    setId TEXT NOT NULL,
-    setTypeId TEXT NOT NULL,
+    setId INTEGER NOT NULL,
+    setTypeId INTEGER NOT NULL,
     PRIMARY KEY (setId, setTypeId),
     FOREIGN KEY (setId) REFERENCES sets(id) ON DELETE CASCADE,
     FOREIGN KEY (setTypeId) REFERENCES setTypes(id) ON DELETE CASCADE
@@ -99,14 +110,14 @@ CREATE TABLE IF NOT EXISTS setToSetTypes (
 
 -- CardType table
 CREATE TABLE IF NOT EXISTS cardTypes (
-    id TEXT PRIMARY KEY,
+    id INTEGER PRIMARY KEY,
     name TEXT NOT NULL
 );
 
 -- CardToCardType junction table
 CREATE TABLE IF NOT EXISTS cardToCardTypes (
-    cardId TEXT NOT NULL,
-    cardTypeId TEXT NOT NULL,
+    cardId INTEGER NOT NULL,
+    cardTypeId INTEGER NOT NULL,
     PRIMARY KEY (cardId, cardTypeId),
     FOREIGN KEY (cardId) REFERENCES photocards(id) ON DELETE CASCADE,
     FOREIGN KEY (cardTypeId) REFERENCES cardTypes(id) ON DELETE CASCADE
@@ -118,7 +129,10 @@ CREATE INDEX IF NOT EXISTS idx_session_token ON session(token);
 CREATE INDEX IF NOT EXISTS idx_account_userId ON account(userId);
 CREATE INDEX IF NOT EXISTS idx_user_email ON user(email);
 CREATE INDEX IF NOT EXISTS idx_sets_name ON sets(name);
+CREATE INDEX IF NOT EXISTS idx_sets_press ON sets(press);
+CREATE INDEX IF NOT EXISTS idx_sets_releaseDate ON sets(releaseDate);
 CREATE INDEX IF NOT EXISTS idx_photocards_setId ON photocards(setId);
+CREATE INDEX IF NOT EXISTS idx_photocards_sizeId ON photocards(sizeId);
 CREATE INDEX IF NOT EXISTS idx_photocards_rm ON photocards(rm);
 CREATE INDEX IF NOT EXISTS idx_photocards_jimin ON photocards(jimin);
 CREATE INDEX IF NOT EXISTS idx_photocards_jungkook ON photocards(jungkook);
@@ -126,6 +140,8 @@ CREATE INDEX IF NOT EXISTS idx_photocards_v ON photocards(v);
 CREATE INDEX IF NOT EXISTS idx_photocards_jin ON photocards(jin);
 CREATE INDEX IF NOT EXISTS idx_photocards_suga ON photocards(suga);
 CREATE INDEX IF NOT EXISTS idx_photocards_jhope ON photocards(jhope);
+CREATE INDEX IF NOT EXISTS idx_photocards_contributorId ON photocards(imageContributorId);
+CREATE INDEX IF NOT EXISTS idx_photocards_updatedAt ON photocards(updatedAt);
 CREATE INDEX IF NOT EXISTS idx_setToSetTypes_setId ON setToSetTypes(setId);
 CREATE INDEX IF NOT EXISTS idx_setToSetTypes_setTypeId ON setToSetTypes(setTypeId);
 CREATE INDEX IF NOT EXISTS idx_cardToCardTypes_cardId ON cardToCardTypes(cardId);

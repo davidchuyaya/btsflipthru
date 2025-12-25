@@ -1,5 +1,5 @@
 import { betterAuth } from "better-auth";
-import { db, Role } from "./db";
+import { db, Role, ROLES } from "./db";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { headers } from "next/headers";
 
@@ -30,7 +30,7 @@ export const auth = (env: Env) => betterAuth({
     user: {
         additionalFields: {
             role: {
-                type: Object.keys(Role),
+                type: "number",
                 required: true,
                 default: Role.USER,
                 input: false,

@@ -10,16 +10,33 @@ export const authClient = createAuthClient({
     plugins: [inferAdditionalFields<ReturnType<typeof auth>>()]
 });
 
-export function errorIfLessPrivilegedThanMod(session: ReturnType<typeof authClient.useSession>["data"]) {
-    if (!session || session.user.role !== Role.ADMIN && session.user.role !== Role.MOD) {
-        throw new Error("Not authorized");
+type Session = ReturnType<typeof authClient.useSession>["data"];
+
+export function errorIfLessPrivilegedThanMod(session: Session) {
+    if (session) {
+        switch (session.user.role) {
+            case Role.ADMIN:
+            case Role.MOD:
+                return;
+            default:
+                // Continue to error
+                break;
+        }
     }
+    throw new Error("Not authorized");
 }
 
-export function errorIfNotAdmin(session: ReturnType<typeof authClient.useSession>["data"]) {
-    if (!session || session.user.role !== Role.ADMIN) {
-        throw new Error("Not authorized");
+export function errorIfNotAdmin(session: Session) {
+    if (session) {
+        switch (session.user.role) {
+            case Role.ADMIN:
+                return;
+            default:
+                // Continue to error
+                break;
+        }
     }
+    throw new Error("Not authorized");
 }
 
 export async function signInGoogle() {

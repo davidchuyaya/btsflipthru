@@ -1,0 +1,24 @@
+# Dependencies
+node_modules
+pnpm-lock.yaml
+
+# Build outputs
+.next
+out
+dist
+build
+*.min.js
+*.min.css
+
+# Environment files
+.env
+.env.local
+.env*.local
+
+# Wrangler
+.wrangler
+
+# Other
+coverage
+.DS_Store
+*.log

@@ -1,18 +1,46 @@
-import { Kysely } from 'kysely';
-import { D1Dialect } from 'kysely-d1';
-import { types } from 'util';
+import { Kysely } from "kysely";
+import { D1Dialect } from "kysely-d1";
 
-// Important: Do not change names of existing roles
+// Important: Any number used by an enum should not be reused in the future
 export enum Role {
-    USER = "USER",
-    MOD = "MOD",
-    ADMIN = "ADMIN",
+    USER = 0,
+    MOD = 1,
+    ADMIN = 2,
 }
+export const ROLES = Object.values(Role).filter(
+    (value) => typeof value === "number"
+) as number[];
+
+export enum Press {
+    Unknown = 0,
+    USA = 1,
+    Korea = 2,
+    Japan = 3,
+    Taiwan = 4,
+}
+export const PRESSES = Object.values(Press).filter(
+    (value) => typeof value === "number"
+) as number[];
+export const PRESSES_WITH_NAMES = Object.entries(Press).filter(
+    ([_, value]) => typeof value === "number"
+) as [string, number][];
+
+export enum BackImageType {
+    Image = 0,
+    White = 1,
+    Transparent = 2,
+}
+export const BACK_IMAGE_TYPES = Object.values(BackImageType).filter(
+    (value) => typeof value === "number"
+) as number[];
+export const BACK_IMAGE_TYPES_WITH_NAMES = Object.entries(BackImageType).filter(
+    ([_, value]) => typeof value === "number"
+) as [string, number][];
 
 interface User {
     id: string;
     name: string;
-    role: string; // Should be one of Role enum values
+    role: number; // Should be one of Role enum values
     email: string;
     emailVerified: boolean;
     image: string | null;
@@ -57,14 +85,14 @@ interface Verification {
 }
 
 export interface Photocard {
-    id: string;
+    id?: number;
     setId: string;
     imageId: string | null;
     backImageId: string | null;
-
-    width: number;
-    height: number;
+    backImageType: number; // Should be one of BackImageType enum values
+    sizeId: number;
     effects: string | null;
+    temporary: boolean; // True for all user uploads. Can be marked false by admin/mod (no more overwrites)
 
     rm: boolean;
     jimin: boolean;
@@ -79,30 +107,38 @@ export interface Photocard {
 }
 
 export interface CardType {
-    id: string;
+    id?: number;
     name: string;
 }
 
 export interface CardToCardType {
-    cardId: string;
-    cardTypeId: string;
+    cardId: number;
+    cardTypeId: number;
+}
+
+export interface CardSize {
+    id?: number;
+    name: string;
+    width: number;
+    height: number;
 }
 
 export interface Set {
-    id: string;
+    id?: number;
     name: string;
+    press: number; // Should be one of Press enum values
     releaseDate: Date;
-    coverImageId: string;
+    coverImageId: string | null;
 }
 
 export interface SetType {
-    id: string;
+    id?: number;
     name: string;
 }
 
 export interface SetToSetType {
-    setId: string;
-    setTypeId: string;
+    setId: number;
+    setTypeId: number;
 }
 
 interface Database {
@@ -113,9 +149,11 @@ interface Database {
     photocards: Photocard;
     cardTypes: CardType;
     cardToCardTypes: CardToCardType;
+    cardSizes: CardSize;
     sets: Set;
     setTypes: SetType;
     setToSetTypes: SetToSetType;
 }
 
-export const db = (env: Env) => new Kysely<Database>({ dialect: new D1Dialect({ database: env.DB }) });
+export const db = (env: Env) =>
+    new Kysely<Database>({ dialect: new D1Dialect({ database: env.DB }) });
