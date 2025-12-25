@@ -58,8 +58,7 @@ CREATE TABLE IF NOT EXISTS sets (
     id INTEGER PRIMARY KEY,
     name TEXT NOT NULL,
     press INTEGER NOT NULL DEFAULT 0,
-    releaseDate INTEGER NOT NULL,
-    coverImageId TEXT
+    releaseDate INTEGER NOT NULL
 );
 
 -- CardSize table
@@ -89,8 +88,8 @@ CREATE TABLE IF NOT EXISTS photocards (
     jhope INTEGER NOT NULL DEFAULT 0,
     imageContributorId TEXT NOT NULL,
     updatedAt INTEGER NOT NULL,
-    FOREIGN KEY (setId) REFERENCES sets(rowid),
-    FOREIGN KEY (sizeId) REFERENCES cardSizes(rowid)
+    FOREIGN KEY (setId) REFERENCES sets(id),
+    FOREIGN KEY (sizeId) REFERENCES cardSizes(id)
 );
 
 -- SetType table

@@ -10,9 +10,9 @@ export const authClient = createAuthClient({
     plugins: [inferAdditionalFields<ReturnType<typeof auth>>()]
 });
 
-type Session = ReturnType<typeof authClient.useSession>["data"];
+type ClientSession = ReturnType<typeof authClient.useSession>["data"];
 
-export function errorIfLessPrivilegedThanMod(session: Session) {
+export function errorIfLessPrivilegedThanMod(session: ClientSession) {
     if (session) {
         switch (session.user.role) {
             case Role.ADMIN:
@@ -26,7 +26,7 @@ export function errorIfLessPrivilegedThanMod(session: Session) {
     throw new Error("Not authorized");
 }
 
-export function errorIfNotAdmin(session: Session) {
+export function errorIfNotAdmin(session: ClientSession) {
     if (session) {
         switch (session.user.role) {
             case Role.ADMIN:
@@ -42,9 +42,9 @@ export function errorIfNotAdmin(session: Session) {
 export async function signInGoogle() {
     await authClient.signIn.social({
         provider: "google",
-        callbackURL: "/profile",
+        callbackURL: "/",
         errorCallbackURL: "/error",
-        newUserCallbackURL: "/profile",
+        newUserCallbackURL: "/",
         disableRedirect: false,
     });
 }

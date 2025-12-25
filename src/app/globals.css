@@ -43,3 +43,7 @@ input[type="file"]::file-selector-button {
 .flip-horizontal {
     transform: scaleX(-1);
 }
+
+.loading {
+    cursor: wait;
+}

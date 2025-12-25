@@ -1,14 +1,42 @@
 "use server";
 
-import { errorIfLessPrivilegedThanMod } from "@/auth";
-import { db, Set, Photocard, SetType, CardType, CardSize } from "@/db";
+import { errorIfLessPrivilegedThanMod, getSession } from "@/auth";
+import { db, Set, Photocard, SetType, CardType, CardSize, CardToCardType } from "@/db";
 import { MAX_IMAGE_SIZE_BYTES, THUMBNAIL_HEIGHT_PX } from "@/constants";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import sharp from "sharp";
+import { get } from "http";
+
+function getEnv() {
+    const { env } = getCloudflareContext();
+    return env as Env;
+}
 
 function getDb() {
-    const { env } = getCloudflareContext();
-    return db(env as Env);
+    return db(getEnv());
+}
+
+function getR2() {
+    return getEnv().images;
+}
+
+/**
+ * For Clients.
+ * Instead of calling a server function that might throw an error directly, wrap it in this function.
+ *
+ * @param promise
+ * @returns
+ */
+export async function callPromiseOrError<T>(promise: Promise<T>): Promise<T | { error: string }> {
+    try {
+        return await promise;
+    } catch (error) {
+        if (error instanceof Error) {
+            return { error: error.message };
+        } else {
+            return { error: "An unknown error occurred." };
+        }
+    }
 }
 
 /**
@@ -77,9 +105,7 @@ export async function getCardSizesFromDB(): Promise<CardSize[]> {
     return await database.selectFrom("cardSizes").selectAll().execute();
 }
 
-async function convertToAvif(
-    arrayBuffer: ArrayBuffer
-): Promise<{ fullSize: string; thumbnail: string }> {
+async function convertToAvif(arrayBuffer: ArrayBuffer): Promise<{ fullSize: string; thumbnail: string }> {
     const buffer = Buffer.from(arrayBuffer);
 
     // Do not convert if the image is greater than MAX_IMAGE_SIZE_BYTES
@@ -89,9 +115,7 @@ async function convertToAvif(
 
     const avif = sharp(buffer).avif();
     const fullSize = await avif.clone().toBuffer();
-    const thumbnail = await avif
-        .resize({ height: THUMBNAIL_HEIGHT_PX })
-        .toBuffer();
+    const thumbnail = await avif.resize({ height: THUMBNAIL_HEIGHT_PX }).toBuffer();
 
     return {
         fullSize: avifBufferToString(fullSize),
@@ -99,27 +123,81 @@ async function convertToAvif(
     };
 }
 
-export async function uploadImage(env: Env, image: ArrayBuffer, id: string) {
+export async function uploadImage(image: ArrayBuffer, id: string) {
     await errorIfLessPrivilegedThanMod();
     const convertedImage = await convertToAvif(image);
 
+    // Do not allow overwriting existing images
+    // Note: The check and put race. That's fine; malicious uploads to the same UUID will just overwrite each other, and otherwise UUIDs are unlikely to collide.
+    const r2 = getR2();
+    await r2.head(`${id}_fullSize`).then((existing) => {
+        if (existing) {
+            throw new Error("Image with the same ID already exists.");
+        }
+    });
+
     await Promise.all([
-        env.images.put(`${id}_fullSize`, convertedImage.fullSize),
-        env.images.put(`${id}_thumbnail`, convertedImage.thumbnail),
+        r2.put(`${id}_fullSize`, convertedImage.fullSize),
+        r2.put(`${id}_thumbnail`, convertedImage.thumbnail),
     ]);
 }
 
 export async function createSetInDB(
     set: Set,
-    photocards: Photocard[]
-): Promise<void | { error: string }> {
+    setTypes: number[],
+    photocards: Photocard[],
+    cardTypes: number[][] // Array of card type IDs for each photocard
+) {
     await errorIfLessPrivilegedThanMod();
 
+    if (photocards.length === 0) {
+        throw new Error("At least one photocard is required to create a set.");
+    }
+    if (cardTypes.length !== photocards.length) {
+        throw new Error("Each photocard must have a corresponding array of card types.");
+    }
+
+    const date = Date.now();
     const database = getDb();
-    return await database.transaction().execute(async (trx) => {
-        await trx.insertInto("sets").values(set).execute();
-        for (const photocard of photocards) {
-            await trx.insertInto("photocards").values(photocard).execute();
-        }
-    });
+    // Insert the set, get its ID
+    const setId = await database
+        .insertInto("sets")
+        .values(set)
+        .executeTakeFirstOrThrow()
+        .then((result) => Number(result.insertId));
+
+    // Link set to set types
+    if (setTypes.length > 0) {
+        const setToSetTypeValues = setTypes.map((setTypeId) => ({
+            setId: setId,
+            setTypeId: setTypeId,
+        }));
+        await database.insertInto("setToSetTypes").values(setToSetTypeValues).execute();
+    }
+
+    // Insert the photocards, linking them to the set and fixing any placeholder data
+    const session = await getSession();
+    for (const photocard of photocards) {
+        photocard.setId = setId!;
+        photocard.imageContributorId = session.user.id;
+        photocard.updatedAt = date;
+    }
+    const photocardIds = await database
+        .insertInto("photocards")
+        .values(photocards)
+        .execute()
+        .then((results) => results.map((result) => Number(result.insertId)));
+
+    // Link card to card types
+    const allCardToCardTypeValues: CardToCardType[] = [];
+    for (let i = 0; i < photocardIds.length; i++) {
+        const cardToCardTypeValues = cardTypes[i].map((typeId) => ({
+            cardId: photocardIds[i],
+            cardTypeId: typeId,
+        }));
+        allCardToCardTypeValues.push(...cardToCardTypeValues);
+    }
+    if (allCardToCardTypeValues.length > 0) {
+        await database.insertInto("cardToCardTypes").values(allCardToCardTypeValues).execute();
+    }
 }

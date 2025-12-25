@@ -86,7 +86,7 @@ interface Verification {
 
 export interface Photocard {
     id?: number;
-    setId: string;
+    setId: number;
     imageId: string | null;
     backImageId: string | null;
     backImageType: number; // Should be one of BackImageType enum values
@@ -103,7 +103,7 @@ export interface Photocard {
     jhope: boolean;
 
     imageContributorId: string;
-    updatedAt: Date;
+    updatedAt: number;
 }
 
 export interface CardType {
@@ -127,8 +127,7 @@ export interface Set {
     id?: number;
     name: string;
     press: number; // Should be one of Press enum values
-    releaseDate: Date;
-    coverImageId: string | null;
+    releaseDate: number;
 }
 
 export interface SetType {
