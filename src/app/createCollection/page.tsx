@@ -5,12 +5,12 @@ import { MAX_IMAGE_SIZE_BYTES, THUMBNAIL_HEIGHT_PX } from "@/constants";
 import {
     addCardSizeToDB,
     addCardTypeToDB,
-    addSetTypeToDB,
+    addCollectionTypeToDB,
     callPromiseOrError,
-    createSetInDB,
+    createCollectionInDB,
     getCardSizesFromDB,
     getCardTypesFromDB,
-    getSetTypesFromDB,
+    getCollectionTypesFromDB,
     uploadImage,
 } from "@/actions";
 import {
@@ -18,10 +18,8 @@ import {
     BackImageType,
     CardSize,
     CardType,
-    Press,
-    PRESSES_WITH_NAMES,
-    Set as DBSet,
-    SetType,
+    Collection,
+    CollectionType,
     Photocard,
 } from "@/db";
 
@@ -113,7 +111,7 @@ interface LocalPhotocard {
 }
 
 const DEFAULT_ID = -1;
-const DEFAULT_SET_TYPE: SetType = { id: DEFAULT_ID, name: "Select..." };
+const DEFAULT_COLLECTION_TYPE: CollectionType = { id: DEFAULT_ID, name: "Select..." };
 const DEFAULT_CARD_TYPE: CardType = { id: DEFAULT_ID, name: "Select..." };
 const DEFAULT_CARD_SIZE: CardSize = {
     id: DEFAULT_ID,
@@ -376,18 +374,16 @@ function CreatePhotocardComponent({
     );
 }
 
-export default function CreateSetComponent() {
-    const [setName, setSetName] = useState<string>("");
+export default function CreateCollectionComponent() {
+    const [collectionName, setCollectionName] = useState<string>("");
     const [date, setDate] = useState<string>("");
-    const [createSetClicked, setCreateSetClicked] = useState<boolean>(false);
-    const [press, setPress] = useState<Press>(Press.Unknown);
     const [photocards, setPhotocards] = useState<Array<LocalPhotocard>>([]);
     const [sameBackImageFile, setSameBackImageFile] = useState<File | null>(null);
 
-    const [newSetTypeName, setNewSetTypeName] = useState<string>("");
-    const [possibleSetTypes, setPossibleSetTypes] = useState<Array<SetType>>([]);
+    const [newCollectionTypeName, setNewCollectionTypeName] = useState<string>("");
+    const [possibleCollectionTypes, setPossibleCollectionTypes] = useState<Array<CollectionType>>([]);
 
-    const [setTypeIds, setSetTypeIds] = useState<Array<SetType>>([DEFAULT_SET_TYPE]);
+    const [collectionTypeIds, setCollectionTypeIds] = useState<Array<CollectionType>>([DEFAULT_COLLECTION_TYPE]);
 
     const [newCardTypeName, setNewCardTypeName] = useState<string>("");
     const [possibleCardTypes, setPossibleCardTypes] = useState<Array<CardType>>([]);
@@ -399,43 +395,39 @@ export default function CreateSetComponent() {
 
     const [isUploading, uploadTransition] = useTransition();
 
-    async function onCreateSet() {
-        if (createSetClicked) {
-            return;
-        }
-        setCreateSetClicked(true);
-        const serverSetTypes = await getSetTypesFromDB();
-        setPossibleSetTypes([DEFAULT_SET_TYPE, ...serverSetTypes]);
+    async function onCreateCollection() {
+        const serverCollectionTypes = await getCollectionTypesFromDB();
+        setPossibleCollectionTypes([DEFAULT_COLLECTION_TYPE, ...serverCollectionTypes]);
         const serverCardTypes = await getCardTypesFromDB();
         setPossibleCardTypes([DEFAULT_CARD_TYPE, ...serverCardTypes]);
         const serverCardSizes = await getCardSizesFromDB();
         setPossibleCardSizes([DEFAULT_CARD_SIZE, ...serverCardSizes]);
     }
 
-    async function onCreateSetType() {
-        if (newSetTypeName.trim() === "") {
+    async function onCreateCollectionType() {
+        if (newCollectionTypeName.trim() === "") {
             return;
         }
-        const result = await callPromiseOrError(addSetTypeToDB({ name: newSetTypeName }));
+        const result = await callPromiseOrError(addCollectionTypeToDB({ name: newCollectionTypeName }));
         if (!result) {
-            alert("Error creating set type");
+            alert("Error creating collection type");
             return;
         }
         if (typeof result === "object" && "error" in result) {
-            alert(`Error creating set type: ${result.error}`);
+            alert(`Error creating collection type: ${result.error}`);
             return;
         }
-        setPossibleSetTypes([...possibleSetTypes, { id: Number(result), name: newSetTypeName }]);
+        setPossibleCollectionTypes([...possibleCollectionTypes, { id: Number(result), name: newCollectionTypeName }]);
     }
 
-    async function onAddSetType() {
-        setSetTypeIds([...setTypeIds, DEFAULT_SET_TYPE]);
+    async function onAddCollectionType() {
+        setCollectionTypeIds([...collectionTypeIds, DEFAULT_COLLECTION_TYPE]);
     }
 
-    function onChangeSetType(index: number, setType: { id: number; name: string }) {
-        const updated = [...setTypeIds];
-        updated[index] = setType;
-        setSetTypeIds(updated);
+    function onChangeCollectionType(index: number, collectionType: { id: number; name: string }) {
+        const updated = [...collectionTypeIds];
+        updated[index] = collectionType;
+        setCollectionTypeIds(updated);
     }
 
     async function onCreateCardType() {
@@ -463,7 +455,7 @@ export default function CreateSetComponent() {
                 name: newCardSizeName,
                 width: newCardSizeWidth,
                 height: newCardSizeHeight,
-            })
+            }),
         );
         if (!result) {
             alert("Error creating card size");
@@ -554,14 +546,14 @@ export default function CreateSetComponent() {
     }
 
     /**
-     * Upload the set and photocards.
+     * Upload the collection and photocards.
      * Note that the upload is not transactional; writes to the DB will happen before the photos are uploaded, to reduce the chance of straggling images.
      *
-     * Converts `LocalPhotocard` to `Photocard` and call `createSetInDB`.
+     * Converts `LocalPhotocard` to `Photocard` and call `createCollectionInDB`.
      */
     async function onUpload() {
-        if (setName.trim() === "") {
-            alert("Set name is required");
+        if (collectionName.trim() === "") {
+            alert("Collection name is required");
             return;
         }
         // If any photocard doesn't have its size set yet, error
@@ -573,14 +565,15 @@ export default function CreateSetComponent() {
         }
 
         uploadTransition(async () => {
-            // Alias for Set, avoid collision with Hash Set used below
-            const set: DBSet = {
-                name: setName,
-                press: press,
+            // Alias for Collection, avoid collision with Hash Set used below
+            const collection: Collection = {
+                name: collectionName,
                 releaseDate: new Date(date).getTime(),
             };
 
-            const setTypes = setTypeIds.filter((setType) => setType.id !== DEFAULT_ID).map((setType) => setType.id!);
+            const collectionTypes = collectionTypeIds
+                .filter((collectionType) => collectionType.id !== DEFAULT_ID)
+                .map((collectionType) => collectionType.id!);
 
             // Find the number of unique images we have to upload
             // Use the image size as a proxy, since we don't want to compare ArrayBuffers
@@ -607,7 +600,7 @@ export default function CreateSetComponent() {
 
             // Create Photocard objects
             const photocardsToCreate: Photocard[] = photocards.map((localPhotocard) => ({
-                setId: 0, // Placeholder, will be set in `createSetInDB`
+                collectionId: 0, // Placeholder, will be set in `createCollectionInDB`
                 imageId: localPhotocard.imageFile ? imageSizeToUUID.get(localPhotocard.imageFile.size)! : null,
                 backImageId: localPhotocard.backImageFile
                     ? imageSizeToUUID.get(localPhotocard.backImageFile.size)!
@@ -616,6 +609,7 @@ export default function CreateSetComponent() {
                 sizeId: localPhotocard.sizeId,
                 effects: null, // TODO: Allow effects
                 temporary: localPhotocard.temporary,
+                exclusiveCountry: null, // TODO: Allow exclusive country
 
                 rm: localPhotocard.rm,
                 jimin: localPhotocard.jimin,
@@ -630,11 +624,13 @@ export default function CreateSetComponent() {
             }));
 
             const cardTypes: number[][] = photocards.map((localPhotocard) =>
-                localPhotocard.cardTypes.filter((type) => type.id !== DEFAULT_ID).map((type) => type.id!)
+                localPhotocard.cardTypes.filter((type) => type.id !== DEFAULT_ID).map((type) => type.id!),
             );
 
             // Call the server and create DB entries
-            const result = await callPromiseOrError(createSetInDB(set, setTypes, photocardsToCreate, cardTypes));
+            const result = await callPromiseOrError(
+                createCollectionInDB(collection, collectionTypes, photocardsToCreate, cardTypes),
+            );
             if (result && result.error) {
                 alert(`Error uploading: ${result.error}`);
                 return;
@@ -646,7 +642,7 @@ export default function CreateSetComponent() {
                 if (photocard.imageFile && imageSizeToUUID.has(photocard.imageFile.size)) {
                     const imageId = imageSizeToUUID.get(photocard.imageFile.size)!;
                     const result = await callPromiseOrError(
-                        uploadImage(await photocard.imageFile.arrayBuffer(), imageId)
+                        uploadImage(await photocard.imageFile.arrayBuffer(), imageId),
                     );
                     if (result && result.error) {
                         alert(`Error uploading image for photocard: ${result.error}`);
@@ -658,7 +654,7 @@ export default function CreateSetComponent() {
                 if (photocard.backImageFile && imageSizeToUUID.has(photocard.backImageFile.size)) {
                     const backImageId = imageSizeToUUID.get(photocard.backImageFile.size)!;
                     const result = await callPromiseOrError(
-                        uploadImage(await photocard.backImageFile.arrayBuffer(), backImageId)
+                        uploadImage(await photocard.backImageFile.arrayBuffer(), backImageId),
                     );
                     if (result && result.error) {
                         alert(`Error uploading back image for photocard: ${result.error}`);
@@ -677,12 +673,11 @@ export default function CreateSetComponent() {
      * Only clears the state of variables that won't be useful for the next album
      */
     function clearLocalState() {
-        setSetName("");
+        setCollectionName("");
         setDate("");
         setPhotocards([]);
         setSameBackImageFile(null);
-        setCreateSetClicked(false);
-        setNewSetTypeName("");
+        setNewCollectionTypeName("");
         setNewCardTypeName("");
         setNewCardSizeName("");
         setNewCardSizeWidth(0);
@@ -691,89 +686,71 @@ export default function CreateSetComponent() {
 
     return (
         <div className={isUploading ? "loading" : ""}>
-            <button onClick={onCreateSet}>Create Set</button>
-            {createSetClicked ? (
+            <div>
+                <input type="text" placeholder="Collection Name" onChange={(e) => setCollectionName(e.target.value)} />
+                Release date: <input type="date" onChange={(e) => setDate(e.target.value)} />
                 <div>
-                    <input type="text" placeholder="Set Name" onChange={(e) => setSetName(e.target.value)} />
-                    Release date: <input type="date" onChange={(e) => setDate(e.target.value)} />
-                    <div>
-                        Set category:
-                        {setTypeIds.map((setType, index) => (
-                            <select
-                                name="setType"
-                                onChange={(e) =>
-                                    onChangeSetType(index, {
-                                        id: Number(e.target.value),
-                                        name: e.target.name,
-                                    })
-                                }
-                                key={index}
-                            >
-                                {possibleSetTypes.map((setType) => (
-                                    <option key={setType.id} value={setType.id}>
-                                        {setType.name}
-                                    </option>
-                                ))}
-                            </select>
-                        ))}
-                        <button onClick={onAddSetType}>Add Another</button>
-                    </div>
-                    <div>
-                        Press:
-                        {PRESSES_WITH_NAMES.map(([possiblePress, id]) => (
-                            <label className="m-3" key={id}>
-                                <input
-                                    type="radio"
-                                    name="press"
-                                    onChange={() => setPress(id)}
-                                    checked={press === id}
-                                    className="mr-2"
-                                />
-                                {possiblePress}
-                            </label>
-                        ))}
-                    </div>
-                    <div>
-                        Missing a set category?
-                        <input
-                            type="text"
-                            placeholder="New Set Category"
-                            onChange={(e) => setNewSetTypeName(e.target.value)}
-                        />
-                        <button onClick={onCreateSetType}>Create a Set Category</button>
-                    </div>
-                    <div>
-                        Missing a card type?
-                        <input
-                            type="text"
-                            placeholder="New Card Type"
-                            onChange={(e) => setNewCardTypeName(e.target.value)}
-                        />
-                        <button onClick={onCreateCardType}>Create a Card Type</button>
-                    </div>
-                    <div>
-                        Missing a card size?
-                        <input
-                            type="text"
-                            placeholder="New Card Size Name"
-                            onChange={(e) => setNewCardSizeName(e.target.value)}
-                        />
-                        <input
-                            type="number"
-                            placeholder="Width (in)"
-                            onChange={(e) => setNewCardSizeWidth(Number(e.target.value))}
-                        />
-                        <input
-                            type="number"
-                            placeholder="Height (in)"
-                            onChange={(e) => setNewCardSizeHeight(Number(e.target.value))}
-                        />
-                        <button onClick={onCreateCardSize}>Create a Card Size</button>
-                    </div>
-                    <button onClick={onAddPhotocard}>Add Photocard</button>
-                    <button onClick={onAddPhotocardForEachMember}>Add a Photocard for Each Member</button>
+                    Collection category:
+                    {collectionTypeIds.map((collectionType, index) => (
+                        <select
+                            name="collectionType"
+                            onChange={(e) =>
+                                onChangeCollectionType(index, {
+                                    id: Number(e.target.value),
+                                    name: e.target.name,
+                                })
+                            }
+                            key={index}
+                        >
+                            {possibleCollectionTypes.map((collectionType) => (
+                                <option key={collectionType.id} value={collectionType.id}>
+                                    {collectionType.name}
+                                </option>
+                            ))}
+                        </select>
+                    ))}
+                    <button onClick={onAddCollectionType}>Add Another</button>
                 </div>
-            ) : null}
+                <div>
+                    Missing a collection category?
+                    <input
+                        type="text"
+                        placeholder="New Collection Category"
+                        onChange={(e) => setNewCollectionTypeName(e.target.value)}
+                    />
+                    <button onClick={onCreateCollectionType}>Create a Collection Category</button>
+                </div>
+                <div>
+                    Missing a card type?
+                    <input
+                        type="text"
+                        placeholder="New Card Type"
+                        onChange={(e) => setNewCardTypeName(e.target.value)}
+                    />
+                    <button onClick={onCreateCardType}>Create a Card Type</button>
+                </div>
+                <div>
+                    Missing a card size?
+                    <input
+                        type="text"
+                        placeholder="New Card Size Name"
+                        onChange={(e) => setNewCardSizeName(e.target.value)}
+                    />
+                    <input
+                        type="number"
+                        placeholder="Width (in)"
+                        onChange={(e) => setNewCardSizeWidth(Number(e.target.value))}
+                    />
+                    <input
+                        type="number"
+                        placeholder="Height (in)"
+                        onChange={(e) => setNewCardSizeHeight(Number(e.target.value))}
+                    />
+                    <button onClick={onCreateCardSize}>Create a Card Size</button>
+                </div>
+                <button onClick={onAddPhotocard}>Add Photocard</button>
+                <button onClick={onAddPhotocardForEachMember}>Add a Photocard for Each Member</button>
+            </div>
 
             <div className="flex flex-wrap gap-8">
                 {photocards.map((photocard, index) => (

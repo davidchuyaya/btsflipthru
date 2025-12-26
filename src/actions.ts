@@ -1,7 +1,7 @@
 "use server";
 
 import { errorIfLessPrivilegedThanMod, getSession } from "@/auth";
-import { db, Set, Photocard, SetType, CardType, CardSize, CardToCardType } from "@/db";
+import { db, Collection, Photocard, CollectionType, CardType, CardSize, CardToCardType } from "@/db";
 import { fullSizeId, MAX_IMAGE_SIZE_BYTES, THUMBNAIL_HEIGHT_PX } from "@/constants";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import sharp from "sharp";
@@ -40,21 +40,21 @@ export async function callPromiseOrError<T>(promise: Promise<T>): Promise<T | { 
 
 /**
  *
- * @param setType Only the name field is used
- * @returns The auto-assigned ID of the set type. Output is undefined if error occurs
+ * @param collectionType Only the name field is used
+ * @returns The auto-assigned ID of the collection type. Output is undefined if error occurs
  */
-export async function addSetTypeToDB(setType: SetType) {
+export async function addCollectionTypeToDB(collectionType: CollectionType) {
     await errorIfLessPrivilegedThanMod();
     return await getDb()
-        .insertInto("setTypes")
-        .values({ name: setType.name })
+        .insertInto("collectionTypes")
+        .values({ name: collectionType.name })
         .executeTakeFirst()
         .then((result) => result.insertId);
 }
 
-export async function getSetTypesFromDB(): Promise<SetType[]> {
+export async function getCollectionTypesFromDB(): Promise<CollectionType[]> {
     const database = getDb();
-    return await database.selectFrom("setTypes").selectAll().execute();
+    return await database.selectFrom("collectionTypes").selectAll().execute();
 }
 
 /**
@@ -141,9 +141,9 @@ export async function uploadImage(image: ArrayBuffer, id: string) {
     ]);
 }
 
-export async function createSetInDB(
-    set: Set,
-    setTypes: number[],
+export async function createCollectionInDB(
+    collection: Collection,
+    collectionTypes: number[],
     photocards: Photocard[],
     cardTypes: number[][] // Array of card type IDs for each photocard
 ) {
@@ -155,24 +155,24 @@ export async function createSetInDB(
 
     const date = Date.now();
     const database = getDb();
-    // Insert the set, get its ID
-    const setId = await database
-        .insertInto("sets")
-        .values(set)
+    // Insert the collection, get its ID
+    const collectionId = await database
+        .insertInto("collections")
+        .values(collection)
         .executeTakeFirstOrThrow()
         .then((result) => Number(result.insertId));
 
-    // Link set to set types
-    if (setTypes.length > 0) {
-        const setToSetTypeValues = setTypes.map((setTypeId) => ({
-            setId: setId,
-            setTypeId: setTypeId,
+    // Link collection to collection types
+    if (collectionTypes.length > 0) {
+        const collectionToCollectionTypeValues = collectionTypes.map((collectionTypeId) => ({
+            collectionId: collectionId,
+            collectionTypeId: collectionTypeId,
         }));
         await Promise.all(
-            setToSetTypeValues.map(async (setToSetType) => {
+            collectionToCollectionTypeValues.map(async (collectionToCollectionType) => {
                 return database
-                    .insertInto("setToSetTypes")
-                    .values(setToSetType)
+                    .insertInto("collectionToCollectionTypes")
+                    .values(collectionToCollectionType)
                     .executeTakeFirstOrThrow();
             }
         ));
@@ -182,10 +182,10 @@ export async function createSetInDB(
         return;
     }
 
-    // Insert the photocards, linking them to the set and fixing any placeholder data
+    // Insert the photocards, linking them to the collection and fixing any placeholder data
     const session = await getSession();
     for (const photocard of photocards) {
-        photocard.setId = setId!;
+        photocard.collectionId = collectionId!;
         photocard.imageContributorId = session.user.id;
         photocard.updatedAt = date;
     }

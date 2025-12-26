@@ -7,34 +7,47 @@ export enum Role {
     MOD = 1,
     ADMIN = 2,
 }
-export const ROLES = Object.values(Role).filter(
-    (value) => typeof value === "number"
-) as number[];
+export const ROLES = Object.values(Role).filter((value) => typeof value === "number") as number[];
 
-export enum Press {
-    Unknown = 0,
-    USA = 1,
-    Korea = 2,
-    Japan = 3,
-    Taiwan = 4,
+export enum ExclusiveCountry {
+    USA = "USA",
+    Korea = "Korea",
+    Japan = "Japan",
+    Taiwan = "Taiwan",
+    Australia = "Australia",
+    Brazil = "Brazil",
+    Canada = "Canada",
+    Chile = "Chile",
+    China = "China",
+    England = "England",
+    France = "France",
+    Germany = "Germany",
+    HongKong = "Hong Kong",
+    Indonesia = "Indonesia",
+    Italy = "Italy",
+    Malaysia = "Malaysia",
+    Mexico = "Mexico",
+    Netherlands = "Netherlands",
+    Philippines = "Philippines",
+    Russia = "Russia",
+    Singapore = "Singapore",
+    Spain = "Spain",
+    Sweden = "Sweden",
+    Thailand = "Thailand",
+    UnitedArabEmirates = "United Arab Emirates",
+    Vietnam = "Vietnam",
 }
-export const PRESSES = Object.values(Press).filter(
-    (value) => typeof value === "number"
-) as number[];
-export const PRESSES_WITH_NAMES = Object.entries(Press).filter(
-    ([_, value]) => typeof value === "number"
-) as [string, number][];
+export const EXCLUSIVE_COUNTRIES = Object.values(ExclusiveCountry);
+export const EXCLUSIVE_COUNTRIES_WITH_NAMES = Object.entries(ExclusiveCountry);
 
 export enum BackImageType {
     Image = 0,
     White = 1,
     Transparent = 2,
 }
-export const BACK_IMAGE_TYPES = Object.values(BackImageType).filter(
-    (value) => typeof value === "number"
-) as number[];
+export const BACK_IMAGE_TYPES = Object.values(BackImageType).filter((value) => typeof value === "number") as number[];
 export const BACK_IMAGE_TYPES_WITH_NAMES = Object.entries(BackImageType).filter(
-    ([_, value]) => typeof value === "number"
+    ([_, value]) => typeof value === "number",
 ) as [string, number][];
 
 interface User {
@@ -86,13 +99,14 @@ interface Verification {
 
 export interface Photocard {
     id?: number;
-    setId: number;
+    collectionId: number;
     imageId: string | null;
     backImageId: string | null;
     backImageType: number; // Should be one of BackImageType enum values
     sizeId: number;
     effects: string | null;
     temporary: boolean; // True for all user uploads. Can be marked false by admin/mod (no more overwrites)
+    exclusiveCountry: string | null; // Should be one of ExclusiveCountry enum key types or null
 
     rm: boolean;
     jimin: boolean;
@@ -123,21 +137,20 @@ export interface CardSize {
     height: number;
 }
 
-export interface Set {
+export interface Collection {
     id?: number;
     name: string;
-    press: number; // Should be one of Press enum values
     releaseDate: number;
 }
 
-export interface SetType {
+export interface CollectionType {
     id?: number;
     name: string;
 }
 
-export interface SetToSetType {
-    setId: number;
-    setTypeId: number;
+export interface CollectionToCollectionType {
+    collectionId: number;
+    collectionTypeId: number;
 }
 
 interface Database {
@@ -149,10 +162,9 @@ interface Database {
     cardTypes: CardType;
     cardToCardTypes: CardToCardType;
     cardSizes: CardSize;
-    sets: Set;
-    setTypes: SetType;
-    setToSetTypes: SetToSetType;
+    collections: Collection;
+    collectionTypes: CollectionType;
+    collectionToCollectionTypes: CollectionToCollectionType;
 }
 
-export const db = (env: Env) =>
-    new Kysely<Database>({ dialect: new D1Dialect({ database: env.DB }) });
+export const db = (env: Env) => new Kysely<Database>({ dialect: new D1Dialect({ database: env.DB }) });

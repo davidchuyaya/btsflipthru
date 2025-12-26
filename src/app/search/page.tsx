@@ -15,7 +15,7 @@ function PhotocardItem({ card }: { card: Photocard }) {
             {frontImageUrl ? <img src={frontImageUrl} alt={`Photocard ${card.id} front`} /> : null}
             Back:
             {backImageUrl ? <img src={backImageUrl} alt={`Photocard ${card.id} back`} /> : null}
-            <p>Set ID: {card.setId}</p>
+            <p>Collection ID: {card.collectionId}</p>
         </div>
     );
 }
