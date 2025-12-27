@@ -2,6 +2,7 @@
 
 :root {
     --background: #a29bfe;
+    --light-primary: #c3bffc;
     --foreground: #171717;
 }
 
@@ -46,4 +47,16 @@ input[type="file"]::file-selector-button {
 
 .loading {
     cursor: wait;
+}
+
+.light-primary-background {
+    background-color: var(--light-primary);
+}
+
+input {
+    text-align: center;
+}
+
+label {
+    margin-right: 0.5em;
 }

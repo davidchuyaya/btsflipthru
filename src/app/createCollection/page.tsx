@@ -38,7 +38,7 @@ function UploadImageButton({
     forceConvertedImage,
     onImageConverted,
 }: {
-    desc: string;
+    desc?: string;
     disableUpload?: boolean;
     imgClassName?: string;
     forceConvertedImage?: ConvertedImage | null;
@@ -82,16 +82,18 @@ function UploadImageButton({
     const displayImage = convertedImage;
 
     return (
-        <div>
-            <p>{desc}</p>
-            <input
-                hidden={disableUpload}
-                ref={inputRef}
-                type="file"
-                name="uploadImage"
-                accept="image/png, image/jpeg, image/avif, image/webp"
-                onChange={handleFileChange}
-            />
+        <div className="flex flex-col items-center gap-2">
+            <div className="flex flex-row items-center gap-2">
+                {desc && <p className="font-semibold">{desc}:</p>}
+                <input
+                    hidden={disableUpload}
+                    ref={inputRef}
+                    type="file"
+                    name="uploadImage"
+                    accept="image/png, image/jpeg, image/avif, image/webp"
+                    onChange={handleFileChange}
+                />
+            </div>
             {isConverting && <p>Converting...</p>}
             {displayImage && !showFileError ? (
                 <div>
@@ -155,6 +157,7 @@ function CreatePhotocardComponent({
     onSameBackImageClick,
     onSameCardTypeClick,
     onSameCardSizeClick,
+    keyId,
 }: {
     photocard: LocalPhotocard;
     possibleCardSizes: Array<CardSize>;
@@ -164,6 +167,7 @@ function CreatePhotocardComponent({
     onSameBackImageClick: (converted: ConvertedImage) => void;
     onSameCardTypeClick: (cardType: CardType) => void;
     onSameCardSizeClick: (cardSizeId: number) => void;
+    keyId: number;
 }) {
     const [showBackImageButton, setShowBackImageButton] = useState<boolean>(false);
 
@@ -192,22 +196,25 @@ function CreatePhotocardComponent({
     }
 
     return (
-        <div>
+        <div key={keyId} className="light-primary-background p-4 rounded-lg flex flex-col gap-4 items-center">
             <UploadImageButton desc="Front" onImageConverted={handleFrontChange} />
-            Back of card:
-            {BACK_IMAGE_TYPES_WITH_NAMES.map(([name, value]) => (
-                <label key={value}>
-                    <input
-                        type="radio"
-                        name="backImageType"
-                        checked={photocard.backImageType === value}
-                        onChange={() => onChange({ ...photocard, backImageType: value })}
-                    />
-                    {name}
-                </label>
-            ))}
+            <div className="font-semibold">Back of card:</div>
+            <div>
+                {BACK_IMAGE_TYPES_WITH_NAMES.map(([name, value]) => (
+                    <label key={value}>
+                        <input
+                            key={value}
+                            type="radio"
+                            name={`backImageType_${keyId}`}
+                            checked={photocard.backImageType === value}
+                            onChange={() => onChange({ ...photocard, backImageType: value })}
+                        />
+                        {name}
+                    </label>
+                ))}
+            </div>
+
             <UploadImageButton
-                desc="Back"
                 disableUpload={photocard.backImageType !== BackImageType.Image}
                 onImageConverted={handleBackChange}
                 forceConvertedImage={
@@ -225,104 +232,110 @@ function CreatePhotocardComponent({
             >
                 Use this back image for all current photocards
             </button>
-            <label>
-                <input
-                    type="checkbox"
-                    checked={photocard.rm}
-                    onChange={() => onChange({ ...photocard, rm: !photocard.rm })}
-                />
-                RM
-            </label>
-            <label>
-                <input
-                    type="checkbox"
-                    checked={photocard.jimin}
-                    onChange={() => onChange({ ...photocard, jimin: !photocard.jimin })}
-                />
-                Jimin
-            </label>
-            <label>
-                <input
-                    type="checkbox"
-                    checked={photocard.jungkook}
-                    onChange={() =>
-                        onChange({
-                            ...photocard,
-                            jungkook: !photocard.jungkook,
-                        })
-                    }
-                />
-                Jungkook
-            </label>
-            <label>
-                <input
-                    type="checkbox"
-                    checked={photocard.v}
-                    onChange={() => onChange({ ...photocard, v: !photocard.v })}
-                />
-                V
-            </label>
-            <label>
-                <input
-                    type="checkbox"
-                    checked={photocard.jin}
-                    onChange={() => onChange({ ...photocard, jin: !photocard.jin })}
-                />
-                Jin
-            </label>
-            <label>
-                <input
-                    type="checkbox"
-                    checked={photocard.suga}
-                    onChange={() => onChange({ ...photocard, suga: !photocard.suga })}
-                />
-                Suga
-            </label>
-            <label>
-                <input
-                    type="checkbox"
-                    checked={photocard.jhope}
-                    onChange={() => onChange({ ...photocard, jhope: !photocard.jhope })}
-                />
-                J-Hope
-            </label>
-            <label>
-                <input
-                    type="checkbox"
-                    checked={
-                        photocard.rm &&
-                        photocard.jimin &&
-                        photocard.jungkook &&
-                        photocard.v &&
-                        photocard.jin &&
-                        photocard.suga &&
-                        photocard.jhope
-                    }
-                    onChange={() => {
-                        const ot7 =
+            <div className="flex flex-col gap-2 items-center">
+                <div className="font-semibold">Member:</div>
+                <div>
+                    <label>
+                        <input
+                            type="checkbox"
+                            checked={photocard.rm}
+                            onChange={() => onChange({ ...photocard, rm: !photocard.rm })}
+                        />
+                        RM
+                    </label>
+                    <label>
+                        <input
+                            type="checkbox"
+                            checked={photocard.jimin}
+                            onChange={() => onChange({ ...photocard, jimin: !photocard.jimin })}
+                        />
+                        Jimin
+                    </label>
+                    <label>
+                        <input
+                            type="checkbox"
+                            checked={photocard.jungkook}
+                            onChange={() =>
+                                onChange({
+                                    ...photocard,
+                                    jungkook: !photocard.jungkook,
+                                })
+                            }
+                        />
+                        Jungkook
+                    </label>
+                    <label>
+                        <input
+                            type="checkbox"
+                            checked={photocard.v}
+                            onChange={() => onChange({ ...photocard, v: !photocard.v })}
+                        />
+                        V
+                    </label>
+                    <label>
+                        <input
+                            type="checkbox"
+                            checked={photocard.jin}
+                            onChange={() => onChange({ ...photocard, jin: !photocard.jin })}
+                        />
+                        Jin
+                    </label>
+                    <label>
+                        <input
+                            type="checkbox"
+                            checked={photocard.suga}
+                            onChange={() => onChange({ ...photocard, suga: !photocard.suga })}
+                        />
+                        Suga
+                    </label>
+                    <label>
+                        <input
+                            type="checkbox"
+                            checked={photocard.jhope}
+                            onChange={() => onChange({ ...photocard, jhope: !photocard.jhope })}
+                        />
+                        J-Hope
+                    </label>
+                </div>
+                <label>
+                    <input
+                        type="checkbox"
+                        checked={
                             photocard.rm &&
                             photocard.jimin &&
                             photocard.jungkook &&
                             photocard.v &&
                             photocard.jin &&
                             photocard.suga &&
-                            photocard.jhope;
-                        onChange({
-                            ...photocard,
-                            rm: !ot7,
-                            jimin: !ot7,
-                            jungkook: !ot7,
-                            v: !ot7,
-                            jin: !ot7,
-                            suga: !ot7,
-                            jhope: !ot7,
-                        });
-                    }}
-                />
-                OT7
-            </label>
-            <div>
-                Card Size:
+                            photocard.jhope
+                        }
+                        onChange={() => {
+                            const ot7 =
+                                photocard.rm &&
+                                photocard.jimin &&
+                                photocard.jungkook &&
+                                photocard.v &&
+                                photocard.jin &&
+                                photocard.suga &&
+                                photocard.jhope;
+                            onChange({
+                                ...photocard,
+                                rm: !ot7,
+                                jimin: !ot7,
+                                jungkook: !ot7,
+                                v: !ot7,
+                                jin: !ot7,
+                                suga: !ot7,
+                                jhope: !ot7,
+                            });
+                        }}
+                    />
+                    OT7
+                </label>
+            </div>
+
+            <div className="flex flex-row gap-2 items-center">
+                <div className="font-semibold">Card Size:</div>
                 <select
                     name="cardSize"
                     onChange={(e) =>
@@ -344,9 +357,8 @@ function CreatePhotocardComponent({
                     Use this card size for all current photocards
                 </button>
             </div>
-            <div></div>
-            <div>
-                Card Type:
+            <div className="flex flex-row gap-2 items-center">
+                <div className="font-semibold">Card Type:</div>
                 <select
                     name="cardType"
                     onChange={(e) =>
@@ -383,8 +395,8 @@ function CreatePhotocardComponent({
                 Mark as temporary
             </label>
             {
-                <div>
-                    Exclusive to country:
+                <div className="flex flex-row gap-2 items-center">
+                    <div className="font-semibold">Exclusive to country:</div>
                     <select
                         name="exclusiveCountry"
                         onChange={(e) =>
@@ -698,74 +710,79 @@ export default function CreateCollectionComponent() {
     }
 
     return (
-        <div className={isUploading ? "loading" : ""}>
+        <div className={`${isUploading ? "loading" : ""} flex flex-col gap-4 m-4 items-center`}>
+            <input
+                className="text-3xl w-200"
+                type="text"
+                placeholder="Collection Name"
+                onChange={(e) => setCollectionName(e.target.value)}
+            />
             <div>
-                <input type="text" placeholder="Collection Name" onChange={(e) => setCollectionName(e.target.value)} />
                 Release date: <input type="date" onChange={(e) => setDate(e.target.value)} />
-                <div>
-                    Collection category:
-                    {collectionTypeIds.map((collectionType, index) => (
-                        <select
-                            name="collectionType"
-                            onChange={(e) =>
-                                onChangeCollectionType(index, {
-                                    id: Number(e.target.value),
-                                    name: e.target.name,
-                                })
-                            }
-                            key={index}
-                        >
-                            {possibleCollectionTypes.map((collectionType) => (
-                                <option key={collectionType.id} value={collectionType.id}>
-                                    {collectionType.name}
-                                </option>
-                            ))}
-                        </select>
-                    ))}
-                    <button onClick={onAddCollectionType}>Add Another</button>
-                </div>
-                <div>
-                    Missing a collection category?
-                    <input
-                        type="text"
-                        placeholder="New Collection Category"
-                        onChange={(e) => setNewCollectionTypeName(e.target.value)}
-                    />
-                    <button onClick={onCreateCollectionType}>Create a Collection Category</button>
-                </div>
-                <div>
-                    Missing a card type?
-                    <input
-                        type="text"
-                        placeholder="New Card Type"
-                        onChange={(e) => setNewCardTypeName(e.target.value)}
-                    />
-                    <button onClick={onCreateCardType}>Create a Card Type</button>
-                </div>
-                <div>
-                    Missing a card size?
-                    <input
-                        type="text"
-                        placeholder="New Card Size Name"
-                        onChange={(e) => setNewCardSizeName(e.target.value)}
-                    />
-                    <input
-                        type="number"
-                        placeholder="Width (in)"
-                        onChange={(e) => setNewCardSizeWidth(Number(e.target.value))}
-                    />
-                    <input
-                        type="number"
-                        placeholder="Height (in)"
-                        onChange={(e) => setNewCardSizeHeight(Number(e.target.value))}
-                    />
-                    <button onClick={onCreateCardSize}>Create a Card Size</button>
-                </div>
-                <button onClick={onAddPhotocard}>Add Photocard</button>
-                <button onClick={onAddPhotocardForEachMember}>Add a Photocard for Each Member</button>
             </div>
 
-            <div className="flex flex-wrap gap-8">
+            <div className="flex flex-row gap-4 items-center">
+                <div>Collection category:</div>
+                {collectionTypeIds.map((collectionType, index) => (
+                    <select
+                        name="collectionType"
+                        onChange={(e) =>
+                            onChangeCollectionType(index, {
+                                id: Number(e.target.value),
+                                name: e.target.name,
+                            })
+                        }
+                        key={index}
+                    >
+                        {possibleCollectionTypes.map((collectionType) => (
+                            <option key={collectionType.id} value={collectionType.id}>
+                                {collectionType.name}
+                            </option>
+                        ))}
+                    </select>
+                ))}
+                <button onClick={onAddCollectionType}>+ Add Another</button>
+            </div>
+            <div className="flex flex-row gap-4 items-center">
+                Missing a collection category?
+                <input
+                    className="w-50"
+                    type="text"
+                    placeholder="New Collection Category"
+                    onChange={(e) => setNewCollectionTypeName(e.target.value)}
+                />
+                <button onClick={onCreateCollectionType}>Create a Collection Category</button>
+            </div>
+            <div className="flex flex-row gap-4 items-center">
+                Missing a card type?
+                <input type="text" placeholder="New Card Type" onChange={(e) => setNewCardTypeName(e.target.value)} />
+                <button onClick={onCreateCardType}>Create a Card Type</button>
+            </div>
+            <div className="flex flex-row gap-4 items-center">
+                Missing a card size?
+                <input
+                    type="text"
+                    placeholder="New Card Size Name"
+                    onChange={(e) => setNewCardSizeName(e.target.value)}
+                />
+                <input
+                    className="w-30"
+                    type="number"
+                    placeholder="Width (in)"
+                    onChange={(e) => setNewCardSizeWidth(Number(e.target.value))}
+                />
+                <input
+                    className="w-30"
+                    type="number"
+                    placeholder="Height (in)"
+                    onChange={(e) => setNewCardSizeHeight(Number(e.target.value))}
+                />
+                <button onClick={onCreateCardSize}>Create a Card Size</button>
+            </div>
+            <button onClick={onAddPhotocard}>Add Photocard</button>
+            <button onClick={onAddPhotocardForEachMember}>Add a Photocard for Each Member</button>
+
+            <div className="flex flex-wrap gap-4">
                 {photocards.map((photocard, index) => (
                     <CreatePhotocardComponent
                         photocard={photocard}
@@ -777,6 +794,7 @@ export default function CreateCollectionComponent() {
                         onSameCardSizeClick={onSameCardSizeClick}
                         onSameCardTypeClick={onSameCardTypesClick}
                         key={index}
+                        keyId={index}
                     />
                 ))}
             </div>
