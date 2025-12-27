@@ -10,7 +10,7 @@ export const authClient = createAuthClient({
     plugins: [inferAdditionalFields<ReturnType<typeof auth>>()]
 });
 
-type ClientSession = ReturnType<typeof authClient.useSession>["data"];
+export type ClientSession = ReturnType<typeof authClient.useSession>["data"];
 
 export function errorIfLessPrivilegedThanMod(session: ClientSession) {
     if (session) {

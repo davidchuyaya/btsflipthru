@@ -1,25 +1,75 @@
 @import "tailwindcss";
+@import "tw-animate-css";
 
 :root {
-    --background: #a29bfe;
-    --light-primary: #c3bffc;
-    --foreground: #171717;
+    --primary: #c290c6;
+    --dark-primary: #bc79c1;
+    --darker-primary: #ba68c0;
+    --light-primary: #dcbddf;
+    --accent: #ffdf91;
+    --light-accent: #ffe9b3;
+    --third: #f58a8a;
+    --light-third: #fea9ac;
+    --lighter-third: #ffb9ba;
+    --white: #fff2cc;
+    --black: #494742;
+    --black-translucent: #494742cc;
+
+    --background: var(--white);
+    --secondary-background: var(--light-accent);
+    --foreground: var(--black);
+    --main-foreground: var(--black);
+    --main: var(--primary);
+    --border: var(--black);
+    --ring: var(--black);
+    --overlay: var(--black-translucent);
+    --shadow: 2px 2px 0px 0px var(--border);
+    --chart-1: var(--primary);
+    --chart-2: var(--accent);
+    --chart-active-dot: var(--black);
 }
 
 @theme inline {
+    --color-main: var(--main);
     --color-background: var(--background);
+    --color-secondary-background: var(--secondary-background);
     --color-foreground: var(--foreground);
+    --color-main-foreground: var(--main-foreground);
+    --color-border: var(--border);
+    --color-overlay: var(--overlay);
+    --color-ring: var(--ring);
+    --color-chart-1: var(--chart-1);
+    --color-chart-2: var(--chart-2);
+
+    --spacing-boxShadowX: 2px;
+    --spacing-boxShadowY: 2px;
+    --spacing-reverseBoxShadowX: -2px;
+    --spacing-reverseBoxShadowY: -2px;
+    --radius-base: 10px;
+    --shadow-shadow: var(--shadow);
     --font-sans: var(--font-geist-sans);
     --font-mono: var(--font-geist-mono);
+    --font-weight-base: 500;
+    --font-weight-heading: 700;
 }
 
-body {
-    background: var(--background);
-    color: var(--foreground);
-    font-family: Arial, Helvetica, sans-serif;
+@layer base {
+    body {
+        @apply text-foreground font-base bg-background;
+    }
+
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6 {
+        @apply font-heading;
+    }
 }
 
-button, a {
+button,
+a {
     background-color: #6c5ce7;
     color: white;
     border: none;
