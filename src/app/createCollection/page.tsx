@@ -1,56 +1,61 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
-import { MAX_IMAGE_SIZE_BYTES, THUMBNAIL_HEIGHT_PX } from "@/constants";
-import {
-    addCardSizeToDB,
-    addCardTypeToDB,
-    addCollectionTypeToDB,
-    callPromiseOrError,
-    createCollectionInDB,
-    getCardSizesFromDB,
-    getCardTypesFromDB,
-    getCollectionTypesFromDB,
-    uploadImage,
-} from "@/actions";
+import { MAX_IMAGE_SIZE_BYTES, THUMBNAIL_COMPRESSION_HEIGHT_PX, THUMBNAIL_DISPLAY_HEIGHT_PX } from "@/constants";
+import { useMetadata } from "../metadata-context";
+import { uploadImage } from "@/actions";
 import {
     BACK_IMAGE_TYPES_WITH_NAMES,
     BackImageType,
     CardSize,
     CardType,
-    Collection,
     CollectionType,
+    EXCLUSIVE_COUNTRIES_WITH_NAMES,
+    ExclusiveCountry,
+    ParsedCollection,
     Photocard,
 } from "@/db";
+import { convertToAvif, formatBytes, invokeOrError } from "../actions-client";
+
+interface ConvertedImage {
+    fullSize: ArrayBuffer;
+    thumbnail: ArrayBuffer;
+    previewUrl: string; // Object URL for preview
+}
+
+async function convertFileToImages(file: File): Promise<ConvertedImage> {
+    const fullSize = await convertToAvif(file);
+    const thumbnail = await convertToAvif(file, THUMBNAIL_COMPRESSION_HEIGHT_PX);
+    const previewBlob = new Blob([thumbnail], { type: "image/webp" });
+    const previewUrl = URL.createObjectURL(previewBlob);
+    return { fullSize, thumbnail, previewUrl };
+}
 
 function UploadImageButton({
     desc,
     disableUpload,
     imgClassName,
-    forceSetFile,
-    onFileChange,
+    forceConvertedImage,
+    onImageConverted,
 }: {
     desc: string;
     disableUpload?: boolean;
     imgClassName?: string;
-    forceSetFile?: File | null;
-    onFileChange: (f: File) => void;
+    forceConvertedImage?: ConvertedImage | null;
+    onImageConverted: (converted: ConvertedImage) => void;
 }) {
-    const [file, setFile] = useState<File | null>(null);
+    const [convertedImage, setConvertedImage] = useState<ConvertedImage | null>(null);
+    const [isConverting, setIsConverting] = useState(false);
     const [showFileError, setShowFileError] = useState<boolean>(false);
     const inputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
-        if (forceSetFile && inputRef.current) {
-            setFile(forceSetFile);
-            // Programmatically set the file in the input
-            const dataTransfer = new DataTransfer();
-            dataTransfer.items.add(forceSetFile);
-            inputRef.current.files = dataTransfer.files;
+        if (forceConvertedImage) {
+            setConvertedImage(forceConvertedImage);
         }
-    }, [forceSetFile]);
+    }, [forceConvertedImage]);
 
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files) {
             const file = e.target.files[0];
             if (file) {
@@ -58,12 +63,23 @@ function UploadImageButton({
                     setShowFileError(true);
                     return;
                 }
-                setFile(file);
-                onFileChange(file);
+                setShowFileError(false);
+                setIsConverting(true);
+                try {
+                    const converted = await convertFileToImages(file);
+                    setConvertedImage(converted);
+                    onImageConverted(converted);
+                } catch (err) {
+                    console.error("Conversion failed:", err);
+                    setShowFileError(true);
+                } finally {
+                    setIsConverting(false);
+                }
             }
-            setShowFileError(false);
         }
     };
+
+    const displayImage = convertedImage;
 
     return (
         <div>
@@ -76,25 +92,34 @@ function UploadImageButton({
                 accept="image/png, image/jpeg, image/avif, image/webp"
                 onChange={handleFileChange}
             />
-            {file && !showFileError ? (
-                <img
-                    src={URL.createObjectURL(file)}
-                    className={imgClassName}
-                    alt="Preview"
-                    height={THUMBNAIL_HEIGHT_PX}
-                    width={THUMBNAIL_HEIGHT_PX}
-                />
+            {isConverting && <p>Converting...</p>}
+            {displayImage && !showFileError ? (
+                <div>
+                    <img
+                        src={displayImage.previewUrl}
+                        className={imgClassName}
+                        alt="Preview"
+                        height={THUMBNAIL_DISPLAY_HEIGHT_PX}
+                        width={THUMBNAIL_DISPLAY_HEIGHT_PX}
+                    />
+                    <p>
+                        Full: {formatBytes(displayImage.fullSize.byteLength)} | Thumb:{" "}
+                        {formatBytes(displayImage.thumbnail.byteLength)}
+                    </p>
+                </div>
             ) : null}
             {showFileError ? (
-                <p style={{ color: "red" }}>File size exceeds {MAX_IMAGE_SIZE_BYTES / (1024 * 1024)}MB limit.</p>
+                <p style={{ color: "red" }}>
+                    File size exceeds {MAX_IMAGE_SIZE_BYTES / (1024 * 1024)}MB limit or conversion failed.
+                </p>
             ) : null}
         </div>
     );
 }
 
 interface LocalPhotocard {
-    imageFile: File | null;
-    backImageFile: File | null;
+    convertedImage: ConvertedImage | null;
+    convertedBackImage: ConvertedImage | null;
     backImageType: BackImageType;
 
     rm: boolean;
@@ -107,7 +132,8 @@ interface LocalPhotocard {
 
     sizeId: number;
     temporary: boolean;
-    cardTypes: Array<CardType>;
+    cardType: CardType;
+    exclusiveCountry: ExclusiveCountry;
 }
 
 const DEFAULT_ID = -1;
@@ -124,38 +150,34 @@ function CreatePhotocardComponent({
     photocard,
     possibleCardSizes,
     possibleCardTypes,
-    forceSetFile,
+    forceConvertedBackImage,
     onChange,
     onSameBackImageClick,
-    onSameCardTypesClick,
+    onSameCardTypeClick,
     onSameCardSizeClick,
 }: {
     photocard: LocalPhotocard;
     possibleCardSizes: Array<CardSize>;
     possibleCardTypes: Array<CardType>;
-    forceSetFile: File | null;
+    forceConvertedBackImage: ConvertedImage | null;
     onChange: (data: Partial<LocalPhotocard>) => void;
-    onSameBackImageClick: (file: File) => void;
-    onSameCardTypesClick: (cardType: CardType[]) => void;
+    onSameBackImageClick: (converted: ConvertedImage) => void;
+    onSameCardTypeClick: (cardType: CardType) => void;
     onSameCardSizeClick: (cardSizeId: number) => void;
 }) {
-    const [frontFile, setFrontFile] = useState<File | null>(null);
     const [showBackImageButton, setShowBackImageButton] = useState<boolean>(false);
 
-    function handleFrontChange(f: File) {
-        setFrontFile(f);
-        onChange({ ...photocard, imageFile: f });
+    function handleFrontChange(converted: ConvertedImage) {
+        onChange({ ...photocard, convertedImage: converted });
     }
 
-    function handleBackChange(f: File) {
-        onChange({ ...photocard, backImageFile: f });
+    function handleBackChange(converted: ConvertedImage) {
+        onChange({ ...photocard, convertedBackImage: converted });
         setShowBackImageButton(true);
     }
 
-    function onChangeCardType(index: number, cardType: { id: number; name: string }) {
-        const updated = [...photocard.cardTypes];
-        updated[index] = cardType;
-        onChange({ ...photocard, cardTypes: updated });
+    function onChangeCardType(cardType: CardType) {
+        onChange({ ...photocard, cardType: cardType });
     }
 
     function backImageClassName(backImageType: BackImageType) {
@@ -171,7 +193,7 @@ function CreatePhotocardComponent({
 
     return (
         <div>
-            <UploadImageButton desc="Front" onFileChange={handleFrontChange} />
+            <UploadImageButton desc="Front" onImageConverted={handleFrontChange} />
             Back of card:
             {BACK_IMAGE_TYPES_WITH_NAMES.map(([name, value]) => (
                 <label key={value}>
@@ -187,14 +209,16 @@ function CreatePhotocardComponent({
             <UploadImageButton
                 desc="Back"
                 disableUpload={photocard.backImageType !== BackImageType.Image}
-                onFileChange={handleBackChange}
-                forceSetFile={photocard.backImageType === BackImageType.Image ? forceSetFile : frontFile}
+                onImageConverted={handleBackChange}
+                forceConvertedImage={
+                    photocard.backImageType === BackImageType.Image ? forceConvertedBackImage : photocard.convertedImage
+                }
                 imgClassName={backImageClassName(photocard.backImageType)}
             />
             <button
                 onClick={() => {
-                    if (photocard.backImageFile) {
-                        onSameBackImageClick(photocard.backImageFile!);
+                    if (photocard.convertedBackImage) {
+                        onSameBackImageClick(photocard.convertedBackImage);
                     }
                 }}
                 hidden={!showBackImageButton}
@@ -321,18 +345,16 @@ function CreatePhotocardComponent({
                 </button>
             </div>
             <div></div>
-            Card Types:
-            {photocard.cardTypes.map((cardType, index) => (
+            <div>
+                Card Type:
                 <select
                     name="cardType"
                     onChange={(e) =>
-                        onChangeCardType(index, {
+                        onChangeCardType({
                             id: Number(e.target.value),
                             name: e.target.name,
                         })
                     }
-                    value={cardType.id}
-                    key={index}
                 >
                     {possibleCardTypes.map((possibleCardType) => (
                         <option key={possibleCardType.id} value={possibleCardType.id}>
@@ -340,23 +362,13 @@ function CreatePhotocardComponent({
                         </option>
                     ))}
                 </select>
-            ))}
-            <button
-                onClick={() =>
-                    onChange({
-                        ...photocard,
-                        cardTypes: [...photocard.cardTypes, DEFAULT_CARD_TYPE],
-                    })
-                }
-            >
-                Add Another
-            </button>
-            <button
-                hidden={photocard.cardTypes.length === 1 && photocard.cardTypes[0].id === DEFAULT_ID}
-                onClick={() => onSameCardTypesClick(photocard.cardTypes)}
-            >
-                Use this card type for all current photocards
-            </button>
+                <button
+                    hidden={photocard.cardType.id === DEFAULT_ID}
+                    onClick={() => onSameCardTypeClick(photocard.cardType)}
+                >
+                    Use this card type for all current photocards
+                </button>
+            </div>
             <label>
                 <input
                     type="checkbox"
@@ -370,15 +382,48 @@ function CreatePhotocardComponent({
                 />
                 Mark as temporary
             </label>
+            {
+                <div>
+                    Exclusive to country:
+                    <select
+                        name="exclusiveCountry"
+                        onChange={(e) =>
+                            onChange({
+                                ...photocard,
+                                exclusiveCountry: e.target.value as ExclusiveCountry,
+                            })
+                        }
+                        value={photocard.exclusiveCountry}
+                    >
+                        {EXCLUSIVE_COUNTRIES_WITH_NAMES.map(([countryEnum, countryDisplayName]) => (
+                            <option key={countryEnum} value={countryEnum}>
+                                {countryDisplayName}
+                            </option>
+                        ))}
+                    </select>
+                </div>
+            }
         </div>
     );
 }
 
 export default function CreateCollectionComponent() {
+    const {
+        collectionTypes,
+        cardTypes,
+        cardSizes,
+        isLoading,
+        error,
+        addCollection,
+        addCollectionType,
+        addCardType,
+        addCardSize,
+    } = useMetadata();
+
     const [collectionName, setCollectionName] = useState<string>("");
     const [date, setDate] = useState<string>("");
     const [photocards, setPhotocards] = useState<Array<LocalPhotocard>>([]);
-    const [sameBackImageFile, setSameBackImageFile] = useState<File | null>(null);
+    const [sameBackImage, setSameBackImage] = useState<ConvertedImage | null>(null);
 
     const [newCollectionTypeName, setNewCollectionTypeName] = useState<string>("");
     const [possibleCollectionTypes, setPossibleCollectionTypes] = useState<Array<CollectionType>>([]);
@@ -395,29 +440,21 @@ export default function CreateCollectionComponent() {
 
     const [isUploading, uploadTransition] = useTransition();
 
-    async function onCreateCollection() {
-        const serverCollectionTypes = await getCollectionTypesFromDB();
-        setPossibleCollectionTypes([DEFAULT_COLLECTION_TYPE, ...serverCollectionTypes]);
-        const serverCardTypes = await getCardTypesFromDB();
-        setPossibleCardTypes([DEFAULT_CARD_TYPE, ...serverCardTypes]);
-        const serverCardSizes = await getCardSizesFromDB();
-        setPossibleCardSizes([DEFAULT_CARD_SIZE, ...serverCardSizes]);
-    }
+    // Sync metadata from context to local state
+    useEffect(() => {
+        if (!isLoading) {
+            setPossibleCollectionTypes([DEFAULT_COLLECTION_TYPE, ...collectionTypes]);
+            setPossibleCardTypes([DEFAULT_CARD_TYPE, ...cardTypes]);
+            setPossibleCardSizes([DEFAULT_CARD_SIZE, ...cardSizes]);
+        }
+    }, [isLoading, collectionTypes, cardTypes, cardSizes]);
 
     async function onCreateCollectionType() {
         if (newCollectionTypeName.trim() === "") {
             return;
         }
-        const result = await callPromiseOrError(addCollectionTypeToDB({ name: newCollectionTypeName }));
-        if (!result) {
-            alert("Error creating collection type");
-            return;
-        }
-        if (typeof result === "object" && "error" in result) {
-            alert(`Error creating collection type: ${result.error}`);
-            return;
-        }
-        setPossibleCollectionTypes([...possibleCollectionTypes, { id: Number(result), name: newCollectionTypeName }]);
+        await addCollectionType({ name: newCollectionTypeName });
+        setNewCollectionTypeName("");
     }
 
     async function onAddCollectionType() {
@@ -434,95 +471,63 @@ export default function CreateCollectionComponent() {
         if (newCardTypeName.trim() === "") {
             return;
         }
-        const result = await callPromiseOrError(addCardTypeToDB({ name: newCardTypeName }));
-        if (!result) {
-            alert("Error creating card type");
-            return;
-        }
-        if (typeof result === "object" && "error" in result) {
-            alert(`Error creating card type: ${result.error}`);
-            return;
-        }
-        setPossibleCardTypes([...possibleCardTypes, { id: Number(result), name: newCardTypeName }]);
+        await addCardType({ name: newCardTypeName });
+        setNewCardTypeName("");
     }
 
     async function onCreateCardSize() {
         if (newCardSizeName.trim() === "" || newCardSizeWidth <= 0 || newCardSizeHeight <= 0) {
             return;
         }
-        const result = await callPromiseOrError(
-            addCardSizeToDB({
-                name: newCardSizeName,
-                width: newCardSizeWidth,
-                height: newCardSizeHeight,
-            }),
-        );
-        if (!result) {
-            alert("Error creating card size");
-            return;
-        }
-        if (typeof result === "object" && "error" in result) {
-            alert(`Error creating card size: ${result.error}`);
-            return;
-        }
-        setPossibleCardSizes([
-            ...possibleCardSizes,
-            {
-                id: Number(result),
-                name: newCardSizeName,
-                width: newCardSizeWidth,
-                height: newCardSizeHeight,
-            },
-        ]);
+        addCardSize({
+            name: newCardSizeName,
+            width: newCardSizeWidth,
+            height: newCardSizeHeight,
+        });
+        setNewCardSizeName("");
+        setNewCardSizeWidth(0);
+        setNewCardSizeHeight(0);
+    }
+
+    function getDefaultPhotocard(): LocalPhotocard {
+        return {
+            convertedImage: null,
+            convertedBackImage: null,
+            backImageType: BackImageType.Image,
+            rm: false,
+            jimin: false,
+            jungkook: false,
+            v: false,
+            jin: false,
+            suga: false,
+            jhope: false,
+            temporary: false,
+            sizeId: possibleCardSizes[0].id!,
+            cardType: possibleCardTypes[0],
+            exclusiveCountry: ExclusiveCountry.NotExclusive,
+        };
     }
 
     function onAddPhotocard() {
-        setPhotocards([
-            ...photocards,
-            {
-                imageFile: null,
-                backImageFile: null,
-                backImageType: BackImageType.Image,
-                rm: false,
-                jimin: false,
-                jungkook: false,
-                v: false,
-                jin: false,
-                suga: false,
-                jhope: false,
-                temporary: false,
-                sizeId: DEFAULT_ID,
-                cardTypes: [DEFAULT_CARD_TYPE],
-            },
-        ]);
+        setPhotocards([...photocards, getDefaultPhotocard()]);
     }
 
     function onAddPhotocardForEachMember() {
         const members = ["rm", "jimin", "jungkook", "v", "jin", "suga", "jhope"];
-        const newPhotocards = members.map((member) => ({
-            imageFile: null,
-            backImageFile: null,
-            backImageType: BackImageType.Image,
-            rm: member === "rm",
-            jimin: member === "jimin",
-            jungkook: member === "jungkook",
-            v: member === "v",
-            jin: member === "jin",
-            suga: member === "suga",
-            jhope: member === "jhope",
-            temporary: false,
-            sizeId: DEFAULT_ID,
-            cardTypes: [DEFAULT_CARD_TYPE],
-        }));
+        const newPhotocards = members.map((member) => {
+            const photocard = getDefaultPhotocard();
+            (photocard as any)[member] = true;
+            return photocard;
+        });
         setPhotocards([...photocards, ...newPhotocards]);
     }
 
-    function onSameBackImageClick(file: File) {
+    function onSameBackImageClick(converted: ConvertedImage) {
         photocards.map((pc) => {
-            pc.backImageFile = file;
+            pc.convertedBackImage = converted;
         });
         setPhotocards([...photocards]);
-        setSameBackImageFile(file);
+        setSameBackImage(converted);
     }
 
     function onSameCardSizeClick(cardSizeId: number) {
@@ -532,9 +537,9 @@ export default function CreateCollectionComponent() {
         setPhotocards([...photocards]);
     }
 
-    function onSameCardTypesClick(cardTypes: CardType[]) {
+    function onSameCardTypesClick(cardType: CardType) {
         photocards.map((pc) => {
-            pc.cardTypes = cardTypes;
+            pc.cardType = cardType;
         });
         setPhotocards([...photocards]);
     }
@@ -556,35 +561,47 @@ export default function CreateCollectionComponent() {
             alert("Collection name is required");
             return;
         }
+        const collectionTypes = collectionTypeIds
+            .filter((collectionType) => collectionType.id !== DEFAULT_ID)
+            .map((collectionType) => collectionType.id!);
+        if (collectionTypes.length === 0) {
+            alert("At least one collection category must be selected");
+            return;
+        }
         // If any photocard doesn't have its size set yet, error
         for (const photocard of photocards) {
             if (photocard.sizeId === DEFAULT_ID) {
                 alert("All photocards must have a size selected");
                 return;
             }
+            if (photocard.cardType.id === DEFAULT_ID) {
+                alert("All photocards must have a card type selected");
+                return;
+            }
+        }
+        // Check release date
+        if (date.trim() === "") {
+            alert("Release date is required");
+            return;
         }
 
         uploadTransition(async () => {
-            // Alias for Collection, avoid collision with Hash Set used below
-            const collection: Collection = {
+            const collection: ParsedCollection = {
                 name: collectionName,
-                releaseDate: new Date(date).getTime(),
+                releaseDate: new Date(date),
+                collectionTypes: collectionTypes,
             };
 
-            const collectionTypes = collectionTypeIds
-                .filter((collectionType) => collectionType.id !== DEFAULT_ID)
-                .map((collectionType) => collectionType.id!);
-
             // Find the number of unique images we have to upload
-            // Use the image size as a proxy, since we don't want to compare ArrayBuffers
-            // No 2 cropped images should have the exact size
+            // Use the fullSize byteLength as a proxy, since we don't want to compare ArrayBuffers
+            // No 2 converted images should have the exact size
             const uniqueImageSizes = new Set<number>();
             for (const photocard of photocards) {
-                if (photocard.imageFile) {
-                    uniqueImageSizes.add(photocard.imageFile.size);
+                if (photocard.convertedImage) {
+                    uniqueImageSizes.add(photocard.convertedImage.fullSize.byteLength);
                 }
-                if (photocard.backImageFile) {
-                    uniqueImageSizes.add(photocard.backImageFile.size);
+                if (photocard.convertedBackImage) {
+                    uniqueImageSizes.add(photocard.convertedBackImage.fullSize.byteLength);
                 }
             }
 
@@ -601,15 +618,18 @@ export default function CreateCollectionComponent() {
             // Create Photocard objects
             const photocardsToCreate: Photocard[] = photocards.map((localPhotocard) => ({
                 collectionId: 0, // Placeholder, will be set in `createCollectionInDB`
-                imageId: localPhotocard.imageFile ? imageSizeToUUID.get(localPhotocard.imageFile.size)! : null,
-                backImageId: localPhotocard.backImageFile
-                    ? imageSizeToUUID.get(localPhotocard.backImageFile.size)!
+                imageId: localPhotocard.convertedImage
+                    ? imageSizeToUUID.get(localPhotocard.convertedImage.fullSize.byteLength)!
+                    : null,
+                backImageId: localPhotocard.convertedBackImage
+                    ? imageSizeToUUID.get(localPhotocard.convertedBackImage.fullSize.byteLength)!
                     : null,
                 backImageType: localPhotocard.backImageType,
+                cardType: localPhotocard.cardType.id!,
                 sizeId: localPhotocard.sizeId,
                 effects: null, // TODO: Allow effects
                 temporary: localPhotocard.temporary,
-                exclusiveCountry: null, // TODO: Allow exclusive country
+                exclusiveCountry: localPhotocard.exclusiveCountry,
 
                 rm: localPhotocard.rm,
                 jimin: localPhotocard.jimin,
@@ -623,47 +643,45 @@ export default function CreateCollectionComponent() {
                 updatedAt: Date.now(), // Placeholder, will be set in `createSetInDB`
             }));
 
-            const cardTypes: number[][] = photocards.map((localPhotocard) =>
-                localPhotocard.cardTypes.filter((type) => type.id !== DEFAULT_ID).map((type) => type.id!),
-            );
-
             // Call the server and create DB entries
-            const result = await callPromiseOrError(
-                createCollectionInDB(collection, collectionTypes, photocardsToCreate, cardTypes),
-            );
-            if (result && result.error) {
-                alert(`Error uploading: ${result.error}`);
+            const result = await addCollection(collection, photocardsToCreate);
+            if (!result) {
+                alert(`Error uploading collection to server: ${error}`);
                 return;
             }
 
-            // Upload each unique image individually
-            // We do this by removing image sizes from the set after we've uploaded them, and checking the set before each upload
+            // Upload each unique image in parallel
+            // Images are already converted to AVIF on selection, so we just upload them directly
+            const uploadPromises: Promise<boolean | { error: string }>[] = [];
+            const uploadedSizes = new Set<number>();
+
             for (const photocard of photocards) {
-                if (photocard.imageFile && imageSizeToUUID.has(photocard.imageFile.size)) {
-                    const imageId = imageSizeToUUID.get(photocard.imageFile.size)!;
-                    const result = await callPromiseOrError(
-                        uploadImage(await photocard.imageFile.arrayBuffer(), imageId),
-                    );
-                    if (result && result.error) {
-                        alert(`Error uploading image for photocard: ${result.error}`);
-                        return;
-                    }
-
-                    imageSizeToUUID.delete(photocard.imageFile.size);
+                if (photocard.convertedImage && !uploadedSizes.has(photocard.convertedImage.fullSize.byteLength)) {
+                    const imageId = imageSizeToUUID.get(photocard.convertedImage.fullSize.byteLength)!;
+                    const converted = photocard.convertedImage;
+                    uploadedSizes.add(converted.fullSize.byteLength);
+                    uploadPromises.push(invokeOrError(uploadImage(converted.fullSize, converted.thumbnail, imageId)));
                 }
-                if (photocard.backImageFile && imageSizeToUUID.has(photocard.backImageFile.size)) {
-                    const backImageId = imageSizeToUUID.get(photocard.backImageFile.size)!;
-                    const result = await callPromiseOrError(
-                        uploadImage(await photocard.backImageFile.arrayBuffer(), backImageId),
+                if (
+                    photocard.convertedBackImage &&
+                    !uploadedSizes.has(photocard.convertedBackImage.fullSize.byteLength)
+                ) {
+                    const backImageId = imageSizeToUUID.get(photocard.convertedBackImage.fullSize.byteLength)!;
+                    const converted = photocard.convertedBackImage;
+                    uploadedSizes.add(converted.fullSize.byteLength);
+                    uploadPromises.push(
+                        invokeOrError(uploadImage(converted.fullSize, converted.thumbnail, backImageId)),
                     );
-                    if (result && result.error) {
-                        alert(`Error uploading back image for photocard: ${result.error}`);
-                        return;
-                    }
-
-                    imageSizeToUUID.delete(photocard.backImageFile.size);
                 }
             }
+            const results = await Promise.all(uploadPromises);
+            for (const res of results) {
+                if (typeof res === "object" && "error" in res) {
+                    alert(`Error uploading images to server: ${res.error}`);
+                    return;
+                }
+            }
+
             clearLocalState();
             alert("Upload successful!");
         });
@@ -676,12 +694,7 @@ export default function CreateCollectionComponent() {
         setCollectionName("");
         setDate("");
         setPhotocards([]);
-        setSameBackImageFile(null);
-        setNewCollectionTypeName("");
-        setNewCardTypeName("");
-        setNewCardSizeName("");
-        setNewCardSizeWidth(0);
-        setNewCardSizeHeight(0);
+        setSameBackImage(null);
     }
 
     return (
@@ -758,11 +771,11 @@ export default function CreateCollectionComponent() {
                         photocard={photocard}
                         possibleCardSizes={possibleCardSizes}
                         possibleCardTypes={possibleCardTypes}
-                        forceSetFile={sameBackImageFile}
+                        forceConvertedBackImage={sameBackImage}
                         onChange={(data) => handlePhotocardChange(index, data)}
                         onSameBackImageClick={onSameBackImageClick}
                         onSameCardSizeClick={onSameCardSizeClick}
-                        onSameCardTypesClick={onSameCardTypesClick}
+                        onSameCardTypeClick={onSameCardTypesClick}
                         key={index}
                     />
                 ))}

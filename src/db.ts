@@ -1,5 +1,6 @@
 import { Kysely } from "kysely";
 import { D1Dialect } from "kysely-d1";
+import { SEPARATOR } from "./constants";
 
 // Important: Any number used by an enum should not be reused in the future
 export enum Role {
@@ -10,6 +11,7 @@ export enum Role {
 export const ROLES = Object.values(Role).filter((value) => typeof value === "number") as number[];
 
 export enum ExclusiveCountry {
+    NotExclusive = "Not Exclusive",
     USA = "USA",
     Korea = "Korea",
     Japan = "Japan",
@@ -103,10 +105,11 @@ export interface Photocard {
     imageId: string | null;
     backImageId: string | null;
     backImageType: number; // Should be one of BackImageType enum values
+    cardType: number;
     sizeId: number;
     effects: string | null;
+    exclusiveCountry: string; // Should be one of ExclusiveCountry enum key types
     temporary: boolean; // True for all user uploads. Can be marked false by admin/mod (no more overwrites)
-    exclusiveCountry: string | null; // Should be one of ExclusiveCountry enum key types or null
 
     rm: boolean;
     jimin: boolean;
@@ -125,11 +128,6 @@ export interface CardType {
     name: string;
 }
 
-export interface CardToCardType {
-    cardId: number;
-    cardTypeId: number;
-}
-
 export interface CardSize {
     id?: number;
     name: string;
@@ -141,16 +139,37 @@ export interface Collection {
     id?: number;
     name: string;
     releaseDate: number;
+    collectionTypes: string; // Array of collection type IDs stored as a string
+}
+
+export function parseCollection(collection: Collection): ParsedCollection {
+    return {
+        id: collection.id,
+        name: collection.name,
+        releaseDate: new Date(collection.releaseDate),
+        collectionTypes: collection.collectionTypes.split(SEPARATOR).map(Number),
+    };
+}
+
+export interface ParsedCollection {
+    id?: number;
+    name: string;
+    releaseDate: Date;
+    collectionTypes: number[];
+}
+
+export function serializeCollection(collection: ParsedCollection): Collection {
+    return {
+        id: collection.id,
+        name: collection.name,
+        releaseDate: collection.releaseDate.getTime(),
+        collectionTypes: collection.collectionTypes.join(SEPARATOR),
+    };
 }
 
 export interface CollectionType {
     id?: number;
     name: string;
-}
-
-export interface CollectionToCollectionType {
-    collectionId: number;
-    collectionTypeId: number;
 }
 
 interface Database {
@@ -160,11 +179,9 @@ interface Database {
     verification: Verification;
     photocards: Photocard;
     cardTypes: CardType;
-    cardToCardTypes: CardToCardType;
     cardSizes: CardSize;
     collections: Collection;
     collectionTypes: CollectionType;
-    collectionToCollectionTypes: CollectionToCollectionType;
 }
 
 export const db = (env: Env) => new Kysely<Database>({ dialect: new D1Dialect({ database: env.DB }) });

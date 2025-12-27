@@ -3,14 +3,17 @@
 	"version": "0.1.0",
 	"private": true,
 	"scripts": {
-		"dev": "next dev --turbopack",
+		"dev": "next dev --turbopack -H 127.0.0.1",
 		"build": "next build",
 		"start": "next start",
 		"lint": "next lint",
 		"deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
 		"upload": "opennextjs-cloudflare build && opennextjs-cloudflare upload",
 		"preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
-		"cf-typegen": "wrangler types --env-interface CloudflareEnv ./cloudflare-env.d.ts"
+		"cf-typegen": "wrangler types --env-interface CloudflareEnv ./cloudflare-env.d.ts",
+		"load-local-db": "wrangler d1 execute prod --local --file=schema.sql",
+		"load-remote-db": "wrangler d1 execute prod --remote --file=schema.sql",
+		"local-db-all-admin": "wrangler d1 execute prod --local --command \"UPDATE user SET role=2\""
 	},
 	"dependencies": {
 		"@opennextjs/cloudflare": "^1.14.4",
@@ -19,8 +22,7 @@
 		"kysely-d1": "^0.4.0",
 		"next": "15.5.9",
 		"react": "19.1.4",
-		"react-dom": "19.1.4",
-		"sharp": "^0.34.5"
+		"react-dom": "19.1.4"
 	},
 	"devDependencies": {
 		"@eslint/eslintrc": "^3",
