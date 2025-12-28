@@ -1,7 +1,12 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { MAX_IMAGE_SIZE_BYTES, MEMBER_TO_OFFICIAL_NAME, THUMBNAIL_COMPRESSION_HEIGHT_PX, THUMBNAIL_DISPLAY_HEIGHT_PX } from "@/constants";
+import {
+    MAX_IMAGE_SIZE_BYTES,
+    MEMBER_TO_OFFICIAL_NAME,
+    THUMBNAIL_COMPRESSION_HEIGHT_PX,
+    THUMBNAIL_DISPLAY_HEIGHT_PX,
+} from "@/constants";
 import { DEFAULT_CARD_TYPE, useMetadata } from "../metadata-context";
 import { uploadImage } from "@/actions";
 import {
@@ -107,7 +112,7 @@ function UploadImageButton({
             {description && <FieldDescription>{description}</FieldDescription>}
             <div
                 {...getRootProps({ className: "dropzone" })}
-                className="cursor-pointer bg-white resize-none p-5 text-center rounded-xl"
+                className=" bg-white resize-none p-5 text-center rounded-xl"
                 hidden={disableUpload}
             >
                 <input {...getInputProps()} />
@@ -197,11 +202,10 @@ const formSchema = z.object({
                     .optional()
                     .refine((val) => val !== undefined, { message: "Card size is required" }),
                 temporary: z.boolean(),
-                cardType: z
-                    .object({
-                        id: z.number().optional(),
-                        name: z.string(),
-                    }),
+                cardType: z.object({
+                    id: z.number().optional(),
+                    name: z.string(),
+                }),
                 exclusiveCountry: z.number(),
             }),
         )
@@ -337,7 +341,7 @@ function CreatePhotocardComponent({
                                                                 <ToggleGroupItem
                                                                     key={backImageTypeEnum}
                                                                     value={backImageTypeEnum.toString()}
-                                                                    className="cursor-pointer data-[state=on]:bg-main data-[state=on]:font-bold"
+                                                                    className=" data-[state=on]:bg-main data-[state=on]:font-bold"
                                                                 >
                                                                     {backImageTypeName}
                                                                 </ToggleGroupItem>

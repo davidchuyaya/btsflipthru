@@ -3,20 +3,22 @@
 
 :root {
     --primary: #c290c6;
-    --dark-primary: #bc79c1;
-    --darker-primary: #ba68c0;
-    --light-primary: #dcbddf;
+    --primary-dark: #bc79c1;
+    --primary-darker: #ba68c0;
+    --primary-light: #dcbddf;
+    --primary-lighter: #efe1f1;
     --accent: #ffdf91;
-    --light-accent: #ffe9b3;
+    --accent-light: #ffe9b3;
+    --accent-lighter: #fff2cc;
     --third: #f58a8a;
-    --light-third: #fea9ac;
-    --lighter-third: #ffb9ba;
+    --third-light: #fea9ac;
+    --third-lighter: #ffb9ba;
     --white: #fff7e1;
     --black: #494742;
     --black-translucent: #494742cc;
 
     --background: var(--white);
-    --secondary-background: var(--light-accent);
+    --secondary-background: var(--accent-light);
     --foreground: var(--black);
     --main-foreground: var(--black);
     --main: var(--primary);
@@ -57,6 +59,7 @@
 @layer base {
     body {
         @apply text-foreground font-base bg-background;
+        min-height: 100vh;
     }
 
     h1,
@@ -69,73 +72,102 @@
     }
 }
 
+/** Cursor */
+* {
+    cursor:
+        url("/cursor.svg") 2.5 4,
+        auto !important;
+}
+
+*:active {
+    cursor:
+        url("/cursor.svg") 2.5 4,
+        auto !important;
+}
+
 .font-heading {
-    color: var(--darker-primary);
+    color: var(--primary-darker);
     font-size: 1.5rem;
 }
 
 .bg-main-dark {
-    background-color: var(--dark-primary);
+    background-color: var(--primary-dark);
 }
 
 .bg-main-darker {
-    background-color: var(--darker-primary);
+    background-color: var(--primary-darker);
 }
 
 .bg-main-light {
-    background-color: var(--light-primary);
+    background-color: var(--primary-light);
+}
+
+.bg-main-lighter {
+    background-color: var(--primary-lighter);
 }
 
 .bg-accent {
     background-color: var(--accent);
 }
 
-.bg-light-accent {
-    background-color: var(--light-accent);
+.bg-accent-light {
+    background-color: var(--accent-light);
+}
+
+.bg-accent-lighter {
+    background-color: var(--accent-lighter);
 }
 
 .bg-third {
     background-color: var(--third);
 }
 
-.bg-light-third {
-    background-color: var(--light-third);
+.bg-third-light {
+    background-color: var(--third-light);
 }
 
-.bg-lighter-third {
-    background-color: var(--lighter-third);
+.bg-third-lighter {
+    background-color: var(--third-lighter);
 }
 
 .text-main-dark {
-    color: var(--dark-primary);
+    color: var(--primary-dark);
 }
 
 .text-main-darker {
-    color: var(--darker-primary);
+    color: var(--primary-darker);
 }
 
 .text-main-light {
-    color: var(--light-primary);
+    color: var(--primary-light);
+}
+
+.text-main-lighter {
+    color: var(--primary-lighter);
 }
 
 .text-accent {
     color: var(--accent);
 }
 
-.text-light-accent {
-    color: var(--light-accent);
+.text-accent-light {
+    color: var(--accent-light);
+}
+
+.text-accent-lighter {
+    color: var(--accent-lighter);
 }
 
 .text-third {
     color: var(--third);
 }
 
-.text-light-third {
-    color: var(--light-third);
+.text-third-light {
+    color: var(--third-light);
 }
 
-.text-lighter-third {
-    color: var(--lighter-third);
+.text-third-lighter {
+    color: var(--third-lighter);
 }
 
 input[type="file"]::file-selector-button {
@@ -157,10 +189,6 @@ input[type="file"]::file-selector-button {
 
 .loading {
     cursor: wait;
-}
-
-.light-primary-background {
-    background-color: var(--light-primary);
 }
 
 label {

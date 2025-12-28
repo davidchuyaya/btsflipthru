@@ -13,11 +13,11 @@ interface SwitchProps extends React.ComponentProps<typeof SwitchPrimitive.Root> 
 
 function Switch({ className, text, ...props }: SwitchProps) {
     return (
-        <Label className="flex flex-row gap-2 items-center cursor-pointer">
+        <Label className="flex flex-row gap-2 items-center ">
             <SwitchPrimitive.Root
                 data-slot="switch"
                 className={cn(
-                    "peer inline-flex h-6 w-12 shrink-0 cursor-pointer items-center rounded-full border-2 border-border bg-secondary-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:bg-main data-[state=unchecked]:bg-secondary-background",
+                    "peer inline-flex h-6 w-12 shrink-0  items-center rounded-full border-2 border-border bg-secondary-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:bg-main data-[state=unchecked]:bg-secondary-background",
                     className,
                 )}
                 {...props}

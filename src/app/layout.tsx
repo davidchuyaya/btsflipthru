@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { MetadataProvider } from "./metadata-context";
 import { Toaster } from "@/components/ui/sonner";
+import CursorGlow from "./cursor-glow";
 
 export const metadata: Metadata = {
     title: "BTS Flipthru",
@@ -20,6 +21,7 @@ export default function RootLayout({
                 <link rel="stylesheet" href="https://use.typekit.net/gpm8jeo.css"></link>
             </head>
             <body className="antialiased">
+                <CursorGlow/>
                 <MetadataProvider>{children}</MetadataProvider>
                 <Toaster />
             </body>
