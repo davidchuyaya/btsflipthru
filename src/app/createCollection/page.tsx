@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
-import { MAX_IMAGE_SIZE_BYTES, THUMBNAIL_COMPRESSION_HEIGHT_PX, THUMBNAIL_DISPLAY_HEIGHT_PX } from "@/constants";
+import { useEffect, useState, useTransition } from "react";
+import { MAX_IMAGE_SIZE_BYTES, MEMBER_TO_OFFICIAL_NAME, THUMBNAIL_COMPRESSION_HEIGHT_PX, THUMBNAIL_DISPLAY_HEIGHT_PX } from "@/constants";
 import { DEFAULT_CARD_TYPE, useMetadata } from "../metadata-context";
 import { uploadImage } from "@/actions";
 import {
@@ -21,7 +21,7 @@ import { Switch } from "@/components/ui/switch";
 import Combobox from "@/components/ui/combobox";
 import { PlusIcon, Trash2Icon } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Controller, FormProvider, useFieldArray, useForm, useFormContext } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -30,9 +30,7 @@ import {
     Field,
     FieldLabel,
     FieldError,
-    FieldLegend,
     FieldSeparator,
-    FieldSet,
     FieldGroup,
     FieldDescription,
     FieldContent,
@@ -116,9 +114,9 @@ function UploadImageButton({
                 <p>Drop images here.</p>
                 <p>Only images under {MAX_IMAGE_SIZE_BYTES / (1024 * 1024)}MB are allowed.</p>
             </div>
-            {isConverting && <p>Converting...</p>}
+            {isConverting && <p className="text-center">Converting...</p>}
             {displayImage && !showFileError ? (
-                <div className="mt-2">
+                <div className="mt-2 flex flex-col items-center gap-3">
                     <img
                         src={displayImage.previewUrl}
                         className={imgClassName}
@@ -126,14 +124,14 @@ function UploadImageButton({
                         height={THUMBNAIL_DISPLAY_HEIGHT_PX}
                         width={THUMBNAIL_DISPLAY_HEIGHT_PX}
                     />
-                    <p className="mt-3">
-                        Full: {formatBytes(displayImage.fullSize.byteLength)} | Thumb:{" "}
+                    <p>
+                        Full: {formatBytes(displayImage.fullSize.byteLength)} | Thumbnail:{" "}
                         {formatBytes(displayImage.thumbnail.byteLength)}
                     </p>
                 </div>
             ) : null}
             {showFileError ? (
-                <p style={{ color: "red" }}>
+                <p className="text-center" style={{ color: "red" }}>
                     File size exceeds {MAX_IMAGE_SIZE_BYTES / (1024 * 1024)}MB limit or conversion failed.
                 </p>
             ) : null}
@@ -276,6 +274,7 @@ function CreatePhotocardComponent({
         <Card className="min-w-115">
             <CardHeader>
                 <CardTitle>Photocard #{index + 1}</CardTitle>
+                <CardDescription>Leave the front and back images blank if you do not have them.</CardDescription>
                 <CardAction>
                     <Button type="button" size="icon" onClick={onRemovePhotocard}>
                         <Trash2Icon />
@@ -364,7 +363,7 @@ function CreatePhotocardComponent({
                                                                 onSameBackImageClick(backField.value);
                                                             }
                                                         }}
-                                                        className="max-w-25"
+                                                        className="max-w-35"
                                                         hidden={backField.value === null}
                                                     >
                                                         Apply to all
@@ -391,13 +390,7 @@ function CreatePhotocardComponent({
                                     <Checkbox
                                         checked={field.value}
                                         onCheckedChange={field.onChange}
-                                        text={
-                                            member === "rm"
-                                                ? "RM"
-                                                : member === "jhope"
-                                                  ? "J-Hope"
-                                                  : member.charAt(0).toUpperCase() + member.slice(1)
-                                        }
+                                        text={MEMBER_TO_OFFICIAL_NAME[member as keyof typeof MEMBER_TO_OFFICIAL_NAME]}
                                     />
                                 )}
                             />
@@ -458,7 +451,7 @@ function CreatePhotocardComponent({
                                 <Button
                                     type="button"
                                     hidden={field.value === undefined}
-                                    className="max-w-25"
+                                    className="max-w-35"
                                     onClick={() => onSameCardSizeClick(field.value!)}
                                 >
                                     Apply to all
@@ -490,7 +483,7 @@ function CreatePhotocardComponent({
                                 <Button
                                     type="button"
                                     hidden={field.value === undefined}
-                                    className="max-w-25"
+                                    className="max-w-35"
                                     onClick={() => onSameCardTypeClick(field.value!)}
                                 >
                                     Apply to all
@@ -781,7 +774,6 @@ export default function CreateCollectionComponent() {
         <FormProvider {...form}>
             <form
                 onSubmit={form.handleSubmit(onSubmit, (errors) => {
-                    console.error("Form validation errors:", errors);
                     // Only show toast for errors not associated with a specific visible field
                     if (errors.photocards && !Array.isArray(errors.photocards)) {
                         toast.error(errors.photocards.message);
@@ -801,6 +793,7 @@ export default function CreateCollectionComponent() {
                                         What release title is your card associated with, not including the year?{" "}
                                         <i>(Ex: Proof; Map of the Soul ON:E; Season’s Greetings)</i>
                                     </FieldDescription>
+                                    {fieldState.error && <FieldError errors={[fieldState.error]} />}
                                 </FieldContent>
                                 <Input
                                     {...field}
@@ -809,7 +802,6 @@ export default function CreateCollectionComponent() {
                                     className="max-w-100"
                                     placeholder="Love Yourself: Answer"
                                 />
-                                {fieldState.error && <FieldError errors={[fieldState.error]} />}
                             </Field>
                         )}
                     />
@@ -824,6 +816,7 @@ export default function CreateCollectionComponent() {
                                     <FieldDescription>
                                         When was this card first released? <i>(Ex: 09/14/2018)</i>
                                     </FieldDescription>
+                                    {fieldState.error && <FieldError errors={[fieldState.error]} />}
                                 </FieldContent>
                                 <Input
                                     {...field}
@@ -832,19 +825,21 @@ export default function CreateCollectionComponent() {
                                     aria-invalid={fieldState.invalid}
                                     className="max-w-40"
                                 />
-                                {fieldState.error && <FieldError errors={[fieldState.error]} />}
                             </Field>
                         )}
                     />
 
                     <Field orientation="horizontal">
-                        <FieldContent className="min-w-50">
+                        <FieldContent>
                             <FieldLabel>Collection Category</FieldLabel>
                             <FieldDescription>
                                 What type of release is this? <i>(Ex: album, DVD, annual package)</i>
                             </FieldDescription>
+                            {form.formState.errors.collectionTypes?.message && (
+                                <FieldError>{form.formState.errors.collectionTypes.message}</FieldError>
+                            )}
                         </FieldContent>
-                        <div className="flex flex-col gap-2 flex-1">
+                        <div className="flex flex-col gap-2 flex-1 items-end">
                             {form.watch("collectionTypes").map((collectionType, index) => (
                                 <Controller
                                     key={index}
@@ -853,7 +848,7 @@ export default function CreateCollectionComponent() {
                                     render={({ field, fieldState }) => {
                                         const error = (fieldState.error as any)?.id || fieldState.error;
                                         return (
-                                            <Field data-invalid={!!fieldState.error}>
+                                            <>
                                                 <Combobox
                                                     value={field.value}
                                                     items={collectionTypes.map((ct) => [ct.name, ct])}
@@ -866,7 +861,7 @@ export default function CreateCollectionComponent() {
                                                     isEqual={(a, b) => a?.id === b?.id && a?.name === b?.name}
                                                 />
                                                 {error && <FieldError errors={[error]} />}
-                                            </Field>
+                                            </>
                                         );
                                     }}
                                 />
@@ -874,9 +869,6 @@ export default function CreateCollectionComponent() {
                             <Button type="button" className="max-w-35" onClick={onAddCollectionType}>
                                 <PlusIcon /> Add Another
                             </Button>
-                            {form.formState.errors.collectionTypes?.message && (
-                                <FieldError>{form.formState.errors.collectionTypes.message}</FieldError>
-                            )}
                         </div>
                     </Field>
 

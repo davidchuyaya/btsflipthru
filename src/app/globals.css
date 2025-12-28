@@ -69,6 +69,11 @@
     }
 }
 
+.font-heading {
+    color: var(--darker-primary);
+    font-size: 1.5rem;
+}
+
 .bg-main-dark {
     background-color: var(--dark-primary);
 }

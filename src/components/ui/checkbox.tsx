@@ -30,7 +30,7 @@ function Checkbox({ className, text, ...props }: CheckboxProps) {
                     <Check className="size-4 text-main-foreground" />
                 </CheckboxPrimitive.Indicator>
             </CheckboxPrimitive.Root>
-            <div>{text}</div>
+            <div className="font-sans text-base font-semibold">{text}</div>
         </Label>
     );
 }

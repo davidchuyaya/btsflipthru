@@ -5,7 +5,7 @@ import { Toaster } from "@/components/ui/sonner";
 
 export const metadata: Metadata = {
     title: "BTS Flipthru",
-    description: "TODO", // TODO: add description
+    description: "Flipthru is a BTS photocard archive, binder planning tool, and personal wishlist tracker all in one!",
 };
 
 export default function RootLayout({

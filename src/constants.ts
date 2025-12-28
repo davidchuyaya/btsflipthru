@@ -13,6 +13,16 @@ export function thumbnailId(imageId: string): string {
     return `${imageId}_thumbnail`;
 }
 
+export const MEMBER_TO_OFFICIAL_NAME = {
+    rm: "RM",
+    jin: "Jin",
+    suga: "Suga",
+    jhope: "j-hope",
+    jimin: "Jimin",
+    v: "V",
+    jungkook: "Jung Kook",
+}
+
 export const MEMBER_TO_EMOJI = {
     rm: "🐨",
     jin: "🐹",

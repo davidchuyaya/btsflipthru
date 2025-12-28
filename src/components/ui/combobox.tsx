@@ -73,7 +73,7 @@ export default function Combobox<E>({
                     <Button
                         type="button"
                         variant="noShadow"
-                        className={cn("w-full justify-between px-2 md:max-w-70", className)}
+                        className={cn("w-full justify-between px-2 md:max-w-70 bg-light-accent", className)}
                     >
                         {selectedItem ? selectedItem[0] : `Select ${type}...`}
                         <ChevronsUpDown className="text-muted-foreground" />
@@ -89,7 +89,7 @@ export default function Combobox<E>({
                 </ButtonGroup>
             </PopoverTrigger>
             <PopoverContent className="w-(--radix-popover-trigger-width) border-0 p-0">
-                <Command className="**:data-[slot=command-input-wrapper]:h-11" shouldFilter={false}>
+                <Command className="**:data-[slot=command-input-wrapper]:h-11 bg-light-accent" shouldFilter={false}>
                     <CommandInput placeholder={`Search ${type}...`} value={inputValue} onValueChange={setInputValue} />
                     <CommandList className="p-1">
                         {filteredItems.length === 0 && <CommandEmpty>{`No ${type} found.`}</CommandEmpty>}
@@ -124,7 +124,7 @@ export default function Combobox<E>({
                             <>
                                 <CommandSeparator />
                                 <CommandGroup>
-                                    <CommandItem onSelect={handleCreate} className="bg-main-darker">
+                                    <CommandItem onSelect={handleCreate} className="bg-main cursor-pointer">
                                         <PlusCircleIcon />
                                         Create
                                         {inputValue && !hasExactMatch ? `: "${inputValue}"` : ""}
