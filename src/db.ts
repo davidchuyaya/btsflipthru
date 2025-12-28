@@ -8,39 +8,40 @@ export enum Role {
     MOD = 1,
     ADMIN = 2,
 }
-export const ROLES = Object.values(Role).filter((value) => typeof value === "number") as number[];
 
 export enum ExclusiveCountry {
-    NotExclusive = "Not Exclusive",
-    USA = "USA",
-    Korea = "Korea",
-    Japan = "Japan",
-    Taiwan = "Taiwan",
-    Australia = "Australia",
-    Brazil = "Brazil",
-    Canada = "Canada",
-    Chile = "Chile",
-    China = "China",
-    England = "England",
-    France = "France",
-    Germany = "Germany",
-    HongKong = "Hong Kong",
-    Indonesia = "Indonesia",
-    Italy = "Italy",
-    Malaysia = "Malaysia",
-    Mexico = "Mexico",
-    Netherlands = "Netherlands",
-    Philippines = "Philippines",
-    Russia = "Russia",
-    Singapore = "Singapore",
-    Spain = "Spain",
-    Sweden = "Sweden",
-    Thailand = "Thailand",
-    UnitedArabEmirates = "United Arab Emirates",
-    Vietnam = "Vietnam",
+    Global = 0,
+    USA = 1,
+    Korea = 2,
+    Japan = 3,
+    Taiwan = 4,
+    Australia = 5,
+    Brazil = 6,
+    Canada = 7,
+    Chile = 8,
+    China = 9,
+    England = 10,
+    France = 11,
+    Germany = 12,
+    HongKong = 13,
+    Indonesia = 14,
+    Italy = 15,
+    Malaysia = 16,
+    Mexico = 17,
+    Netherlands = 18,
+    Philippines = 19,
+    Russia = 20,
+    Singapore = 21,
+    Spain = 22,
+    Sweden = 23,
+    Thailand = 24,
+    UnitedArabEmirates = 25,
+    Vietnam = 26,
 }
 export const EXCLUSIVE_COUNTRIES = Object.values(ExclusiveCountry);
-export const EXCLUSIVE_COUNTRIES_WITH_NAMES = Object.entries(ExclusiveCountry);
+export const EXCLUSIVE_COUNTRIES_NAME_TO_ENUM: [string, number][] = Object.entries(ExclusiveCountry).filter(
+    ([_, value]) => typeof value === "number",
+) as [string, number][];
 
 export enum BackImageType {
     Image = 0,
@@ -48,7 +49,7 @@ export enum BackImageType {
     Transparent = 2,
 }
 export const BACK_IMAGE_TYPES = Object.values(BackImageType).filter((value) => typeof value === "number") as number[];
-export const BACK_IMAGE_TYPES_WITH_NAMES = Object.entries(BackImageType).filter(
+export const BACK_IMAGE_TYPES_NAME_TO_ENUM = Object.entries(BackImageType).filter(
     ([_, value]) => typeof value === "number",
 ) as [string, number][];
 
@@ -108,7 +109,7 @@ export interface Photocard {
     cardType: number;
     sizeId: number;
     effects: string | null;
-    exclusiveCountry: string; // Should be one of ExclusiveCountry enum key types
+    exclusiveCountry: number; // Should be one of ExclusiveCountry enum key types
     temporary: boolean; // True for all user uploads. Can be marked false by admin/mod (no more overwrites)
 
     rm: boolean;

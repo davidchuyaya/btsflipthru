@@ -5,17 +5,40 @@ import { MAX_IMAGE_SIZE_BYTES, THUMBNAIL_COMPRESSION_HEIGHT_PX, THUMBNAIL_DISPLA
 import { useMetadata } from "../metadata-context";
 import { uploadImage } from "@/actions";
 import {
-    BACK_IMAGE_TYPES_WITH_NAMES,
+    BACK_IMAGE_TYPES_NAME_TO_ENUM,
     BackImageType,
     CardSize,
     CardType,
-    CollectionType,
-    EXCLUSIVE_COUNTRIES_WITH_NAMES,
+    EXCLUSIVE_COUNTRIES_NAME_TO_ENUM,
     ExclusiveCountry,
     ParsedCollection,
     Photocard,
 } from "@/db";
 import { convertToAvif, formatBytes, invokeOrError } from "../actions-client";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
+import Combobox from "@/components/ui/combobox";
+import { PlusIcon, Trash2Icon } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Controller, FormProvider, useFieldArray, useForm, useFormContext } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
+import { toast } from "sonner";
+import {
+    Field,
+    FieldLabel,
+    FieldError,
+    FieldLegend,
+    FieldSeparator,
+    FieldSet,
+    FieldGroup,
+    FieldDescription,
+    FieldContent,
+} from "@/components/ui/field";
+import { useDropzone } from "react-dropzone";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
 interface ConvertedImage {
     fullSize: ArrayBuffer;
@@ -32,14 +55,18 @@ async function convertFileToImages(file: File): Promise<ConvertedImage> {
 }
 
 function UploadImageButton({
-    desc,
+    label,
+    description,
     disableUpload,
+    className,
     imgClassName,
     forceConvertedImage,
     onImageConverted,
 }: {
-    desc?: string;
+    label?: string;
+    description?: string;
     disableUpload?: boolean;
+    className?: string;
     imgClassName?: string;
     forceConvertedImage?: ConvertedImage | null;
     onImageConverted: (converted: ConvertedImage) => void;
@@ -47,56 +74,51 @@ function UploadImageButton({
     const [convertedImage, setConvertedImage] = useState<ConvertedImage | null>(null);
     const [isConverting, setIsConverting] = useState(false);
     const [showFileError, setShowFileError] = useState<boolean>(false);
-    const inputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         if (forceConvertedImage) {
             setConvertedImage(forceConvertedImage);
         }
     }, [forceConvertedImage]);
-
-    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files) {
-            const file = e.target.files[0];
-            if (file) {
-                if (file.size > MAX_IMAGE_SIZE_BYTES) {
-                    setShowFileError(true);
-                    return;
-                }
+    const { fileRejections, getRootProps, getInputProps } = useDropzone({
+        accept: {
+            "image/*": [],
+        },
+        maxFiles: 1,
+        maxSize: MAX_IMAGE_SIZE_BYTES,
+        onDrop: async (files) => {
+            setIsConverting(true);
+            try {
+                const converted = await convertFileToImages(files[0]);
+                setConvertedImage(converted);
+                onImageConverted(converted);
                 setShowFileError(false);
-                setIsConverting(true);
-                try {
-                    const converted = await convertFileToImages(file);
-                    setConvertedImage(converted);
-                    onImageConverted(converted);
-                } catch (err) {
-                    console.error("Conversion failed:", err);
-                    setShowFileError(true);
-                } finally {
-                    setIsConverting(false);
-                }
+            } catch (err) {
+                setShowFileError(true);
+            } finally {
+                setIsConverting(false);
             }
-        }
-    };
+        },
+    });
 
     const displayImage = convertedImage;
 
     return (
-        <div className="flex flex-col items-center gap-2">
-            <div className="flex flex-row items-center gap-2">
-                {desc && <p className="font-semibold">{desc}:</p>}
-                <input
-                    hidden={disableUpload}
-                    ref={inputRef}
-                    type="file"
-                    name="uploadImage"
-                    accept="image/png, image/jpeg, image/avif, image/webp"
-                    onChange={handleFileChange}
-                />
+        <Field className={className}>
+            {label && <FieldLabel>{label}</FieldLabel>}
+            {description && <FieldDescription>{description}</FieldDescription>}
+            <div
+                {...getRootProps({ className: "dropzone" })}
+                className="cursor-pointer bg-white resize-none p-5 text-center rounded-xl"
+                hidden={disableUpload}
+            >
+                <input {...getInputProps()} />
+                <p>Drop images here.</p>
+                <p>Only images under {MAX_IMAGE_SIZE_BYTES / (1024 * 1024)}MB are allowed.</p>
             </div>
             {isConverting && <p>Converting...</p>}
             {displayImage && !showFileError ? (
-                <div>
+                <div className="mt-2">
                     <img
                         src={displayImage.previewUrl}
                         className={imgClassName}
@@ -104,7 +126,7 @@ function UploadImageButton({
                         height={THUMBNAIL_DISPLAY_HEIGHT_PX}
                         width={THUMBNAIL_DISPLAY_HEIGHT_PX}
                     />
-                    <p>
+                    <p className="mt-3">
                         Full: {formatBytes(displayImage.fullSize.byteLength)} | Thumb:{" "}
                         {formatBytes(displayImage.thumbnail.byteLength)}
                     </p>
@@ -115,14 +137,14 @@ function UploadImageButton({
                     File size exceeds {MAX_IMAGE_SIZE_BYTES / (1024 * 1024)}MB limit or conversion failed.
                 </p>
             ) : null}
-        </div>
+        </Field>
     );
 }
 
 interface LocalPhotocard {
     convertedImage: ConvertedImage | null;
     convertedBackImage: ConvertedImage | null;
-    backImageType: BackImageType;
+    backImageType: number;
 
     rm: boolean;
     jimin: boolean;
@@ -132,58 +154,88 @@ interface LocalPhotocard {
     suga: boolean;
     jhope: boolean;
 
-    sizeId: number;
+    cardSize?: CardSize;
     temporary: boolean;
-    cardType: CardType;
-    exclusiveCountry: ExclusiveCountry;
+    cardType?: CardType;
+    exclusiveCountry: number;
 }
 
-const DEFAULT_ID = -1;
-const DEFAULT_COLLECTION_TYPE: CollectionType = { id: DEFAULT_ID, name: "Select..." };
-const DEFAULT_CARD_TYPE: CardType = { id: DEFAULT_ID, name: "Select..." };
-const DEFAULT_CARD_SIZE: CardSize = {
-    id: DEFAULT_ID,
-    name: "Select...",
-    width: 0,
-    height: 0,
-};
+const formSchema = z.object({
+    collectionName: z.string().min(1, "Collection name is required"),
+    releaseDate: z.string().min(1, "Release date is required"),
+    collectionTypes: z
+        .array(
+            z.object({
+                id: z
+                    .number()
+                    .optional()
+                    .refine((id) => id !== undefined, {
+                        message: "Please select a collection category",
+                    }),
+                name: z.string(),
+            }),
+        )
+        .min(1, "At least one collection category must be selected"),
+    photocards: z
+        .array(
+            z.object({
+                convertedImage: z.any().nullable(),
+                convertedBackImage: z.any().nullable(),
+                backImageType: z.number(),
+                rm: z.boolean(),
+                jimin: z.boolean(),
+                jungkook: z.boolean(),
+                v: z.boolean(),
+                jin: z.boolean(),
+                suga: z.boolean(),
+                jhope: z.boolean(),
+                cardSize: z
+                    .object({
+                        id: z.number().optional(),
+                        name: z.string(),
+                        width: z.number(),
+                        height: z.number(),
+                    })
+                    .optional()
+                    .refine((val) => val !== undefined, { message: "Card size is required" }),
+                temporary: z.boolean(),
+                cardType: z
+                    .object({
+                        id: z.number().optional(),
+                        name: z.string(),
+                    })
+                    .optional()
+                    .refine((val) => val !== undefined, { message: "Card type is required" }),
+                exclusiveCountry: z.number(),
+            }),
+        )
+        .min(1, "At least one photocard is required"),
+});
 
 function CreatePhotocardComponent({
-    photocard,
-    possibleCardSizes,
-    possibleCardTypes,
+    index,
+    cardSizes: possibleCardSizes,
+    cardTypes: possibleCardTypes,
     forceConvertedBackImage,
-    onChange,
     onSameBackImageClick,
     onSameCardTypeClick,
     onSameCardSizeClick,
-    keyId,
+    onCreateCardType,
+    onCreateCardSize,
+    onRemovePhotocard,
 }: {
-    photocard: LocalPhotocard;
-    possibleCardSizes: Array<CardSize>;
-    possibleCardTypes: Array<CardType>;
+    index: number;
+    cardSizes: Array<CardSize>;
+    cardTypes: Array<CardType>;
     forceConvertedBackImage: ConvertedImage | null;
-    onChange: (data: Partial<LocalPhotocard>) => void;
     onSameBackImageClick: (converted: ConvertedImage) => void;
     onSameCardTypeClick: (cardType: CardType) => void;
-    onSameCardSizeClick: (cardSizeId: number) => void;
-    keyId: number;
+    onSameCardSizeClick: (cardSize: CardSize) => void;
+    onCreateCardType: (name: string) => void;
+    onCreateCardSize: (cardSize: CardSize) => void;
+    onRemovePhotocard: () => void;
 }) {
-    const [showBackImageButton, setShowBackImageButton] = useState<boolean>(false);
-
-    function handleFrontChange(converted: ConvertedImage) {
-        onChange({ ...photocard, convertedImage: converted });
-    }
-
-    function handleBackChange(converted: ConvertedImage) {
-        onChange({ ...photocard, convertedBackImage: converted });
-        setShowBackImageButton(true);
-    }
-
-    function onChangeCardType(cardType: CardType) {
-        onChange({ ...photocard, cardType: cardType });
-    }
-
+    const { control, setValue, watch } = useFormContext<z.infer<typeof formSchema>>();
     function backImageClassName(backImageType: BackImageType) {
         switch (backImageType) {
             case BackImageType.White:
@@ -195,227 +247,306 @@ function CreatePhotocardComponent({
         }
     }
 
+    function createCardSizeFromString(sizeString: string) {
+        const parts = sizeString.split("-");
+        if (parts.length !== 2) {
+            toast.error('Please provide dimensions in the format "Name - Width x Height mm"');
+            return;
+        }
+        const name = parts[0].trim();
+        if (name === "") {
+            toast.error("Name cannot be empty.");
+            return;
+        }
+
+        const dimensionPart = parts[1].trim().replace(/\s*mm\s*$/i, "");
+        const dimensions = dimensionPart.split("x");
+        if (dimensions.length !== 2) {
+            toast.error('Please provide dimensions in the format "Name - Width x Height mm"');
+            return;
+        }
+        const width = Number(dimensions[0].trim());
+        const height = Number(dimensions[1].trim());
+        if (isNaN(width) || isNaN(height) || width <= 0 || height <= 0) {
+            toast.error("Width and height must be positive numbers.");
+            return;
+        }
+        onCreateCardSize({ name, width, height });
+    }
+
     return (
-        <div key={keyId} className="light-primary-background p-4 rounded-lg flex flex-col gap-4 items-center">
-            <UploadImageButton desc="Front" onImageConverted={handleFrontChange} />
-            <div className="font-semibold">Back of card:</div>
-            <div>
-                {BACK_IMAGE_TYPES_WITH_NAMES.map(([name, value]) => (
-                    <label key={value}>
-                        <input
-                            key={value}
-                            type="radio"
-                            name={`backImageType_${keyId}`}
-                            checked={photocard.backImageType === value}
-                            onChange={() => onChange({ ...photocard, backImageType: value })}
-                        />
-                        {name}
-                    </label>
-                ))}
-            </div>
-
-            <UploadImageButton
-                disableUpload={photocard.backImageType !== BackImageType.Image}
-                onImageConverted={handleBackChange}
-                forceConvertedImage={
-                    photocard.backImageType === BackImageType.Image ? forceConvertedBackImage : photocard.convertedImage
-                }
-                imgClassName={backImageClassName(photocard.backImageType)}
-            />
-            <button
-                onClick={() => {
-                    if (photocard.convertedBackImage) {
-                        onSameBackImageClick(photocard.convertedBackImage);
-                    }
-                }}
-                hidden={!showBackImageButton}
-            >
-                Use this back image for all current photocards
-            </button>
-            <div className="flex flex-col gap-2 items-center">
-                <div className="font-semibold">Member:</div>
-                <div>
-                    <label>
-                        <input
-                            type="checkbox"
-                            checked={photocard.rm}
-                            onChange={() => onChange({ ...photocard, rm: !photocard.rm })}
-                        />
-                        RM
-                    </label>
-                    <label>
-                        <input
-                            type="checkbox"
-                            checked={photocard.jimin}
-                            onChange={() => onChange({ ...photocard, jimin: !photocard.jimin })}
-                        />
-                        Jimin
-                    </label>
-                    <label>
-                        <input
-                            type="checkbox"
-                            checked={photocard.jungkook}
-                            onChange={() =>
-                                onChange({
-                                    ...photocard,
-                                    jungkook: !photocard.jungkook,
-                                })
-                            }
-                        />
-                        Jungkook
-                    </label>
-                    <label>
-                        <input
-                            type="checkbox"
-                            checked={photocard.v}
-                            onChange={() => onChange({ ...photocard, v: !photocard.v })}
-                        />
-                        V
-                    </label>
-                    <label>
-                        <input
-                            type="checkbox"
-                            checked={photocard.jin}
-                            onChange={() => onChange({ ...photocard, jin: !photocard.jin })}
-                        />
-                        Jin
-                    </label>
-                    <label>
-                        <input
-                            type="checkbox"
-                            checked={photocard.suga}
-                            onChange={() => onChange({ ...photocard, suga: !photocard.suga })}
-                        />
-                        Suga
-                    </label>
-                    <label>
-                        <input
-                            type="checkbox"
-                            checked={photocard.jhope}
-                            onChange={() => onChange({ ...photocard, jhope: !photocard.jhope })}
-                        />
-                        J-Hope
-                    </label>
-                </div>
-                <label>
-                    <input
-                        type="checkbox"
-                        checked={
-                            photocard.rm &&
-                            photocard.jimin &&
-                            photocard.jungkook &&
-                            photocard.v &&
-                            photocard.jin &&
-                            photocard.suga &&
-                            photocard.jhope
-                        }
-                        onChange={() => {
-                            const ot7 =
-                                photocard.rm &&
-                                photocard.jimin &&
-                                photocard.jungkook &&
-                                photocard.v &&
-                                photocard.jin &&
-                                photocard.suga &&
-                                photocard.jhope;
-                            onChange({
-                                ...photocard,
-                                rm: !ot7,
-                                jimin: !ot7,
-                                jungkook: !ot7,
-                                v: !ot7,
-                                jin: !ot7,
-                                suga: !ot7,
-                                jhope: !ot7,
-                            });
-                        }}
+        <Card className="min-w-115">
+            <CardHeader>
+                <CardTitle>Photocard #{index + 1}</CardTitle>
+                <CardAction>
+                    <Button type="button" size="icon" onClick={onRemovePhotocard}>
+                        <Trash2Icon />
+                    </Button>
+                </CardAction>
+            </CardHeader>
+            <CardContent>
+                <FieldGroup>
+                    <Controller
+                        name={`photocards.${index}.convertedImage`}
+                        control={control}
+                        render={({ field }) => (
+                            <UploadImageButton
+                                label="Front"
+                                description="Upload a clear, high-quality scan of the front of your card."
+                                onImageConverted={field.onChange}
+                            />
+                        )}
                     />
-                    OT7
-                </label>
-            </div>
+                    <FieldSeparator />
 
-            <div className="flex flex-row gap-2 items-center">
-                <div className="font-semibold">Card Size:</div>
-                <select
-                    name="cardSize"
-                    onChange={(e) =>
-                        onChange({
-                            ...photocard,
-                            sizeId: Number(e.target.value),
-                        })
-                    }
-                    value={photocard.sizeId}
-                >
-                    {possibleCardSizes.map((cardSize) => (
-                        <option
-                            key={cardSize.id}
-                            value={cardSize.id}
-                        >{`${cardSize.name} (${cardSize.width}x${cardSize.height})`}</option>
-                    ))}
-                </select>
-                <button hidden={photocard.sizeId === DEFAULT_ID} onClick={() => onSameCardSizeClick(photocard.sizeId)}>
-                    Use this card size for all current photocards
-                </button>
-            </div>
-            <div className="flex flex-row gap-2 items-center">
-                <div className="font-semibold">Card Type:</div>
-                <select
-                    name="cardType"
-                    onChange={(e) =>
-                        onChangeCardType({
-                            id: Number(e.target.value),
-                            name: e.target.name,
-                        })
-                    }
-                >
-                    {possibleCardTypes.map((possibleCardType) => (
-                        <option key={possibleCardType.id} value={possibleCardType.id}>
-                            {possibleCardType.name}
-                        </option>
-                    ))}
-                </select>
-                <button
-                    hidden={photocard.cardType.id === DEFAULT_ID}
-                    onClick={() => onSameCardTypeClick(photocard.cardType)}
-                >
-                    Use this card type for all current photocards
-                </button>
-            </div>
-            <label>
-                <input
-                    type="checkbox"
-                    checked={photocard.temporary}
-                    onChange={() =>
-                        onChange({
-                            ...photocard,
-                            temporary: !photocard.temporary,
-                        })
-                    }
-                />
-                Mark as temporary
-            </label>
-            {
-                <div className="flex flex-row gap-2 items-center">
-                    <div className="font-semibold">Exclusive to country:</div>
-                    <select
-                        name="exclusiveCountry"
-                        onChange={(e) =>
-                            onChange({
-                                ...photocard,
-                                exclusiveCountry: e.target.value as ExclusiveCountry,
-                            })
-                        }
-                        value={photocard.exclusiveCountry}
-                    >
-                        {EXCLUSIVE_COUNTRIES_WITH_NAMES.map(([countryEnum, countryDisplayName]) => (
-                            <option key={countryEnum} value={countryEnum}>
-                                {countryDisplayName}
-                            </option>
+                    <Controller
+                        name={`photocards.${index}.convertedBackImage`}
+                        control={control}
+                        render={({ field: backField }) => (
+                            <Controller
+                                name={`photocards.${index}.backImageType`}
+                                control={control}
+                                render={({ field: typeField }) => (
+                                    <Controller
+                                        name={`photocards.${index}.convertedImage`}
+                                        control={control}
+                                        render={({ field: frontField }) => (
+                                            <Field>
+                                                <FieldLabel>Back</FieldLabel>
+                                                <FieldDescription>
+                                                    Upload a clear, high-quality scan of the back of your card.
+                                                    Alternatively, select “white” if the card back is completely white;
+                                                    select “transparent” if your card is transparent and the front is
+                                                    visibly mirrored on the back.
+                                                </FieldDescription>
+                                                <FieldContent>
+                                                    <ToggleGroup
+                                                        type="single"
+                                                        variant="outline"
+                                                        value={typeField.value.toString()}
+                                                        onValueChange={(value) => {
+                                                            if (value) {
+                                                                const selectedType = Number(value);
+                                                                typeField.onChange(selectedType);
+                                                                // If changing to non-image type, clear back image
+                                                                if (selectedType !== BackImageType.Image) {
+                                                                    backField.onChange(null);
+                                                                }
+                                                            }
+                                                        }}
+                                                    >
+                                                        {BACK_IMAGE_TYPES_NAME_TO_ENUM.map(
+                                                            ([backImageTypeName, backImageTypeEnum]) => (
+                                                                <ToggleGroupItem
+                                                                    key={backImageTypeEnum}
+                                                                    value={backImageTypeEnum.toString()}
+                                                                    className="cursor-pointer data-[state=on]:bg-main data-[state=on]:font-bold"
+                                                                >
+                                                                    {backImageTypeName}
+                                                                </ToggleGroupItem>
+                                                            ),
+                                                        )}
+                                                    </ToggleGroup>
+
+                                                    <UploadImageButton
+                                                        className="mt-3"
+                                                        disableUpload={typeField.value !== BackImageType.Image}
+                                                        onImageConverted={backField.onChange}
+                                                        forceConvertedImage={
+                                                            typeField.value === BackImageType.Image
+                                                                ? forceConvertedBackImage
+                                                                : frontField.value
+                                                        }
+                                                        imgClassName={backImageClassName(typeField.value)}
+                                                    />
+                                                    <Button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            if (backField.value) {
+                                                                onSameBackImageClick(backField.value);
+                                                            }
+                                                        }}
+                                                        className="max-w-25"
+                                                        hidden={backField.value === null}
+                                                    >
+                                                        Apply to all
+                                                    </Button>
+                                                </FieldContent>
+                                            </Field>
+                                        )}
+                                    />
+                                )}
+                            />
+                        )}
+                    />
+                    <FieldSeparator />
+
+                    <Field>
+                        <FieldLabel>Member</FieldLabel>
+                        <FieldDescription>Which member(s) is/are on this card?</FieldDescription>
+                        {["rm", "jimin", "jungkook", "v", "jin", "suga", "jhope"].map((member) => (
+                            <Controller
+                                key={member}
+                                name={`photocards.${index}.${member}` as any}
+                                control={control}
+                                render={({ field }) => (
+                                    <Checkbox
+                                        checked={field.value}
+                                        onCheckedChange={field.onChange}
+                                        text={
+                                            member === "rm"
+                                                ? "RM"
+                                                : member === "jhope"
+                                                  ? "J-Hope"
+                                                  : member.charAt(0).toUpperCase() + member.slice(1)
+                                        }
+                                    />
+                                )}
+                            />
                         ))}
-                    </select>
-                </div>
-            }
-        </div>
+                        {(() => {
+                            const photocard = watch(`photocards.${index}`);
+                            const isOT7 =
+                                photocard?.rm &&
+                                photocard?.jimin &&
+                                photocard?.jungkook &&
+                                photocard?.v &&
+                                photocard?.jin &&
+                                photocard?.suga &&
+                                photocard?.jhope;
+                            return (
+                                <Checkbox
+                                    checked={isOT7}
+                                    onCheckedChange={() => {
+                                        const newValue = !isOT7;
+                                        setValue(`photocards.${index}.rm`, newValue);
+                                        setValue(`photocards.${index}.jimin`, newValue);
+                                        setValue(`photocards.${index}.jungkook`, newValue);
+                                        setValue(`photocards.${index}.v`, newValue);
+                                        setValue(`photocards.${index}.jin`, newValue);
+                                        setValue(`photocards.${index}.suga`, newValue);
+                                        setValue(`photocards.${index}.jhope`, newValue);
+                                    }}
+                                    text="OT7"
+                                />
+                            );
+                        })()}
+                    </Field>
+
+                    <FieldSeparator />
+
+                    <Controller
+                        control={control}
+                        name={`photocards.${index}.cardSize`}
+                        render={({ field, fieldState }) => (
+                            <Field data-invalid={fieldState.invalid}>
+                                <FieldLabel>Card Size</FieldLabel>
+                                <FieldDescription>
+                                    What is the size category and exact dimensions in millimeters of the physical
+                                    photocard? <i>(Ex: “Standard - 55 x 85 mm”)</i>{" "}
+                                </FieldDescription>
+                                <Combobox
+                                    items={possibleCardSizes.map((cs) => [
+                                        `${cs.name} - ${cs.width} x ${cs.height} mm`,
+                                        cs,
+                                    ])}
+                                    value={field.value}
+                                    onValueChange={field.onChange}
+                                    type=""
+                                    onCreate={createCardSizeFromString}
+                                    isEqual={(a, b) => a?.id === b?.id && a?.name === b?.name}
+                                />
+                                {fieldState.error && <FieldError errors={[fieldState.error]} />}
+                                <Button
+                                    type="button"
+                                    hidden={field.value === undefined}
+                                    className="max-w-25"
+                                    onClick={() => onSameCardSizeClick(field.value!)}
+                                >
+                                    Apply to all
+                                </Button>
+                            </Field>
+                        )}
+                    />
+
+                    <FieldSeparator />
+
+                    <Controller
+                        control={control}
+                        name={`photocards.${index}.cardType`}
+                        render={({ field, fieldState }) => (
+                            <Field data-invalid={fieldState.invalid}>
+                                <FieldLabel>Card Type</FieldLabel>
+                                <FieldDescription>
+                                    Does your card have a special classification?{" "}
+                                    <i>(Ex: pre-order benefit, lucky draw, Powerstation)</i> If not, select “N/A”.
+                                </FieldDescription>
+                                <Combobox
+                                    items={possibleCardTypes.map((ct) => [ct.name, ct])}
+                                    value={field.value}
+                                    onValueChange={field.onChange}
+                                    type=""
+                                    onCreate={onCreateCardType}
+                                    isEqual={(a, b) => a?.id === b?.id && a?.name === b?.name}
+                                />
+                                {fieldState.error && <FieldError errors={[fieldState.error]} />}
+                                <Button
+                                    type="button"
+                                    hidden={field.value === undefined}
+                                    className="max-w-25"
+                                    onClick={() => onSameCardTypeClick(field.value!)}
+                                >
+                                    Apply to all
+                                </Button>
+                            </Field>
+                        )}
+                    />
+
+                    <FieldSeparator />
+
+                    <Controller
+                        name={`photocards.${index}.temporary`}
+                        control={control}
+                        render={({ field }) => (
+                            <Field orientation="horizontal">
+                                <FieldContent>
+                                    <FieldLabel>Mark as temporary</FieldLabel>
+                                    <FieldDescription>
+                                        Is your image imperfect or your card clearly damaged? If so, select this to
+                                        allow other users to upload alternatives.
+                                    </FieldDescription>
+                                </FieldContent>
+                                <Switch checked={field.value} onCheckedChange={field.onChange} />
+                            </Field>
+                        )}
+                    />
+
+                    <FieldSeparator />
+
+                    <Controller
+                        name={`photocards.${index}.exclusiveCountry`}
+                        control={control}
+                        render={({ field }) => (
+                            <Field>
+                                <FieldContent>
+                                    <FieldLabel>Exclusive Country</FieldLabel>
+                                    <FieldDescription>
+                                        Is your card only directly available in a specific country?{" "}
+                                        <i>(Ex: Japan pop-up event cards)</i> If not, select “Global”.
+                                    </FieldDescription>
+                                </FieldContent>
+                                <Combobox
+                                    items={EXCLUSIVE_COUNTRIES_NAME_TO_ENUM}
+                                    value={field.value}
+                                    onValueChange={field.onChange}
+                                    type=""
+                                />
+                            </Field>
+                        )}
+                    />
+                </FieldGroup>
+            </CardContent>
+        </Card>
     );
 }
 
@@ -432,73 +563,49 @@ export default function CreateCollectionComponent() {
         addCardSize,
     } = useMetadata();
 
-    const [collectionName, setCollectionName] = useState<string>("");
-    const [date, setDate] = useState<string>("");
-    const [photocards, setPhotocards] = useState<Array<LocalPhotocard>>([]);
+    const form = useForm<z.infer<typeof formSchema>>({
+        resolver: zodResolver(formSchema),
+        defaultValues: {
+            collectionName: "",
+            releaseDate: "",
+            collectionTypes: [{ name: "", id: undefined }],
+            photocards: [],
+        },
+    });
+
+    const { fields, append, remove } = useFieldArray({
+        control: form.control,
+        name: "photocards",
+    });
+
     const [sameBackImage, setSameBackImage] = useState<ConvertedImage | null>(null);
-
-    const [newCollectionTypeName, setNewCollectionTypeName] = useState<string>("");
-    const [possibleCollectionTypes, setPossibleCollectionTypes] = useState<Array<CollectionType>>([]);
-
-    const [collectionTypeIds, setCollectionTypeIds] = useState<Array<CollectionType>>([DEFAULT_COLLECTION_TYPE]);
-
-    const [newCardTypeName, setNewCardTypeName] = useState<string>("");
-    const [possibleCardTypes, setPossibleCardTypes] = useState<Array<CardType>>([]);
-
-    const [newCardSizeName, setNewCardSizeName] = useState<string>("");
-    const [newCardSizeWidth, setNewCardSizeWidth] = useState<number>(0);
-    const [newCardSizeHeight, setNewCardSizeHeight] = useState<number>(0);
-    const [possibleCardSizes, setPossibleCardSizes] = useState<Array<CardSize>>([]);
-
     const [isUploading, uploadTransition] = useTransition();
 
-    // Sync metadata from context to local state
-    useEffect(() => {
-        if (!isLoading) {
-            setPossibleCollectionTypes([DEFAULT_COLLECTION_TYPE, ...collectionTypes]);
-            setPossibleCardTypes([DEFAULT_CARD_TYPE, ...cardTypes]);
-            setPossibleCardSizes([DEFAULT_CARD_SIZE, ...cardSizes]);
-        }
-    }, [isLoading, collectionTypes, cardTypes, cardSizes]);
-
-    async function onCreateCollectionType() {
-        if (newCollectionTypeName.trim() === "") {
-            return;
-        }
-        await addCollectionType({ name: newCollectionTypeName });
-        setNewCollectionTypeName("");
+    function onAddCollectionType() {
+        const currentTypes = form.getValues("collectionTypes");
+        // Don't add if there's already an empty one
+        if (currentTypes.some((ct) => ct.id === undefined)) return;
+        form.setValue("collectionTypes", [...currentTypes, { name: "", id: undefined }]);
     }
 
-    async function onAddCollectionType() {
-        setCollectionTypeIds([...collectionTypeIds, DEFAULT_COLLECTION_TYPE]);
+    function onRemoveCollectionType(index: number) {
+        const currentTypes = form.getValues("collectionTypes");
+        // Don't remove the only one
+        if (currentTypes.length <= 1) return;
+        currentTypes.splice(index, 1);
+        form.setValue("collectionTypes", currentTypes);
     }
 
-    function onChangeCollectionType(index: number, collectionType: { id: number; name: string }) {
-        const updated = [...collectionTypeIds];
-        updated[index] = collectionType;
-        setCollectionTypeIds(updated);
+    async function onCreateCollectionType(name: string) {
+        await addCollectionType({ name });
     }
 
-    async function onCreateCardType() {
-        if (newCardTypeName.trim() === "") {
-            return;
-        }
-        await addCardType({ name: newCardTypeName });
-        setNewCardTypeName("");
+    async function onCreateCardType(name: string) {
+        await addCardType({ name });
     }
 
-    async function onCreateCardSize() {
-        if (newCardSizeName.trim() === "" || newCardSizeWidth <= 0 || newCardSizeHeight <= 0) {
-            return;
-        }
-        addCardSize({
-            name: newCardSizeName,
-            width: newCardSizeWidth,
-            height: newCardSizeHeight,
-        });
-        setNewCardSizeName("");
-        setNewCardSizeWidth(0);
-        setNewCardSizeHeight(0);
+    async function onCreateCardSize(cardSize: CardSize) {
+        await addCardSize(cardSize);
     }
 
     function getDefaultPhotocard(): LocalPhotocard {
@@ -514,14 +621,16 @@ export default function CreateCollectionComponent() {
             suga: false,
             jhope: false,
             temporary: false,
-            sizeId: possibleCardSizes[0].id!,
-            cardType: possibleCardTypes[0],
-            exclusiveCountry: ExclusiveCountry.NotExclusive,
+            exclusiveCountry: ExclusiveCountry.Global,
         };
     }
 
     function onAddPhotocard() {
-        setPhotocards([...photocards, getDefaultPhotocard()]);
+        append(getDefaultPhotocard());
+    }
+
+    function onRemovePhotocard(index: number) {
+        remove(index);
     }
 
     function onAddPhotocardForEachMember() {
@@ -531,35 +640,29 @@ export default function CreateCollectionComponent() {
             (photocard as any)[member] = true;
             return photocard;
         });
-        setPhotocards([...photocards, ...newPhotocards]);
+        newPhotocards.forEach((pc) => append(pc));
     }
 
     function onSameBackImageClick(converted: ConvertedImage) {
-        photocards.map((pc) => {
-            pc.convertedBackImage = converted;
+        const currentPhotocards = form.getValues("photocards");
+        currentPhotocards.forEach((_, index) => {
+            form.setValue(`photocards.${index}.convertedBackImage`, converted);
         });
-        setPhotocards([...photocards]);
         setSameBackImage(converted);
     }
 
-    function onSameCardSizeClick(cardSizeId: number) {
-        photocards.map((pc) => {
-            pc.sizeId = cardSizeId;
+    function onSameCardSizeClick(cardSize: CardSize) {
+        const currentPhotocards = form.getValues("photocards");
+        currentPhotocards.forEach((_, index) => {
+            form.setValue(`photocards.${index}.cardSize`, cardSize);
         });
-        setPhotocards([...photocards]);
     }
 
     function onSameCardTypesClick(cardType: CardType) {
-        photocards.map((pc) => {
-            pc.cardType = cardType;
+        const currentPhotocards = form.getValues("photocards");
+        currentPhotocards.forEach((_, index) => {
+            form.setValue(`photocards.${index}.cardType`, cardType);
         });
-        setPhotocards([...photocards]);
-    }
-
-    function handlePhotocardChange(index: number, data: Partial<LocalPhotocard>) {
-        const updated = [...photocards];
-        updated[index] = { ...updated[index], ...data };
-        setPhotocards(updated);
     }
 
     /**
@@ -568,47 +671,23 @@ export default function CreateCollectionComponent() {
      *
      * Converts `LocalPhotocard` to `Photocard` and call `createCollectionInDB`.
      */
-    async function onUpload() {
-        if (collectionName.trim() === "") {
-            alert("Collection name is required");
-            return;
-        }
-        const collectionTypes = collectionTypeIds
-            .filter((collectionType) => collectionType.id !== DEFAULT_ID)
+    async function onSubmit(data: z.infer<typeof formSchema>) {
+        const collectionTypesIds = data.collectionTypes
+            .filter((collectionType) => collectionType.id !== undefined)
             .map((collectionType) => collectionType.id!);
-        if (collectionTypes.length === 0) {
-            alert("At least one collection category must be selected");
-            return;
-        }
-        // If any photocard doesn't have its size set yet, error
-        for (const photocard of photocards) {
-            if (photocard.sizeId === DEFAULT_ID) {
-                alert("All photocards must have a size selected");
-                return;
-            }
-            if (photocard.cardType.id === DEFAULT_ID) {
-                alert("All photocards must have a card type selected");
-                return;
-            }
-        }
-        // Check release date
-        if (date.trim() === "") {
-            alert("Release date is required");
-            return;
-        }
 
         uploadTransition(async () => {
             const collection: ParsedCollection = {
-                name: collectionName,
-                releaseDate: new Date(date),
-                collectionTypes: collectionTypes,
+                name: data.collectionName,
+                releaseDate: new Date(data.releaseDate),
+                collectionTypes: collectionTypesIds,
             };
 
             // Find the number of unique images we have to upload
             // Use the fullSize byteLength as a proxy, since we don't want to compare ArrayBuffers
             // No 2 converted images should have the exact size
             const uniqueImageSizes = new Set<number>();
-            for (const photocard of photocards) {
+            for (const photocard of data.photocards) {
                 if (photocard.convertedImage) {
                     uniqueImageSizes.add(photocard.convertedImage.fullSize.byteLength);
                 }
@@ -628,7 +707,7 @@ export default function CreateCollectionComponent() {
             });
 
             // Create Photocard objects
-            const photocardsToCreate: Photocard[] = photocards.map((localPhotocard) => ({
+            const photocardsToCreate: Photocard[] = data.photocards.map((localPhotocard) => ({
                 collectionId: 0, // Placeholder, will be set in `createCollectionInDB`
                 imageId: localPhotocard.convertedImage
                     ? imageSizeToUUID.get(localPhotocard.convertedImage.fullSize.byteLength)!
@@ -636,12 +715,12 @@ export default function CreateCollectionComponent() {
                 backImageId: localPhotocard.convertedBackImage
                     ? imageSizeToUUID.get(localPhotocard.convertedBackImage.fullSize.byteLength)!
                     : null,
-                backImageType: localPhotocard.backImageType,
-                cardType: localPhotocard.cardType.id!,
-                sizeId: localPhotocard.sizeId,
+                backImageType: localPhotocard.backImageType as BackImageType,
+                cardType: localPhotocard.cardType!.id!,
+                sizeId: localPhotocard.cardSize!.id!,
                 effects: null, // TODO: Allow effects
                 temporary: localPhotocard.temporary,
-                exclusiveCountry: localPhotocard.exclusiveCountry,
+                exclusiveCountry: localPhotocard.exclusiveCountry as ExclusiveCountry,
 
                 rm: localPhotocard.rm,
                 jimin: localPhotocard.jimin,
@@ -658,7 +737,7 @@ export default function CreateCollectionComponent() {
             // Call the server and create DB entries
             const result = await addCollection(collection, photocardsToCreate);
             if (!result) {
-                alert(`Error uploading collection to server: ${error}`);
+                toast.error("Error uploading collection to server");
                 return;
             }
 
@@ -667,7 +746,7 @@ export default function CreateCollectionComponent() {
             const uploadPromises: Promise<boolean | { error: string }>[] = [];
             const uploadedSizes = new Set<number>();
 
-            for (const photocard of photocards) {
+            for (const photocard of data.photocards) {
                 if (photocard.convertedImage && !uploadedSizes.has(photocard.convertedImage.fullSize.byteLength)) {
                     const imageId = imageSizeToUUID.get(photocard.convertedImage.fullSize.byteLength)!;
                     const converted = photocard.convertedImage;
@@ -689,117 +768,150 @@ export default function CreateCollectionComponent() {
             const results = await Promise.all(uploadPromises);
             for (const res of results) {
                 if (typeof res === "object" && "error" in res) {
-                    alert(`Error uploading images to server: ${res.error}`);
+                    toast.error(`Error uploading images: ${res.error}`);
                     return;
                 }
             }
 
-            clearLocalState();
-            alert("Upload successful!");
+            form.reset();
+            setSameBackImage(null);
+            toast.success("Upload successful!");
         });
     }
 
-    /**
-     * Only clears the state of variables that won't be useful for the next album
-     */
-    function clearLocalState() {
-        setCollectionName("");
-        setDate("");
-        setPhotocards([]);
-        setSameBackImage(null);
-    }
-
     return (
-        <div className={`${isUploading ? "loading" : ""} flex flex-col gap-4 m-4 items-center`}>
-            <input
-                className="text-3xl w-200"
-                type="text"
-                placeholder="Collection Name"
-                onChange={(e) => setCollectionName(e.target.value)}
-            />
-            <div>
-                Release date: <input type="date" onChange={(e) => setDate(e.target.value)} />
-            </div>
-
-            <div className="flex flex-row gap-4 items-center">
-                <div>Collection category:</div>
-                {collectionTypeIds.map((collectionType, index) => (
-                    <select
-                        name="collectionType"
-                        onChange={(e) =>
-                            onChangeCollectionType(index, {
-                                id: Number(e.target.value),
-                                name: e.target.name,
-                            })
-                        }
-                        key={index}
-                    >
-                        {possibleCollectionTypes.map((collectionType) => (
-                            <option key={collectionType.id} value={collectionType.id}>
-                                {collectionType.name}
-                            </option>
-                        ))}
-                    </select>
-                ))}
-                <button onClick={onAddCollectionType}>+ Add Another</button>
-            </div>
-            <div className="flex flex-row gap-4 items-center">
-                Missing a collection category?
-                <input
-                    className="w-50"
-                    type="text"
-                    placeholder="New Collection Category"
-                    onChange={(e) => setNewCollectionTypeName(e.target.value)}
-                />
-                <button onClick={onCreateCollectionType}>Create a Collection Category</button>
-            </div>
-            <div className="flex flex-row gap-4 items-center">
-                Missing a card type?
-                <input type="text" placeholder="New Card Type" onChange={(e) => setNewCardTypeName(e.target.value)} />
-                <button onClick={onCreateCardType}>Create a Card Type</button>
-            </div>
-            <div className="flex flex-row gap-4 items-center">
-                Missing a card size?
-                <input
-                    type="text"
-                    placeholder="New Card Size Name"
-                    onChange={(e) => setNewCardSizeName(e.target.value)}
-                />
-                <input
-                    className="w-30"
-                    type="number"
-                    placeholder="Width (in)"
-                    onChange={(e) => setNewCardSizeWidth(Number(e.target.value))}
-                />
-                <input
-                    className="w-30"
-                    type="number"
-                    placeholder="Height (in)"
-                    onChange={(e) => setNewCardSizeHeight(Number(e.target.value))}
-                />
-                <button onClick={onCreateCardSize}>Create a Card Size</button>
-            </div>
-            <button onClick={onAddPhotocard}>Add Photocard</button>
-            <button onClick={onAddPhotocardForEachMember}>Add a Photocard for Each Member</button>
-
-            <div className="flex flex-wrap gap-4">
-                {photocards.map((photocard, index) => (
-                    <CreatePhotocardComponent
-                        photocard={photocard}
-                        possibleCardSizes={possibleCardSizes}
-                        possibleCardTypes={possibleCardTypes}
-                        forceConvertedBackImage={sameBackImage}
-                        onChange={(data) => handlePhotocardChange(index, data)}
-                        onSameBackImageClick={onSameBackImageClick}
-                        onSameCardSizeClick={onSameCardSizeClick}
-                        onSameCardTypeClick={onSameCardTypesClick}
-                        key={index}
-                        keyId={index}
+        <FormProvider {...form}>
+            <form
+                onSubmit={form.handleSubmit(onSubmit, (errors) => {
+                    console.error("Form validation errors:", errors);
+                    // Only show toast for errors not associated with a specific visible field
+                    if (errors.photocards && !Array.isArray(errors.photocards)) {
+                        toast.error(errors.photocards.message);
+                    }
+                })}
+                className={`${isUploading ? "loading" : ""} flex flex-col gap-4 m-4 items-center`}
+            >
+                <FieldGroup className="max-w-200">
+                    <Controller
+                        control={form.control}
+                        name="collectionName"
+                        render={({ field, fieldState }) => (
+                            <Field data-invalid={fieldState.invalid} orientation="horizontal">
+                                <FieldContent>
+                                    <FieldLabel>Collection Name</FieldLabel>
+                                    <FieldDescription>
+                                        What release title is your card associated with, not including the year?{" "}
+                                        <i>(Ex: Proof; Map of the Soul ON:E; Season’s Greetings)</i>
+                                    </FieldDescription>
+                                </FieldContent>
+                                <Input
+                                    {...field}
+                                    id={field.name}
+                                    aria-invalid={fieldState.invalid}
+                                    className="max-w-100"
+                                    placeholder="Love Yourself: Answer"
+                                />
+                                {fieldState.error && <FieldError errors={[fieldState.error]} />}
+                            </Field>
+                        )}
                     />
-                ))}
-            </div>
 
-            <button onClick={onUpload}>Upload</button>
-        </div>
+                    <Controller
+                        control={form.control}
+                        name="releaseDate"
+                        render={({ field, fieldState }) => (
+                            <Field data-invalid={fieldState.invalid} orientation="horizontal">
+                                <FieldContent>
+                                    <FieldLabel htmlFor={field.name}>Release date</FieldLabel>
+                                    <FieldDescription>
+                                        When was this card first released? <i>(Ex: 09/14/2018)</i>
+                                    </FieldDescription>
+                                </FieldContent>
+                                <Input
+                                    {...field}
+                                    id={field.name}
+                                    type="date"
+                                    aria-invalid={fieldState.invalid}
+                                    className="max-w-40"
+                                />
+                                {fieldState.error && <FieldError errors={[fieldState.error]} />}
+                            </Field>
+                        )}
+                    />
+
+                    <Field orientation="horizontal">
+                        <FieldContent className="min-w-50">
+                            <FieldLabel>Collection Category</FieldLabel>
+                            <FieldDescription>
+                                What type of release is this? <i>(Ex: album, DVD, annual package)</i>
+                            </FieldDescription>
+                        </FieldContent>
+                        <div className="flex flex-col gap-2 flex-1">
+                            {form.watch("collectionTypes").map((collectionType, index) => (
+                                <Controller
+                                    key={index}
+                                    name={`collectionTypes.${index}`}
+                                    control={form.control}
+                                    render={({ field, fieldState }) => {
+                                        const error = (fieldState.error as any)?.id || fieldState.error;
+                                        return (
+                                            <Field data-invalid={!!fieldState.error}>
+                                                <Combobox
+                                                    value={field.value}
+                                                    items={collectionTypes.map((ct) => [ct.name, ct])}
+                                                    onValueChange={field.onChange}
+                                                    onCreate={onCreateCollectionType}
+                                                    onDelete={
+                                                        index > 0 ? () => onRemoveCollectionType(index) : undefined
+                                                    }
+                                                    type=""
+                                                    isEqual={(a, b) => a?.id === b?.id && a?.name === b?.name}
+                                                />
+                                                {error && <FieldError errors={[error]} />}
+                                            </Field>
+                                        );
+                                    }}
+                                />
+                            ))}
+                            <Button type="button" className="max-w-35" onClick={onAddCollectionType}>
+                                <PlusIcon /> Add Another
+                            </Button>
+                            {form.formState.errors.collectionTypes?.message && (
+                                <FieldError>{form.formState.errors.collectionTypes.message}</FieldError>
+                            )}
+                        </div>
+                    </Field>
+
+                    <div className="flex flex-row gap-4 justify-center">
+                        <Button type="button" onClick={onAddPhotocard}>
+                            Add Photocard
+                        </Button>
+                        <Button type="button" onClick={onAddPhotocardForEachMember}>
+                            Add a Photocard for Each Member
+                        </Button>
+                    </div>
+                </FieldGroup>
+
+                <div className="flex flex-wrap gap-4 justify-center">
+                    {fields.map((field, index) => (
+                        <CreatePhotocardComponent
+                            key={field.id}
+                            index={index}
+                            cardSizes={cardSizes}
+                            cardTypes={cardTypes}
+                            forceConvertedBackImage={sameBackImage}
+                            onSameBackImageClick={onSameBackImageClick}
+                            onSameCardSizeClick={onSameCardSizeClick}
+                            onSameCardTypeClick={onSameCardTypesClick}
+                            onCreateCardSize={onCreateCardSize}
+                            onCreateCardType={onCreateCardType}
+                            onRemovePhotocard={() => onRemovePhotocard(index)}
+                        />
+                    ))}
+                </div>
+
+                <Button type="submit">Upload</Button>
+            </form>
+        </FormProvider>
     );
 }

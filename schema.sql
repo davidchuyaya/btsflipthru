@@ -79,7 +79,7 @@ CREATE TABLE IF NOT EXISTS photocards (
     cardType INTEGER NOT NULL,
     sizeId INTEGER NOT NULL,
     temporary INTEGER NOT NULL,
-    exclusiveCountry TEXT NOT NULL,
+    exclusiveCountry INTEGER NOT NULL,
     effects TEXT,
     rm INTEGER NOT NULL DEFAULT 0,
     jimin INTEGER NOT NULL DEFAULT 0,

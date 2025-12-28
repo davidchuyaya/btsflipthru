@@ -12,3 +12,13 @@ export function fullSizeId(imageId: string): string {
 export function thumbnailId(imageId: string): string {
     return `${imageId}_thumbnail`;
 }
+
+export const MEMBER_TO_EMOJI = {
+    rm: "🐨",
+    jin: "🐹",
+    suga: "🐱",
+    jhope: "🐿",
+    jimin: "🐣",
+    v: "🐯",
+    jungkook: "🐰",
+}

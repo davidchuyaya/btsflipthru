@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { MetadataProvider } from "./metadata-context";
+import { Toaster } from "@/components/ui/sonner";
 
 const geistSans = Geist({
     variable: "--font-geist-sans",
@@ -26,10 +27,11 @@ export default function RootLayout({
     return (
         <html lang="en">
             <head>
-                <link rel="icon" href="/favicon.svg" type="image/svg+xml"></link>
+                <link rel="icon" href="/LOGO.png" type="image/png"></link>
             </head>
             <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
                 <MetadataProvider>{children}</MetadataProvider>
+                <Toaster />
             </body>
         </html>
     );

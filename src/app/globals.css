@@ -11,7 +11,7 @@
     --third: #f58a8a;
     --light-third: #fea9ac;
     --lighter-third: #ffb9ba;
-    --white: #fff2cc;
+    --white: #fff7e1;
     --black: #494742;
     --black-translucent: #494742cc;
 
@@ -68,14 +68,68 @@
     }
 }
 
-button,
-a {
-    background-color: #6c5ce7;
-    color: white;
-    border: none;
-    padding: 0.5em 1em;
-    border-radius: 0.3em;
-    cursor: pointer;
+.bg-main-dark {
+    background-color: var(--dark-primary);
+}
+
+.bg-main-darker {
+    background-color: var(--darker-primary);
+}
+
+.bg-main-light {
+    background-color: var(--light-primary);
+}
+
+.bg-accent {
+    background-color: var(--accent);
+}
+
+.bg-light-accent {
+    background-color: var(--light-accent);
+}
+
+.bg-third {
+    background-color: var(--third);
+}
+
+.bg-light-third {
+    background-color: var(--light-third);
+}
+
+.bg-lighter-third {
+    background-color: var(--lighter-third);
+}
+
+.text-main-dark {
+    color: var(--dark-primary);
+}
+
+.text-main-darker {
+    color: var(--darker-primary);
+}
+
+.text-main-light {
+    color: var(--light-primary);
+}
+
+.text-accent {
+    color: var(--accent);
+}
+
+.text-light-accent {
+    color: var(--light-accent);
+}
+
+.text-third {
+    color: var(--third);
+}
+
+.text-light-third {
+    color: var(--light-third);
+}
+
+.text-lighter-third {
+    color: var(--lighter-third);
 }
 
 input[type="file"]::file-selector-button {
@@ -101,10 +155,6 @@ input[type="file"]::file-selector-button {
 
 .light-primary-background {
     background-color: var(--light-primary);
-}
-
-input {
-    text-align: center;
 }
 
 label {
