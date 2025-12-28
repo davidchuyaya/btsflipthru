@@ -35,7 +35,7 @@ export enum ExclusiveCountry {
     Spain = 22,
     Sweden = 23,
     Thailand = 24,
-    UnitedArabEmirates = 25,
+    UAE = 25,
     Vietnam = 26,
 }
 export const EXCLUSIVE_COUNTRIES = Object.values(ExclusiveCountry);
@@ -106,7 +106,7 @@ export interface Photocard {
     imageId: string | null;
     backImageId: string | null;
     backImageType: number; // Should be one of BackImageType enum values
-    cardType: number;
+    cardType: number | null;
     sizeId: number;
     effects: string | null;
     exclusiveCountry: number; // Should be one of ExclusiveCountry enum key types

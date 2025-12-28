@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { MAX_IMAGE_SIZE_BYTES, THUMBNAIL_COMPRESSION_HEIGHT_PX, THUMBNAIL_DISPLAY_HEIGHT_PX } from "@/constants";
-import { useMetadata } from "../metadata-context";
+import { DEFAULT_CARD_TYPE, useMetadata } from "../metadata-context";
 import { uploadImage } from "@/actions";
 import {
     BACK_IMAGE_TYPES_NAME_TO_ENUM,
@@ -156,7 +156,7 @@ interface LocalPhotocard {
 
     cardSize?: CardSize;
     temporary: boolean;
-    cardType?: CardType;
+    cardType: CardType;
     exclusiveCountry: number;
 }
 
@@ -203,9 +203,7 @@ const formSchema = z.object({
                     .object({
                         id: z.number().optional(),
                         name: z.string(),
-                    })
-                    .optional()
-                    .refine((val) => val !== undefined, { message: "Card type is required" }),
+                    }),
                 exclusiveCountry: z.number(),
             }),
         )
@@ -489,7 +487,6 @@ function CreatePhotocardComponent({
                                     onCreate={onCreateCardType}
                                     isEqual={(a, b) => a?.id === b?.id && a?.name === b?.name}
                                 />
-                                {fieldState.error && <FieldError errors={[fieldState.error]} />}
                                 <Button
                                     type="button"
                                     hidden={field.value === undefined}
@@ -621,6 +618,7 @@ export default function CreateCollectionComponent() {
             suga: false,
             jhope: false,
             temporary: false,
+            cardType: DEFAULT_CARD_TYPE,
             exclusiveCountry: ExclusiveCountry.Global,
         };
     }

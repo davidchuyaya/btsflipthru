@@ -76,7 +76,7 @@ CREATE TABLE IF NOT EXISTS photocards (
     imageId TEXT,
     backImageId TEXT,
     backImageType INTEGER NOT NULL DEFAULT 0,
-    cardType INTEGER NOT NULL,
+    cardType INTEGER,
     sizeId INTEGER NOT NULL,
     temporary INTEGER NOT NULL,
     exclusiveCountry INTEGER NOT NULL,

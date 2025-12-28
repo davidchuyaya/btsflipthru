@@ -100,6 +100,8 @@ function saveToStorage(
     setToStorage(STORAGE_KEYS.lastUpdated, Date.now());
 }
 
+export const DEFAULT_CARD_TYPE: CardType = { id: undefined, name: "N/A" };
+
 export function MetadataProvider({ children }: { children: ReactNode }) {
     const [collections, setCollections] = useState<ParsedCollection[]>([]);
     const [collectionTypes, setCollectionTypes] = useState<CollectionType[]>([]);
@@ -115,6 +117,10 @@ export function MetadataProvider({ children }: { children: ReactNode }) {
         refetch: sessionRefetch, //refetch the session
     } = authClient.useSession();
 
+    function setCardTypesWithDefault(types: CardType[]) {
+        setCardTypes([DEFAULT_CARD_TYPE, ...types]);
+    }
+
     useEffect(() => {
         async function fetchMetadata() {
             // Try to load from localStorage first
@@ -122,7 +128,7 @@ export function MetadataProvider({ children }: { children: ReactNode }) {
 
             if (cached.collections) setCollections(cached.collections);
             if (cached.collectionTypes) setCollectionTypes(cached.collectionTypes);
-            if (cached.cardTypes) setCardTypes(cached.cardTypes);
+            if (cached.cardTypes) setCardTypesWithDefault(cached.cardTypes);
             if (cached.cardSizes) setCardSizes(cached.cardSizes);
 
             // If cache is valid, don't fetch from DB
@@ -140,7 +146,7 @@ export function MetadataProvider({ children }: { children: ReactNode }) {
                 ]);
                 setCollections(collectionsData);
                 setCollectionTypes(types);
-                setCardTypes(cardTypesData);
+                setCardTypesWithDefault(cardTypesData);
                 setCardSizes(sizes);
 
                 // Save to localStorage
@@ -169,7 +175,7 @@ export function MetadataProvider({ children }: { children: ReactNode }) {
             const cached = loadFromStorage();
             if (cached.collections) setCollections(cached.collections);
             if (cached.collectionTypes) setCollectionTypes(cached.collectionTypes);
-            if (cached.cardTypes) setCardTypes(cached.cardTypes);
+            if (cached.cardTypes) setCardTypesWithDefault(cached.cardTypes);
             if (cached.cardSizes) setCardSizes(cached.cardSizes);
         }
 
@@ -217,7 +223,7 @@ export function MetadataProvider({ children }: { children: ReactNode }) {
         if (typeof result === "bigint") {
             cardType.id = Number(result);
             const newCardTypes = [...cardTypes, cardType];
-            setCardTypes(newCardTypes);
+            setCardTypesWithDefault(newCardTypes);
             setToStorage(STORAGE_KEYS.cardTypes, newCardTypes);
             setToStorage(STORAGE_KEYS.lastUpdated, Date.now());
             setError(null);

@@ -1,18 +1,7 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { MetadataProvider } from "./metadata-context";
 import { Toaster } from "@/components/ui/sonner";
-
-const geistSans = Geist({
-    variable: "--font-geist-sans",
-    subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-    variable: "--font-geist-mono",
-    subsets: ["latin"],
-});
 
 export const metadata: Metadata = {
     title: "BTS Flipthru",
@@ -28,8 +17,9 @@ export default function RootLayout({
         <html lang="en">
             <head>
                 <link rel="icon" href="/LOGO.png" type="image/png"></link>
+                <link rel="stylesheet" href="https://use.typekit.net/gpm8jeo.css"></link>
             </head>
-            <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+            <body className="antialiased">
                 <MetadataProvider>{children}</MetadataProvider>
                 <Toaster />
             </body>
