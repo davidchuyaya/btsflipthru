@@ -3,7 +3,8 @@ export const MAX_IMAGE_SIZE_BYTES = 50 * 1024 * 1024; // 50MB
 export const CACHE_DURATION_MS = 5 * 60 * 1000; // 5 minutes before metadata is refetched
 export const THUMBNAIL_DISPLAY_HEIGHT_PX = 200;
 export const THUMBNAIL_COMPRESSION_HEIGHT_PX = THUMBNAIL_DISPLAY_HEIGHT_PX * 2; // To reduce compression artifacts
-export const IMAGES_URL = 'https://images.btsflipthru.com/';
+export const IMAGES_URL = "https://images.btsflipthru.com/";
+export const CLOUDFLARE_TURNSTILE_SITE_KEY = "0x4AAAAAACJg4L7-eUjaAdjN";
 
 export function fullSizeId(imageId: string): string {
     return `${imageId}_fullSize`;
@@ -21,7 +22,7 @@ export const MEMBER_TO_OFFICIAL_NAME = {
     jimin: "Jimin",
     v: "V",
     jungkook: "Jung Kook",
-}
+};
 
 export const MEMBER_TO_EMOJI = {
     rm: "🐨",
@@ -31,4 +32,26 @@ export const MEMBER_TO_EMOJI = {
     jimin: "🐣",
     v: "🐯",
     jungkook: "🐰",
+};
+
+export type Result<T> = { data: T; error?: never } | { data?: never; error: string };
+
+export enum ReportType {
+    Error = "error",
+}
+
+export function reportWindowURL(reportType: ReportType, title: string) {
+    return `/report?reportType=${reportType}&url=${encodeURIComponent(window.location.href)}&title=${encodeURIComponent(title)}`;
+}
+
+export function reportTypeToFields(type: ReportType) {
+    switch (type) {
+        case ReportType.Error:
+            return {
+                reportTitle: "Submit Error Report",
+                descriptionPlaceholder: 'I clicked on "Create Photocard," but nothing happened.',
+                descriptionSmallText:
+                    "Include steps to reproduce the issue, what you expected to happen, and any other relevant information.",
+            };
+    }
 }

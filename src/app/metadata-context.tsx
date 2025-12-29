@@ -12,9 +12,9 @@ import {
     getCollectionsFromDB,
     getCollectionTypesFromDB,
 } from "@/actions";
-import { invokeOrError } from "./actions-client";
-import { CACHE_DURATION_MS } from "@/constants";
-import { authClient, ClientSession } from "./auth-client";
+import { ReportType, reportWindowURL, CACHE_DURATION_MS } from "@/constants";
+import { authClient, ClientSession, isAtLeastMod } from "./auth-client";
+import { toast } from "sonner";
 
 const STORAGE_KEYS = {
     collections: "metadata_collections",
@@ -32,11 +32,10 @@ interface MetadataContextType {
     cardTypes: CardType[];
     cardSizes: CardSize[];
     isLoading: boolean;
-    error: string | null;
     addCollection: (collection: ParsedCollection, photocards: Photocard[]) => Promise<boolean>;
-    addCollectionType: (collectionType: CollectionType) => Promise<boolean>;
-    addCardType: (cardType: CardType) => Promise<boolean>;
-    addCardSize: (cardSize: CardSize) => Promise<boolean>;
+    addCollectionType: (collectionType: CollectionType) => Promise<number | undefined>;
+    addCardType: (cardType: CardType) => Promise<number | undefined>;
+    addCardSize: (cardSize: CardSize) => Promise<number | undefined>;
 }
 
 const MetadataContext = createContext<MetadataContextType | undefined>(undefined);
@@ -108,7 +107,6 @@ export function MetadataProvider({ children }: { children: ReactNode }) {
     const [cardTypes, setCardTypes] = useState<CardType[]>([]);
     const [cardSizes, setCardSizes] = useState<CardSize[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
 
     const {
         data: session,
@@ -137,25 +135,20 @@ export function MetadataProvider({ children }: { children: ReactNode }) {
                 return;
             }
 
-            try {
-                const [collectionsData, types, cardTypesData, sizes] = await Promise.all([
-                    getCollectionsFromDB(),
-                    getCollectionTypesFromDB(),
-                    getCardTypesFromDB(),
-                    getCardSizesFromDB(),
-                ]);
-                setCollections(collectionsData);
-                setCollectionTypes(types);
-                setCardTypesWithDefault(cardTypesData);
-                setCardSizes(sizes);
+            const [collectionsData, types, cardTypesData, sizes] = await Promise.all([
+                getCollectionsFromDB(),
+                getCollectionTypesFromDB(),
+                getCardTypesFromDB(),
+                getCardSizesFromDB(),
+            ]);
+            setCollections(collectionsData);
+            setCollectionTypes(types);
+            setCardTypesWithDefault(cardTypesData);
+            setCardSizes(sizes);
 
-                // Save to localStorage
-                saveToStorage(collectionsData, types, cardTypesData, sizes);
-            } catch (err) {
-                setError(err instanceof Error ? err.message : "Failed to load metadata");
-            } finally {
-                setIsLoading(false);
-            }
+            // Save to localStorage
+            saveToStorage(collectionsData, types, cardTypesData, sizes);
+            setIsLoading(false);
         }
 
         fetchMetadata();
@@ -183,78 +176,99 @@ export function MetadataProvider({ children }: { children: ReactNode }) {
         return () => window.removeEventListener("storage", handleStorageChange);
     }, []);
 
+    function setError(message: string) {
+        toast.error(message, {
+            action: {
+                label: "Report",
+                onClick: () => {
+                    const url = reportWindowURL(ReportType.Error, message);
+                    window.open(url, "_blank");
+                },
+            },
+        });
+    }
+
     async function addCollection(collection: ParsedCollection, photocards: Photocard[]) {
-        const result = await invokeOrError(addCollectionToDB(serializeCollection(collection), photocards));
-        if (typeof result === "boolean") {
+        const allowed = isAtLeastMod(session);
+        if (!allowed) {
+            toast.error("Not authorized to add collection");
+            return false;
+        }
+
+        const result = await addCollectionToDB(serializeCollection(collection), photocards);
+        if (result.error) {
+            setError(`Server error: ${result.error}`);
+            return false;
+        } else {
             const newCollections = [...collections, collection];
             setCollections(newCollections);
             setToStorage(STORAGE_KEYS.collections, newCollections);
             setToStorage(STORAGE_KEYS.lastUpdated, Date.now());
-            setError(null);
             return true;
-        } else {
-            setError(result.error);
-            return false;
         }
     }
 
     async function addCollectionType(collectionType: CollectionType) {
-        const result = await invokeOrError(addCollectionTypeToDB(collectionType));
-        if (typeof result === "bigint") {
-            collectionType.id = Number(result);
+        const allowed = isAtLeastMod(session);
+        if (!allowed) {
+            setError("Not authorized to add collection category");
+            return;
+        }
+
+        const result = await addCollectionTypeToDB(collectionType);
+        if (result.error) {
+            setError(`Server error: ${result.error}`);
+            return;
+        } else {
+            collectionType.id = Number(result.data);
             const newCollectionTypes = [...collectionTypes, collectionType];
+            console.log(`New collection types: ${JSON.stringify(newCollectionTypes)}`);
             setCollectionTypes(newCollectionTypes);
             setToStorage(STORAGE_KEYS.collectionTypes, newCollectionTypes);
             setToStorage(STORAGE_KEYS.lastUpdated, Date.now());
-            setError(null);
-            return true;
-        } else {
-            if (!result) {
-                setError("Unknown error adding collection type");
-            } else {
-                setError(result.error);
-            }
-            return false;
+            return collectionType.id!;
         }
     }
 
     async function addCardType(cardType: CardType) {
-        const result = await invokeOrError(addCardTypeToDB(cardType));
-        if (typeof result === "bigint") {
-            cardType.id = Number(result);
+        const allowed = isAtLeastMod(session);
+        if (!allowed) {
+            setError("Not authorized to add card type");
+            return;
+        }
+
+        const result = await addCardTypeToDB(cardType);
+        if (result.error) {
+            setError(`Server error: ${result.error}`);
+            return;
+        } else {
+            cardType.id = Number(result.data);
             const newCardTypes = [...cardTypes, cardType];
             setCardTypesWithDefault(newCardTypes);
             setToStorage(STORAGE_KEYS.cardTypes, newCardTypes);
             setToStorage(STORAGE_KEYS.lastUpdated, Date.now());
-            setError(null);
-            return true;
-        } else {
-            if (!result) {
-                setError("Unknown error adding card type");
-            } else {
-                setError(result.error);
-            }
-            return false;
+            return cardType.id!;
         }
     }
 
     async function addCardSize(cardSize: CardSize) {
-        const result = await invokeOrError(addCardSizeToDB(cardSize));
-        if (typeof result === "bigint") {
-            cardSize.id = Number(result);
+        const allowed = isAtLeastMod(session);
+        if (!allowed) {
+            setError("Not authorized to add card size");
+            return;
+        }
+
+        const result = await addCardSizeToDB(cardSize);
+        if (result.error) {
+            setError(`Server error: ${result.error}`);
+            return;
+        } else {
+            cardSize.id = Number(result.data);
             const newCardSizes = [...cardSizes, cardSize];
             setCardSizes(newCardSizes);
             setToStorage(STORAGE_KEYS.cardSizes, newCardSizes);
             setToStorage(STORAGE_KEYS.lastUpdated, Date.now());
-            setError(null);
-            return true;
-        } else {
-            if (!result) {
-                setError("Unknown error adding card size");
-            } else {
-                setError(result.error);
-            }
-            return false;
+            return cardSize.id!;
         }
     }
 
@@ -262,13 +276,18 @@ export function MetadataProvider({ children }: { children: ReactNode }) {
         <MetadataContext.Provider
             value={{
                 session,
-                sessionRefetch,
+                sessionRefetch: async () => {
+                    await sessionRefetch({
+                        query: {
+                            disableCookieCache: true
+                        }
+                    });
+                },
                 collections,
                 collectionTypes,
                 cardTypes,
                 cardSizes,
                 isLoading,
-                error,
                 addCollection,
                 addCollectionType,
                 addCardType,

@@ -2,6 +2,7 @@ import { betterAuth } from "better-auth";
 import { db, Role } from "./db";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { headers } from "next/headers";
+import { Result } from "./constants";
 
 export const auth = (env: Env) =>
     betterAuth({
@@ -50,27 +51,35 @@ export async function getSession() {
     });
 
     if (!session) {
-        throw new Error("Not authenticated");
+        return { error: "Not authenticated" };
     }
-    return session;
+    return { data: session };
 }
 
 type ServerSession = Awaited<ReturnType<typeof getSession>>;
 
-export async function errorIfLessPrivilegedThanMod(session?: ServerSession) {
+export async function isAtLeastMod<T>(session?: ServerSession): Promise<Result<T>> {
     if (!session) {
         session = await getSession();
     }
-    if (session.user.role !== Role.ADMIN && session.user.role !== Role.MOD) {
-        throw new Error("Not authorized");
+    if (!session.data) {
+        return session;
     }
+    if (session.data.user.role !== Role.ADMIN && session.data.user.role !== Role.MOD) {
+        return { error: "Not authorized" };
+    }
+    return { data: undefined as T };
 }
 
-export async function errorIfNotAdmin(session?: ServerSession) {
+export async function isAdmin<T>(session?: ServerSession): Promise<Result<T>> {
     if (!session) {
         session = await getSession();
     }
-    if (session.user.role !== Role.ADMIN) {
-        throw new Error("Not authorized");
+    if (!session.data) {
+        return session;
     }
+    if (session.data.user.role !== Role.ADMIN) {
+        return { error: "Not authorized" };
+    }
+    return { data: undefined as T };
 }

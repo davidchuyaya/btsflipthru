@@ -13,6 +13,7 @@
     --third: #f58a8a;
     --third-light: #fea9ac;
     --third-lighter: #ffb9ba;
+    --third-lightest: #ffd2d3;
     --white: #fff7e1;
     --black: #494742;
     --black-translucent: #494742cc;
@@ -86,7 +87,7 @@
 }
 
 .font-heading {
-    color: var(--primary-darker);
+    color: var(--main);
     font-size: 1.5rem;
 }
 
@@ -130,6 +131,10 @@
     background-color: var(--third-lighter);
 }
 
+.bg-third-lightest {
+    background-color: var(--third-lightest);
+}
+
 .text-main-dark {
     color: var(--primary-dark);
 }
@@ -168,6 +173,10 @@
 
 .text-third-lighter {
     color: var(--third-lighter);
+}
+
+.text-third-lightest {
+    color: var(--third-lightest);
 }
 
 input[type="file"]::file-selector-button {

@@ -19,27 +19,23 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { cn } from "@/lib/utils";
 import { ButtonGroup, ButtonGroupSeparator } from "./button-group";
 
-interface ComboboxProps<E> {
-    items: [string, E][];
-    value?: E;
-    onValueChange: (value: E) => void;
-    onDelete?: () => void;
-    type?: string;
-    onCreate?: (inputValue: string) => void;
-    className?: string;
-    isEqual?: (a: E, b: E) => boolean;
-}
-
 export default function Combobox<E>({
     items,
     value,
     onValueChange,
     onDelete,
-    type = "item",
     onCreate,
     className,
     isEqual = (a, b) => a === b,
-}: ComboboxProps<E>) {
+}: {
+    items: [string, E][];
+    value?: E;
+    onValueChange: (value: E) => void;
+    onDelete?: () => void;
+    onCreate?: (inputValue: string) => void;
+    className?: string;
+    isEqual?: (a: E, b: E) => boolean;
+}) {
     const [open, setOpen] = React.useState(false);
     const [inputValue, setInputValue] = React.useState<string>("");
 
@@ -75,7 +71,7 @@ export default function Combobox<E>({
                         variant="noShadow"
                         className={cn("w-full justify-between px-2 md:max-w-70 bg-accent-light", className)}
                     >
-                        {selectedItem ? selectedItem[0] : `Select ${type}...`}
+                        {selectedItem ? selectedItem[0] : "Select..."}
                         <ChevronsUpDown className="text-muted-foreground" />
                     </Button>
                     {onDelete && (
@@ -90,9 +86,9 @@ export default function Combobox<E>({
             </PopoverTrigger>
             <PopoverContent className="w-(--radix-popover-trigger-width) border-0 p-0">
                 <Command className="**:data-[slot=command-input-wrapper]:h-11 bg-accent-light" shouldFilter={false}>
-                    <CommandInput placeholder={`Search ${type}...`} value={inputValue} onValueChange={setInputValue} />
+                    <CommandInput placeholder="Search..." value={inputValue} onValueChange={setInputValue} />
                     <CommandList className="p-1">
-                        {filteredItems.length === 0 && <CommandEmpty>{`No ${type} found.`}</CommandEmpty>}
+                        {filteredItems.length === 0 && <CommandEmpty>No items found.</CommandEmpty>}
                         {filteredItems.length > 0 && (
                             <CommandGroup className="**:[[cmdk-group-items]]:flex **:[[cmdk-group-items]]:flex-col **:[[cmdk-group-items]]:gap-1">
                                 {filteredItems.map(([itemName, itemEnum]) => {

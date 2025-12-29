@@ -1,11 +1,9 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useState } from "react";
 import {
-    MAX_IMAGE_SIZE_BYTES,
     MEMBER_TO_OFFICIAL_NAME,
-    THUMBNAIL_COMPRESSION_HEIGHT_PX,
-    THUMBNAIL_DISPLAY_HEIGHT_PX,
+    Result,
 } from "@/constants";
 import { DEFAULT_CARD_TYPE, useMetadata } from "../metadata-context";
 import { uploadImage } from "@/actions";
@@ -19,7 +17,6 @@ import {
     ParsedCollection,
     Photocard,
 } from "@/db";
-import { convertToAvif, formatBytes, invokeOrError } from "../actions-client";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
@@ -40,109 +37,8 @@ import {
     FieldDescription,
     FieldContent,
 } from "@/components/ui/field";
-import { useDropzone } from "react-dropzone";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-
-interface ConvertedImage {
-    fullSize: ArrayBuffer;
-    thumbnail: ArrayBuffer;
-    previewUrl: string; // Object URL for preview
-}
-
-async function convertFileToImages(file: File): Promise<ConvertedImage> {
-    const fullSize = await convertToAvif(file);
-    const thumbnail = await convertToAvif(file, THUMBNAIL_COMPRESSION_HEIGHT_PX);
-    const previewBlob = new Blob([thumbnail], { type: "image/webp" });
-    const previewUrl = URL.createObjectURL(previewBlob);
-    return { fullSize, thumbnail, previewUrl };
-}
-
-function UploadImageButton({
-    label,
-    description,
-    disableUpload,
-    className,
-    imgClassName,
-    forceConvertedImage,
-    onImageConverted,
-}: {
-    label?: string;
-    description?: string;
-    disableUpload?: boolean;
-    className?: string;
-    imgClassName?: string;
-    forceConvertedImage?: ConvertedImage | null;
-    onImageConverted: (converted: ConvertedImage) => void;
-}) {
-    const [convertedImage, setConvertedImage] = useState<ConvertedImage | null>(null);
-    const [isConverting, setIsConverting] = useState(false);
-    const [showFileError, setShowFileError] = useState<boolean>(false);
-
-    useEffect(() => {
-        if (forceConvertedImage) {
-            setConvertedImage(forceConvertedImage);
-        }
-    }, [forceConvertedImage]);
-    const { fileRejections, getRootProps, getInputProps } = useDropzone({
-        accept: {
-            "image/*": [],
-        },
-        maxFiles: 1,
-        maxSize: MAX_IMAGE_SIZE_BYTES,
-        onDrop: async (files) => {
-            setIsConverting(true);
-            try {
-                const converted = await convertFileToImages(files[0]);
-                setConvertedImage(converted);
-                onImageConverted(converted);
-                setShowFileError(false);
-            } catch (err) {
-                setShowFileError(true);
-            } finally {
-                setIsConverting(false);
-            }
-        },
-    });
-
-    const displayImage = convertedImage;
-
-    return (
-        <Field className={className}>
-            {label && <FieldLabel>{label}</FieldLabel>}
-            {description && <FieldDescription>{description}</FieldDescription>}
-            <div
-                {...getRootProps({ className: "dropzone" })}
-                className=" bg-white resize-none p-5 text-center rounded-xl"
-                hidden={disableUpload}
-            >
-                <input {...getInputProps()} />
-                <p>Drop images here.</p>
-                <p>Only images under {MAX_IMAGE_SIZE_BYTES / (1024 * 1024)}MB are allowed.</p>
-            </div>
-            {isConverting && <p className="text-center">Converting...</p>}
-            {displayImage && !showFileError ? (
-                <div className="mt-2 flex flex-col items-center gap-3">
-                    <img
-                        src={displayImage.previewUrl}
-                        className={imgClassName}
-                        alt="Preview"
-                        height={THUMBNAIL_DISPLAY_HEIGHT_PX}
-                        width={THUMBNAIL_DISPLAY_HEIGHT_PX}
-                    />
-                    <p>
-                        Full: {formatBytes(displayImage.fullSize.byteLength)} | Thumbnail:{" "}
-                        {formatBytes(displayImage.thumbnail.byteLength)}
-                    </p>
-                </div>
-            ) : null}
-            {showFileError ? (
-                <p className="text-center" style={{ color: "red" }}>
-                    File size exceeds {MAX_IMAGE_SIZE_BYTES / (1024 * 1024)}MB limit or conversion failed.
-                </p>
-            ) : null}
-        </Field>
-    );
-}
+import { ConvertedImage, ImageDropzone } from "../image-dropzone";
 
 interface LocalPhotocard {
     convertedImage: ConvertedImage | null;
@@ -231,8 +127,8 @@ function CreatePhotocardComponent({
     onSameBackImageClick: (converted: ConvertedImage) => void;
     onSameCardTypeClick: (cardType: CardType) => void;
     onSameCardSizeClick: (cardSize: CardSize) => void;
-    onCreateCardType: (name: string) => void;
-    onCreateCardSize: (cardSize: CardSize) => void;
+    onCreateCardType: (name: string, index: number) => void;
+    onCreateCardSize: (cardSize: CardSize, index: number) => void;
     onRemovePhotocard: () => void;
 }) {
     const { control, setValue, watch } = useFormContext<z.infer<typeof formSchema>>();
@@ -271,7 +167,7 @@ function CreatePhotocardComponent({
             toast.error("Width and height must be positive numbers.");
             return;
         }
-        onCreateCardSize({ name, width, height });
+        onCreateCardSize({ name, width, height }, index);
     }
 
     return (
@@ -291,7 +187,7 @@ function CreatePhotocardComponent({
                         name={`photocards.${index}.convertedImage`}
                         control={control}
                         render={({ field }) => (
-                            <UploadImageButton
+                            <ImageDropzone
                                 label="Front"
                                 description="Upload a clear, high-quality scan of the front of your card."
                                 onImageConverted={field.onChange}
@@ -349,7 +245,7 @@ function CreatePhotocardComponent({
                                                         )}
                                                     </ToggleGroup>
 
-                                                    <UploadImageButton
+                                                    <ImageDropzone
                                                         className="mt-3"
                                                         disableUpload={typeField.value !== BackImageType.Image}
                                                         onImageConverted={backField.onChange}
@@ -385,7 +281,7 @@ function CreatePhotocardComponent({
                     <Field>
                         <FieldLabel>Member</FieldLabel>
                         <FieldDescription>Which member(s) is/are on this card?</FieldDescription>
-                        {["rm", "jimin", "jungkook", "v", "jin", "suga", "jhope"].map((member) => (
+                        {["rm", "jin", "suga", "jhope", "jimin", "v", "jungkook"].map((member) => (
                             <Controller
                                 key={member}
                                 name={`photocards.${index}.${member}` as any}
@@ -447,7 +343,6 @@ function CreatePhotocardComponent({
                                     ])}
                                     value={field.value}
                                     onValueChange={field.onChange}
-                                    type=""
                                     onCreate={createCardSizeFromString}
                                     isEqual={(a, b) => a?.id === b?.id && a?.name === b?.name}
                                 />
@@ -474,14 +369,13 @@ function CreatePhotocardComponent({
                                 <FieldLabel>Card Type</FieldLabel>
                                 <FieldDescription>
                                     Does your card have a special classification?{" "}
-                                    <i>(Ex: pre-order benefit, lucky draw, Powerstation)</i> If not, select “N/A”.
+                                    <i>(Ex: Pre-order Benefit, Lucky Draw, Powerstation)</i> If not, select “N/A”.
                                 </FieldDescription>
                                 <Combobox
                                     items={possibleCardTypes.map((ct) => [ct.name, ct])}
                                     value={field.value}
                                     onValueChange={field.onChange}
-                                    type=""
-                                    onCreate={onCreateCardType}
+                                    onCreate={(name) => onCreateCardType(name, index)}
                                     isEqual={(a, b) => a?.id === b?.id && a?.name === b?.name}
                                 />
                                 <Button
@@ -533,7 +427,6 @@ function CreatePhotocardComponent({
                                     items={EXCLUSIVE_COUNTRIES_NAME_TO_ENUM}
                                     value={field.value}
                                     onValueChange={field.onChange}
-                                    type=""
                                 />
                             </Field>
                         )}
@@ -545,17 +438,8 @@ function CreatePhotocardComponent({
 }
 
 export default function CreateCollectionComponent() {
-    const {
-        collectionTypes,
-        cardTypes,
-        cardSizes,
-        isLoading,
-        error,
-        addCollection,
-        addCollectionType,
-        addCardType,
-        addCardSize,
-    } = useMetadata();
+    const { collectionTypes, cardTypes, cardSizes, addCollection, addCollectionType, addCardType, addCardSize } =
+        useMetadata();
 
     const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
@@ -573,7 +457,6 @@ export default function CreateCollectionComponent() {
     });
 
     const [sameBackImage, setSameBackImage] = useState<ConvertedImage | null>(null);
-    const [isUploading, uploadTransition] = useTransition();
 
     function onAddCollectionType() {
         const currentTypes = form.getValues("collectionTypes");
@@ -590,16 +473,28 @@ export default function CreateCollectionComponent() {
         form.setValue("collectionTypes", currentTypes);
     }
 
-    async function onCreateCollectionType(name: string) {
-        await addCollectionType({ name });
+    async function onCreateCollectionType(name: string, index: number) {
+        const id = await addCollectionType({ name });
+        if (id !== undefined) {
+            // Update the form field with the newly created collection type
+            form.setValue(`collectionTypes.${index}`, { name, id });
+        }
     }
 
-    async function onCreateCardType(name: string) {
-        await addCardType({ name });
+    async function onCreateCardType(name: string, index: number) {
+        const id = await addCardType({ name });
+        if (id !== undefined) {
+            // Update the form field with the newly created card type
+            form.setValue(`photocards.${index}.cardType`, { name, id });
+        }
     }
 
-    async function onCreateCardSize(cardSize: CardSize) {
-        await addCardSize(cardSize);
+    async function onCreateCardSize(cardSize: CardSize, index: number) {
+        const id = await addCardSize(cardSize);
+        if (id !== undefined) {
+            // Update the form field with the newly created card size
+            form.setValue(`photocards.${index}.cardSize`, { ...cardSize, id });
+        }
     }
 
     function getDefaultPhotocard(): LocalPhotocard {
@@ -671,7 +566,6 @@ export default function CreateCollectionComponent() {
             .filter((collectionType) => collectionType.id !== undefined)
             .map((collectionType) => collectionType.id!);
 
-        uploadTransition(async () => {
             const collection: ParsedCollection = {
                 name: data.collectionName,
                 releaseDate: new Date(data.releaseDate),
@@ -738,7 +632,7 @@ export default function CreateCollectionComponent() {
 
             // Upload each unique image in parallel
             // Images are already converted to AVIF on selection, so we just upload them directly
-            const uploadPromises: Promise<boolean | { error: string }>[] = [];
+            const uploadPromises: Promise<Result<boolean>>[] = [];
             const uploadedSizes = new Set<number>();
 
             for (const photocard of data.photocards) {
@@ -746,7 +640,7 @@ export default function CreateCollectionComponent() {
                     const imageId = imageSizeToUUID.get(photocard.convertedImage.fullSize.byteLength)!;
                     const converted = photocard.convertedImage;
                     uploadedSizes.add(converted.fullSize.byteLength);
-                    uploadPromises.push(invokeOrError(uploadImage(converted.fullSize, converted.thumbnail, imageId)));
+                    uploadPromises.push(uploadImage(converted.fullSize, converted.thumbnail, imageId));
                 }
                 if (
                     photocard.convertedBackImage &&
@@ -755,23 +649,27 @@ export default function CreateCollectionComponent() {
                     const backImageId = imageSizeToUUID.get(photocard.convertedBackImage.fullSize.byteLength)!;
                     const converted = photocard.convertedBackImage;
                     uploadedSizes.add(converted.fullSize.byteLength);
-                    uploadPromises.push(
-                        invokeOrError(uploadImage(converted.fullSize, converted.thumbnail, backImageId)),
-                    );
-                }
-            }
-            const results = await Promise.all(uploadPromises);
-            for (const res of results) {
-                if (typeof res === "object" && "error" in res) {
-                    toast.error(`Error uploading images: ${res.error}`);
-                    return;
+                    uploadPromises.push(uploadImage(converted.fullSize, converted.thumbnail, backImageId));
                 }
             }
 
-            form.reset();
-            setSameBackImage(null);
-            toast.success("Upload successful!");
-        });
+            toast.promise(
+                Promise.all(uploadPromises).then((results) => {
+                    const error = results.find((res) => res.error);
+                    if (error) {
+                        throw new Error(error.error);
+                    }
+                }),
+                {
+                    loading: "Uploading images...",
+                    success: (data) => {
+                        form.reset();
+                        setSameBackImage(null);
+                        return "All images uploaded successfully!";
+                    },
+                    error: (error) => `Error uploading images: ${error.message}`,
+                },
+            );
     }
 
     return (
@@ -783,7 +681,7 @@ export default function CreateCollectionComponent() {
                         toast.error(errors.photocards.message);
                     }
                 })}
-                className={`${isUploading ? "loading" : ""} flex flex-col gap-4 m-4 items-center`}
+                className="flex flex-col gap-4 m-4 items-center"
             >
                 <FieldGroup className="max-w-200">
                     <Controller
@@ -837,7 +735,7 @@ export default function CreateCollectionComponent() {
                         <FieldContent>
                             <FieldLabel>Collection Category</FieldLabel>
                             <FieldDescription>
-                                What type of release is this? <i>(Ex: album, DVD, annual package)</i>
+                                What type of release is this? <i>(Ex: Album, DVD, Annual Package)</i>
                             </FieldDescription>
                             {form.formState.errors.collectionTypes?.message && (
                                 <FieldError>{form.formState.errors.collectionTypes.message}</FieldError>
@@ -857,12 +755,12 @@ export default function CreateCollectionComponent() {
                                                     value={field.value}
                                                     items={collectionTypes.map((ct) => [ct.name, ct])}
                                                     onValueChange={field.onChange}
-                                                    onCreate={onCreateCollectionType}
+                                                    onCreate={(name) => onCreateCollectionType(name, index)}
                                                     onDelete={
                                                         index > 0 ? () => onRemoveCollectionType(index) : undefined
                                                     }
-                                                    type=""
                                                     isEqual={(a, b) => a?.id === b?.id && a?.name === b?.name}
+                                                    className="min-w-40"
                                                 />
                                                 {error && <FieldError errors={[error]} />}
                                             </>

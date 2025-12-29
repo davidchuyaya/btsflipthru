@@ -104,6 +104,18 @@ CREATE TABLE IF NOT EXISTS cardTypes (
     name TEXT NOT NULL
 );
 
+-- Report table
+CREATE TABLE IF NOT EXISTS reports (
+    id INTEGER PRIMARY KEY,
+    title TEXT NOT NULL,
+    description TEXT NOT NULL,
+    imageId TEXT,
+    userId TEXT,
+    userEmail TEXT,
+    url TEXT NOT NULL,
+    createdAt INTEGER NOT NULL
+);
+
 -- Indexes for better query performance
 CREATE INDEX IF NOT EXISTS idx_session_userId ON session(userId);
 CREATE INDEX IF NOT EXISTS idx_session_token ON session(token);
@@ -123,3 +135,5 @@ CREATE INDEX IF NOT EXISTS idx_photocards_suga ON photocards(suga);
 CREATE INDEX IF NOT EXISTS idx_photocards_jhope ON photocards(jhope);
 CREATE INDEX IF NOT EXISTS idx_photocards_contributorId ON photocards(imageContributorId);
 CREATE INDEX IF NOT EXISTS idx_photocards_updatedAt ON photocards(updatedAt);
+CREATE INDEX IF NOT EXISTS idx_reports_userId ON reports(userId);
+CREATE INDEX IF NOT EXISTS idx_reports_createdAt ON reports(createdAt);

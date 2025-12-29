@@ -13,7 +13,8 @@
 		"cf-typegen": "wrangler types --env-interface CloudflareEnv ./cloudflare-env.d.ts",
 		"load-local-db": "wrangler d1 execute prod --local --file=schema.sql",
 		"load-remote-db": "wrangler d1 execute prod --remote --file=schema.sql",
-		"local-db-all-admin": "wrangler d1 execute prod --local --command \"UPDATE user SET role=2\""
+		"local-db-all-admin": "wrangler d1 execute prod --local --command \"UPDATE user SET role=2\"",
+		"reauthenticate": "wrangler logout && wrangler login"
 	},
 	"dependencies": {
 		"@hookform/resolvers": "^5.2.2",

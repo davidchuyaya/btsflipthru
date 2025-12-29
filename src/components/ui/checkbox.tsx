@@ -14,7 +14,7 @@ interface CheckboxProps extends React.ComponentProps<typeof CheckboxPrimitive.Ro
 
 function Checkbox({ className, text, ...props }: CheckboxProps) {
     return (
-        <Label className="flex flex-row gap-2 items-center ">
+        <Label className="flex flex-row gap-3 items-center ml-1">
             <CheckboxPrimitive.Root
                 data-slot="checkbox"
                 className={cn(

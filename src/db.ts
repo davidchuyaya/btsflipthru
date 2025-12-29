@@ -173,6 +173,18 @@ export interface CollectionType {
     name: string;
 }
 
+
+export interface Report {
+    id?: number;
+    title: string;
+    description: string;
+    imageId: string | null;
+    userId: string | null; // Null if submitted by someone who hasn't logged in
+    userEmail: string | null; // Null if they don't want an email followup
+    url: string;
+    createdAt: Date;
+}
+
 interface Database {
     user: User;
     session: Session;
@@ -183,6 +195,7 @@ interface Database {
     cardSizes: CardSize;
     collections: Collection;
     collectionTypes: CollectionType;
+    reports: Report;
 }
 
 export const db = (env: Env) => new Kysely<Database>({ dialect: new D1Dialect({ database: env.DB }) });

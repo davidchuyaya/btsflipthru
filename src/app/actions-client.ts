@@ -1,4 +1,3 @@
-import { callPromiseOrError } from "@/actions";
 import { fullSizeId, IMAGES_URL, thumbnailId } from "@/constants";
 
 export function fullSizeUrl(imageId: string): string {
@@ -7,22 +6,6 @@ export function fullSizeUrl(imageId: string): string {
 
 export function thumbnailUrl(imageId: string): string {
     return `${IMAGES_URL}${thumbnailId(imageId)}`;
-}
-
-/**
- * 
- * @param promise Must return a non-falsy value when correct, otherwise will detect server errors
- * @returns 
- */
-export async function invokeOrError<T>(promise: Promise<T>): Promise<T | { error: string }> {
-    const result = await callPromiseOrError(promise);
-    if (!result) {
-        return { error: "Server error" };
-    }
-    if (typeof result === "object" && "error" in result) {
-        return { error: result.error };
-    }
-    return result;
 }
 
 export async function convertToAvif(file: File, maxHeight?: number): Promise<ArrayBuffer> {

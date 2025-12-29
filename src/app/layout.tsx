@@ -21,7 +21,7 @@ export default function RootLayout({
                 <link rel="stylesheet" href="https://use.typekit.net/gpm8jeo.css"></link>
             </head>
             <body className="antialiased">
-                <CursorGlow/>
+                <CursorGlow />
                 <MetadataProvider>{children}</MetadataProvider>
                 <Toaster />
             </body>
