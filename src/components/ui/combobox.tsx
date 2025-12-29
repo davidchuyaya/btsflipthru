@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckIcon, ChevronsUpDown, PlusCircleIcon, Trash2Icon, XIcon } from "lucide-react";
+import { CheckIcon, ChevronsUpDown, PlusCircleIcon, Trash2Icon } from "lucide-react";
 
 import * as React from "react";
 
@@ -69,7 +69,7 @@ export default function Combobox<E>({
                     <Button
                         type="button"
                         variant="noShadow"
-                        className={cn("w-full justify-between px-2 md:max-w-70 bg-accent-light", className)}
+                        className={cn("w-full justify-between md:max-w-70 bg-accent-light", className)}
                     >
                         {selectedItem ? selectedItem[0] : "Select..."}
                         <ChevronsUpDown className="text-muted-foreground" />
@@ -88,7 +88,7 @@ export default function Combobox<E>({
                 <Command className="**:data-[slot=command-input-wrapper]:h-11 bg-accent-light" shouldFilter={false}>
                     <CommandInput placeholder="Search..." value={inputValue} onValueChange={setInputValue} />
                     <CommandList className="p-1">
-                        {filteredItems.length === 0 && <CommandEmpty>No items found.</CommandEmpty>}
+                        {filteredItems.length === 0 && <CommandEmpty>No item found.</CommandEmpty>}
                         {filteredItems.length > 0 && (
                             <CommandGroup className="**:[[cmdk-group-items]]:flex **:[[cmdk-group-items]]:flex-col **:[[cmdk-group-items]]:gap-1">
                                 {filteredItems.map(([itemName, itemEnum]) => {

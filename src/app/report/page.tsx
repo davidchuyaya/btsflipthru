@@ -8,7 +8,7 @@ import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/c
 import z from "zod";
 import { Controller, useForm } from "react-hook-form";
 import { useSearchParams } from "next/navigation";
-import { CLOUDFLARE_TURNSTILE_SITE_KEY, ReportType, reportTypeToFields } from "@/constants";
+import { CLOUDFLARE_TURNSTILE_SITE_KEY, MAX_IMAGE_SIZE_BYTES, ReportType, reportTypeToFields } from "@/constants";
 import { Suspense, useRef } from "react";
 import Script from "next/script";
 import useTurnstile from "@/hooks/useTurnstile";

@@ -203,3 +203,59 @@ input[type="file"]::file-selector-button {
 label {
     margin-right: 0.5em;
 }
+
+.table-head-horizontal {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: calc(var(--spacing) * 2);
+}
+
+td:not(:first-of-type):not(:last-of-type) {
+  background-image:
+    repeating-linear-gradient(
+      180deg,
+      #333 0,
+      #333 10px,
+      transparent 10px,
+      transparent 27px
+    ),
+    repeating-linear-gradient(
+      180deg,
+      #333 0,
+      #333 10px,
+      transparent 10px,
+      transparent 27px
+    );
+  background-size: 1px 100%, 1px 100%;
+  background-position: left top, right top;
+  background-repeat: no-repeat;
+}
+
+td:last-of-type {
+  background-image:
+    repeating-linear-gradient(
+      180deg,
+      #333 0,
+      #333 10px,
+      transparent 10px,
+      transparent 27px
+    );
+  background-size: 1px 100%;
+  background-position: left top;
+  background-repeat: no-repeat;
+}
+
+td:first-of-type {
+  background-image:
+    repeating-linear-gradient(
+      180deg,
+      #333 0,
+      #333 10px,
+      transparent 10px,
+      transparent 27px
+    );
+  background-size: 1px 100%;
+  background-position: right top;
+  background-repeat: no-repeat;
+}

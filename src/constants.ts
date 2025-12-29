@@ -14,15 +14,20 @@ export function thumbnailId(imageId: string): string {
     return `${imageId}_thumbnail`;
 }
 
-export const MEMBER_TO_OFFICIAL_NAME = {
-    rm: "RM",
-    jin: "Jin",
-    suga: "Suga",
-    jhope: "j-hope",
-    jimin: "Jimin",
-    v: "V",
-    jungkook: "Jung Kook",
-};
+export enum Member {
+    rm = "RM",
+    jin = "Jin",
+    suga = "Suga",
+    jhope = "j-hope",
+    jimin = "Jimin",
+    v = "V",
+    jungkook = "Jung Kook",
+}
+export const NAME_TO_MEMBER: [string, Member][] = Object.entries(Member).map(([key, value]) => [value, key as Member]);
+export function memberFromName(name: string): Member | undefined {
+    const entry = NAME_TO_MEMBER.find(([memberName, _]) => memberName === name);
+    return entry ? entry[1] : undefined;
+}
 
 export const MEMBER_TO_EMOJI = {
     rm: "🐨",

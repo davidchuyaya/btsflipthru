@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { MEMBER_TO_OFFICIAL_NAME, ReportType, reportWindowURL, Result } from "@/constants";
+import { Member, memberFromName, NAME_TO_MEMBER, ReportType, reportWindowURL, Result } from "@/constants";
 import { DEFAULT_CARD_TYPE, useMetadata } from "../metadata-context";
 import { uploadImage } from "@/actions";
 import {
@@ -15,48 +15,33 @@ import {
     Photocard,
 } from "@/db";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import Combobox from "@/components/ui/combobox";
-import { PlusIcon, Trash2Icon } from "lucide-react";
+import { ExpandIcon, PlusIcon, ShrinkIcon, Trash2Icon } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Controller, FormProvider, useFieldArray, useForm, useFormContext } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { toast } from "sonner";
-import {
-    Field,
-    FieldLabel,
-    FieldError,
-    FieldSeparator,
-    FieldGroup,
-    FieldDescription,
-    FieldContent,
-} from "@/components/ui/field";
+import { Field, FieldLabel, FieldError, FieldGroup, FieldDescription, FieldContent } from "@/components/ui/field";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { ConvertedImage, ImageDropzone } from "../image-dropzone";
+import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import TooltipComponent from "@/components/ui/tooltip";
+import MultiCombobox from "@/components/ui/multi-combobox";
 
 interface LocalPhotocard {
     convertedImage: ConvertedImage | null;
     convertedBackImage: ConvertedImage | null;
     backImageType: number;
-
-    rm: boolean;
-    jimin: boolean;
-    jungkook: boolean;
-    v: boolean;
-    jin: boolean;
-    suga: boolean;
-    jhope: boolean;
-
+    members: Member[];
     cardSize?: CardSize;
     temporary: boolean;
     cardType: CardType;
     exclusiveCountry: number;
 }
 
-const formSchema = z.object({
+export const formSchema = z.object({
     collectionName: z.string().min(1, "Collection name is required"),
     releaseDate: z.string().min(1, "Release date is required"),
     collectionTypes: z
@@ -78,13 +63,7 @@ const formSchema = z.object({
                 convertedImage: z.any().nullable(),
                 convertedBackImage: z.any().nullable(),
                 backImageType: z.number(),
-                rm: z.boolean(),
-                jimin: z.boolean(),
-                jungkook: z.boolean(),
-                v: z.boolean(),
-                jin: z.boolean(),
-                suga: z.boolean(),
-                jhope: z.boolean(),
+                members: z.array(z.enum(Member)).min(1, "At least one member must be selected"),
                 cardSize: z
                     .object({
                         id: z.number().optional(),
@@ -105,31 +84,29 @@ const formSchema = z.object({
         .min(1, "At least one photocard is required"),
 });
 
-function CreatePhotocardComponent({
+function CreatePhotocardRowComponent({
     index,
     cardSizes: possibleCardSizes,
     cardTypes: possibleCardTypes,
     forceConvertedBackImage,
     onSameBackImageClick,
-    onSameCardTypeClick,
-    onSameCardSizeClick,
     onCreateCardType,
     onCreateCardSize,
     onRemovePhotocard,
+    expandImages,
 }: {
     index: number;
     cardSizes: Array<CardSize>;
     cardTypes: Array<CardType>;
     forceConvertedBackImage: ConvertedImage | null;
     onSameBackImageClick: (converted: ConvertedImage) => void;
-    onSameCardTypeClick: (cardType: CardType) => void;
-    onSameCardSizeClick: (cardSize: CardSize) => void;
     onCreateCardType: (name: string, index: number) => void;
     onCreateCardSize: (cardSize: CardSize, index: number) => void;
     onRemovePhotocard: () => void;
+    expandImages: boolean;
 }) {
     const { setError } = useMetadata();
-    const { control, setValue, watch } = useFormContext<z.infer<typeof formSchema>>();
+    const { control } = useFormContext<z.infer<typeof formSchema>>();
     function backImageClassName(backImageType: BackImageType) {
         switch (backImageType) {
             case BackImageType.White:
@@ -142,25 +119,21 @@ function CreatePhotocardComponent({
     }
 
     function createCardSizeFromString(sizeString: string) {
-        const parts = sizeString.split("-");
-        if (parts.length !== 2) {
-            setError('Please provide dimensions in the format "Name - Width x Height mm"');
+        // Match format: "Name WidthxHeight" (e.g., "Standard 55x85")
+        const match = sizeString.match(/^(.+?)\s+(\d+)\s*x\s*(\d+)$/i);
+        if (!match) {
+            setError('Please provide dimensions in the format "Name WidthxHeight" (e.g., "Standard 55x85")');
             return;
         }
-        const name = parts[0].trim();
+
+        const name = match[1].trim();
         if (name === "") {
             setError("Name cannot be empty.");
             return;
         }
 
-        const dimensionPart = parts[1].trim().replace(/\s*mm\s*$/i, "");
-        const dimensions = dimensionPart.split("x");
-        if (dimensions.length !== 2) {
-            setError('Please provide dimensions in the format "Name - Width x Height mm"');
-            return;
-        }
-        const width = Number(dimensions[0].trim());
-        const height = Number(dimensions[1].trim());
+        const width = Number(match[2]);
+        const height = Number(match[3]);
         if (isNaN(width) || isNaN(height) || width <= 0 || height <= 0) {
             setError("Width and height must be positive numbers.");
             return;
@@ -169,171 +142,120 @@ function CreatePhotocardComponent({
     }
 
     return (
-        <Card className="min-w-115">
-            <CardHeader>
-                <CardTitle>Photocard #{index + 1}</CardTitle>
-                <CardDescription>Leave the front and back images blank if you do not have them.</CardDescription>
-                <CardAction>
-                    <Button type="button" size="icon" onClick={onRemovePhotocard}>
-                        <Trash2Icon />
-                    </Button>
-                </CardAction>
-            </CardHeader>
-            <CardContent>
-                <FieldGroup>
-                    <Controller
-                        name={`photocards.${index}.convertedImage`}
-                        control={control}
-                        render={({ field }) => (
-                            <ImageDropzone
-                                label="Front"
-                                description="Upload a clear, high-quality scan of the front of your card."
-                                onImageConverted={field.onChange}
-                            />
-                        )}
-                    />
-                    <FieldSeparator />
-
-                    <Controller
-                        name={`photocards.${index}.convertedBackImage`}
-                        control={control}
-                        render={({ field: backField }) => (
-                            <Controller
-                                name={`photocards.${index}.backImageType`}
-                                control={control}
-                                render={({ field: typeField }) => (
-                                    <Controller
-                                        name={`photocards.${index}.convertedImage`}
-                                        control={control}
-                                        render={({ field: frontField }) => (
-                                            <Field>
-                                                <FieldLabel>Back</FieldLabel>
-                                                <FieldDescription>
-                                                    Upload a clear, high-quality scan of the back of your card.
-                                                    Alternatively, select “white” if the card back is completely white;
-                                                    select “transparent” if your card is transparent and the front is
-                                                    visibly mirrored on the back.
-                                                </FieldDescription>
-                                                <FieldContent>
-                                                    <ToggleGroup
-                                                        type="single"
-                                                        variant="outline"
-                                                        value={typeField.value.toString()}
-                                                        onValueChange={(value) => {
-                                                            if (value) {
-                                                                const selectedType = Number(value);
-                                                                typeField.onChange(selectedType);
-                                                                // If changing to non-image type, clear back image
-                                                                if (selectedType !== BackImageType.Image) {
-                                                                    backField.onChange(null);
-                                                                }
-                                                            }
-                                                        }}
-                                                    >
-                                                        {BACK_IMAGE_TYPES_NAME_TO_ENUM.map(
-                                                            ([backImageTypeName, backImageTypeEnum]) => (
-                                                                <ToggleGroupItem
-                                                                    key={backImageTypeEnum}
-                                                                    value={backImageTypeEnum.toString()}
-                                                                    className=" data-[state=on]:bg-main data-[state=on]:font-bold"
-                                                                >
-                                                                    {backImageTypeName}
-                                                                </ToggleGroupItem>
-                                                            ),
-                                                        )}
-                                                    </ToggleGroup>
-
-                                                    <ImageDropzone
-                                                        className="mt-3"
-                                                        disableUpload={typeField.value !== BackImageType.Image}
-                                                        onImageConverted={backField.onChange}
-                                                        forceConvertedImage={
-                                                            typeField.value === BackImageType.Image
-                                                                ? forceConvertedBackImage
-                                                                : frontField.value
+        <TableRow key={index}>
+            <TableCell>{index + 1}</TableCell>
+            <TableCell>
+                <Controller
+                    name={`photocards.${index}.convertedImage`}
+                    control={control}
+                    render={({ field }) => (
+                        <div className="flex justify-center w-full">
+                            <ImageDropzone onImageConverted={field.onChange} expand={expandImages} shortDescription />
+                        </div>
+                    )}
+                />
+            </TableCell>
+            <TableCell>
+                <Controller
+                    name={`photocards.${index}.convertedBackImage`}
+                    control={control}
+                    render={({ field: backField }) => (
+                        <Controller
+                            name={`photocards.${index}.backImageType`}
+                            control={control}
+                            render={({ field: typeField }) => (
+                                <Controller
+                                    name={`photocards.${index}.convertedImage`}
+                                    control={control}
+                                    render={({ field: frontField }) => (
+                                        <Field className="flex flex-col items-center w-full">
+                                            <ToggleGroup
+                                                className="w-auto!"
+                                                type="single"
+                                                variant="outline"
+                                                value={typeField.value.toString()}
+                                                onValueChange={(value) => {
+                                                    if (value) {
+                                                        const selectedType = Number(value);
+                                                        typeField.onChange(selectedType);
+                                                        // If changing to non-image type, clear back image
+                                                        if (selectedType !== BackImageType.Image) {
+                                                            backField.onChange(null);
                                                         }
-                                                        imgClassName={backImageClassName(typeField.value)}
-                                                    />
-                                                    <Button
-                                                        type="button"
-                                                        onClick={() => {
-                                                            if (backField.value) {
-                                                                onSameBackImageClick(backField.value);
-                                                            }
-                                                        }}
-                                                        className="max-w-35"
-                                                        hidden={backField.value === null}
-                                                    >
-                                                        Apply to all
-                                                    </Button>
-                                                </FieldContent>
-                                            </Field>
-                                        )}
-                                    />
-                                )}
-                            />
-                        )}
-                    />
-                    <FieldSeparator />
+                                                    }
+                                                }}
+                                            >
+                                                {BACK_IMAGE_TYPES_NAME_TO_ENUM.map(
+                                                    ([backImageTypeName, backImageTypeEnum]) => (
+                                                        <ToggleGroupItem
+                                                            key={backImageTypeEnum}
+                                                            value={backImageTypeEnum.toString()}
+                                                            className=" data-[state=on]:bg-main data-[state=on]:font-bold"
+                                                        >
+                                                            {backImageTypeName}
+                                                        </ToggleGroupItem>
+                                                    ),
+                                                )}
+                                            </ToggleGroup>
 
-                    <Field>
-                        <FieldLabel>Member</FieldLabel>
-                        <FieldDescription>Which member(s) is/are on this card?</FieldDescription>
-                        {["rm", "jin", "suga", "jhope", "jimin", "v", "jungkook"].map((member) => (
-                            <Controller
-                                key={member}
-                                name={`photocards.${index}.${member}` as any}
-                                control={control}
-                                render={({ field }) => (
-                                    <Checkbox
-                                        checked={field.value}
-                                        onCheckedChange={field.onChange}
-                                        text={MEMBER_TO_OFFICIAL_NAME[member as keyof typeof MEMBER_TO_OFFICIAL_NAME]}
-                                    />
-                                )}
-                            />
-                        ))}
-                        {(() => {
-                            const photocard = watch(`photocards.${index}`);
-                            const isOT7 =
-                                photocard?.rm &&
-                                photocard?.jimin &&
-                                photocard?.jungkook &&
-                                photocard?.v &&
-                                photocard?.jin &&
-                                photocard?.suga &&
-                                photocard?.jhope;
-                            return (
-                                <Checkbox
-                                    checked={isOT7}
-                                    onCheckedChange={() => {
-                                        const newValue = !isOT7;
-                                        setValue(`photocards.${index}.rm`, newValue);
-                                        setValue(`photocards.${index}.jimin`, newValue);
-                                        setValue(`photocards.${index}.jungkook`, newValue);
-                                        setValue(`photocards.${index}.v`, newValue);
-                                        setValue(`photocards.${index}.jin`, newValue);
-                                        setValue(`photocards.${index}.suga`, newValue);
-                                        setValue(`photocards.${index}.jhope`, newValue);
-                                    }}
-                                    text="OT7"
+                                            <ImageDropzone
+                                                disableUpload={typeField.value !== BackImageType.Image}
+                                                onImageConverted={backField.onChange}
+                                                forceConvertedImage={
+                                                    typeField.value === BackImageType.Image
+                                                        ? forceConvertedBackImage
+                                                        : frontField.value
+                                                }
+                                                imgClassName={backImageClassName(typeField.value)}
+                                                expand={expandImages}
+                                                shortDescription
+                                            />
+                                            <Button
+                                                type="button"
+                                                onClick={() => {
+                                                    if (backField.value) {
+                                                        onSameBackImageClick(backField.value);
+                                                    }
+                                                }}
+                                                className="max-w-35 mt-0.5"
+                                                hidden={backField.value === null || index !== 0}
+                                            >
+                                                Apply to all
+                                            </Button>
+                                        </Field>
+                                    )}
                                 />
-                            );
-                        })()}
-                    </Field>
-
-                    <FieldSeparator />
-
-                    <Controller
-                        control={control}
-                        name={`photocards.${index}.cardSize`}
-                        render={({ field, fieldState }) => (
-                            <Field data-invalid={fieldState.invalid}>
-                                <FieldLabel>Card Size</FieldLabel>
-                                <FieldDescription>
-                                    What is the size category and exact dimensions in millimeters of the physical
-                                    photocard? <i>(Ex: “Standard - 55 x 85 mm”)</i>{" "}
-                                </FieldDescription>
+                            )}
+                        />
+                    )}
+                />
+            </TableCell>
+            <TableCell>
+                <Controller
+                    name={`photocards.${index}.members`}
+                    control={control}
+                    render={({ field, fieldState }) => (
+                        <Field data-invalid={fieldState.invalid}>
+                            <div className="flex justify-center w-full">
+                                <MultiCombobox
+                                    items={NAME_TO_MEMBER}
+                                    allItem="OT7"
+                                    selectedItems={field.value}
+                                    onSelect={(items) => field.onChange([...items])}
+                                />
+                            </div>
+                            {fieldState.error && <FieldError errors={[fieldState.error]} />}
+                        </Field>
+                    )}
+                />
+            </TableCell>
+            <TableCell>
+                <Controller
+                    control={control}
+                    name={`photocards.${index}.cardSize`}
+                    render={({ field, fieldState }) => (
+                        <Field data-invalid={fieldState.invalid}>
+                            <div className="flex justify-center w-full">
                                 <Combobox
                                     items={possibleCardSizes.map((cs) => [
                                         `${cs.name} - ${cs.width} x ${cs.height} mm`,
@@ -344,94 +266,64 @@ function CreatePhotocardComponent({
                                     onCreate={createCardSizeFromString}
                                     isEqual={(a, b) => a?.id === b?.id && a?.name === b?.name}
                                 />
-                                {fieldState.error && <FieldError errors={[fieldState.error]} />}
-                                <Button
-                                    type="button"
-                                    hidden={field.value === undefined}
-                                    className="max-w-35"
-                                    onClick={() => onSameCardSizeClick(field.value!)}
-                                >
-                                    Apply to all
-                                </Button>
-                            </Field>
-                        )}
-                    />
-
-                    <FieldSeparator />
-
-                    <Controller
-                        control={control}
-                        name={`photocards.${index}.cardType`}
-                        render={({ field, fieldState }) => (
-                            <Field data-invalid={fieldState.invalid}>
-                                <FieldLabel>Card Type</FieldLabel>
-                                <FieldDescription>
-                                    Does your card have a special classification?{" "}
-                                    <i>(Ex: Pre-order Benefit, Lucky Draw, Powerstation)</i> If not, select “N/A”.
-                                </FieldDescription>
+                            </div>
+                            {fieldState.error && <FieldError errors={[fieldState.error]} />}
+                        </Field>
+                    )}
+                />
+            </TableCell>
+            <TableCell>
+                <Controller
+                    control={control}
+                    name={`photocards.${index}.cardType`}
+                    render={({ field, fieldState }) => (
+                        <Field data-invalid={fieldState.invalid}>
+                            <div className="flex justify-center w-full">
                                 <Combobox
                                     items={possibleCardTypes.map((ct) => [ct.name, ct])}
                                     value={field.value}
                                     onValueChange={field.onChange}
                                     onCreate={(name) => onCreateCardType(name, index)}
                                     isEqual={(a, b) => a?.id === b?.id && a?.name === b?.name}
+                                    className="min-w-30"
                                 />
-                                <Button
-                                    type="button"
-                                    hidden={field.value === undefined}
-                                    className="max-w-35"
-                                    onClick={() => onSameCardTypeClick(field.value!)}
-                                >
-                                    Apply to all
-                                </Button>
-                            </Field>
-                        )}
-                    />
-
-                    <FieldSeparator />
-
-                    <Controller
-                        name={`photocards.${index}.temporary`}
-                        control={control}
-                        render={({ field }) => (
-                            <Field orientation="horizontal">
-                                <FieldContent>
-                                    <FieldLabel>Mark as temporary</FieldLabel>
-                                    <FieldDescription>
-                                        Is your image imperfect or your card clearly damaged? If so, select this to
-                                        allow other users to upload alternatives.
-                                    </FieldDescription>
-                                </FieldContent>
-                                <Switch checked={field.value} onCheckedChange={field.onChange} />
-                            </Field>
-                        )}
-                    />
-
-                    <FieldSeparator />
-
-                    <Controller
-                        name={`photocards.${index}.exclusiveCountry`}
-                        control={control}
-                        render={({ field }) => (
-                            <Field>
-                                <FieldContent>
-                                    <FieldLabel>Exclusive Country</FieldLabel>
-                                    <FieldDescription>
-                                        Is your card only directly available in a specific country?{" "}
-                                        <i>(Ex: Japan pop-up event cards)</i> If not, select “Global”.
-                                    </FieldDescription>
-                                </FieldContent>
-                                <Combobox
-                                    items={EXCLUSIVE_COUNTRIES_NAME_TO_ENUM}
-                                    value={field.value}
-                                    onValueChange={field.onChange}
-                                />
-                            </Field>
-                        )}
-                    />
-                </FieldGroup>
-            </CardContent>
-        </Card>
+                            </div>
+                        </Field>
+                    )}
+                />
+            </TableCell>
+            <TableCell>
+                <Controller
+                    name={`photocards.${index}.temporary`}
+                    control={control}
+                    render={({ field }) => (
+                        <div className="flex justify-center w-full">
+                            <Switch checked={field.value} onCheckedChange={field.onChange} />
+                        </div>
+                    )}
+                />
+            </TableCell>
+            <TableCell>
+                <Controller
+                    name={`photocards.${index}.exclusiveCountry`}
+                    control={control}
+                    render={({ field }) => (
+                        <div className="flex justify-center w-full">
+                            <Combobox
+                                items={EXCLUSIVE_COUNTRIES_NAME_TO_ENUM}
+                                value={field.value}
+                                onValueChange={field.onChange}
+                            />
+                        </div>
+                    )}
+                />
+            </TableCell>
+            <TableCell>
+                <Button type="button" size="icon" onClick={onRemovePhotocard} hidden={index === 0}>
+                    <Trash2Icon />
+                </Button>
+            </TableCell>
+        </TableRow>
     );
 }
 
@@ -453,7 +345,7 @@ export default function CreateCollectionComponent() {
             collectionName: "",
             releaseDate: "",
             collectionTypes: [{ name: "", id: undefined }],
-            photocards: [],
+            photocards: [getDefaultPhotocard()],
         },
     });
 
@@ -463,6 +355,7 @@ export default function CreateCollectionComponent() {
     });
 
     const [sameBackImage, setSameBackImage] = useState<ConvertedImage | null>(null);
+    const [expandImages, setExpandImages] = useState<boolean>(false);
 
     function onAddCollectionType() {
         const currentTypes = form.getValues("collectionTypes");
@@ -508,13 +401,7 @@ export default function CreateCollectionComponent() {
             convertedImage: null,
             convertedBackImage: null,
             backImageType: BackImageType.Image,
-            rm: false,
-            jimin: false,
-            jungkook: false,
-            v: false,
-            jin: false,
-            suga: false,
-            jhope: false,
+            members: [],
             temporary: false,
             cardType: DEFAULT_CARD_TYPE,
             exclusiveCountry: ExclusiveCountry.Global,
@@ -522,7 +409,15 @@ export default function CreateCollectionComponent() {
     }
 
     function onAddPhotocard() {
-        append(getDefaultPhotocard());
+        const newPhotocard = getDefaultPhotocard();
+        const lastPhotocard = form.getValues("photocards")[fields.length - 1];
+        // Copy over card size and type from last photocard if exists
+        if (lastPhotocard) {
+            newPhotocard.cardSize = lastPhotocard.cardSize;
+            newPhotocard.cardType = lastPhotocard.cardType;
+            newPhotocard.exclusiveCountry = lastPhotocard.exclusiveCountry;
+        }
+        append(newPhotocard);
     }
 
     function onRemovePhotocard(index: number) {
@@ -602,6 +497,14 @@ export default function CreateCollectionComponent() {
         });
 
         // Create Photocard objects
+        const rmEnum = memberFromName(Member.rm)!;
+        const jiminEnum = memberFromName(Member.jimin)!;
+        const jungkookEnum = memberFromName(Member.jungkook)!;
+        const vEnum = memberFromName(Member.v)!;
+        const jinEnum = memberFromName(Member.jin)!;
+        const sugaEnum = memberFromName(Member.suga)!;
+        const jhopeEnum = memberFromName(Member.jhope)!;
+
         const photocardsToCreate: Photocard[] = data.photocards.map((localPhotocard) => ({
             collectionId: 0, // Placeholder, will be set in `createCollectionInDB`
             imageId: localPhotocard.convertedImage
@@ -617,13 +520,13 @@ export default function CreateCollectionComponent() {
             temporary: localPhotocard.temporary,
             exclusiveCountry: localPhotocard.exclusiveCountry as ExclusiveCountry,
 
-            rm: localPhotocard.rm,
-            jimin: localPhotocard.jimin,
-            jungkook: localPhotocard.jungkook,
-            v: localPhotocard.v,
-            jin: localPhotocard.jin,
-            suga: localPhotocard.suga,
-            jhope: localPhotocard.jhope,
+            rm: localPhotocard.members.includes(rmEnum),
+            jimin: localPhotocard.members.includes(jiminEnum),
+            jungkook: localPhotocard.members.includes(jungkookEnum),
+            v: localPhotocard.members.includes(vEnum),
+            jin: localPhotocard.members.includes(jinEnum),
+            suga: localPhotocard.members.includes(sugaEnum),
+            jhope: localPhotocard.members.includes(jhopeEnum),
 
             imageContributorId: "", // Placeholder, will be set in `createSetInDB`
             updatedAt: Date.now(), // Placeholder, will be set in `createSetInDB`
@@ -785,37 +688,122 @@ export default function CreateCollectionComponent() {
                             </Button>
                         </div>
                     </Field>
-
-                    <div className="flex flex-row gap-4 justify-center">
-                        <Button type="button" onClick={onAddPhotocard}>
-                            Add Photocard
-                        </Button>
-                        <Button type="button" onClick={onAddPhotocardForEachMember}>
-                            Add a Photocard for Each Member
-                        </Button>
-                    </div>
                 </FieldGroup>
 
-                <div className="flex flex-wrap gap-4 justify-center">
-                    {fields.map((field, index) => (
-                        <CreatePhotocardComponent
-                            key={field.id}
-                            index={index}
-                            cardSizes={cardSizes}
-                            cardTypes={cardTypes}
-                            forceConvertedBackImage={sameBackImage}
-                            onSameBackImageClick={onSameBackImageClick}
-                            onSameCardSizeClick={onSameCardSizeClick}
-                            onSameCardTypeClick={onSameCardTypesClick}
-                            onCreateCardSize={onCreateCardSize}
-                            onCreateCardType={onCreateCardType}
-                            onRemovePhotocard={() => onRemovePhotocard(index)}
-                        />
-                    ))}
-                </div>
+                <Table>
+                    <TableHeader>
+                        <TableRow className="table-header-row">
+                            <TableHead>#</TableHead>
+                            <TableHead>
+                                <div className="table-head-horizontal">
+                                    Front
+                                    <TooltipComponent>
+                                        Upload a clear, high-quality scan of the front of your card.
+                                    </TooltipComponent>
+                                </div>
+                            </TableHead>
+                            <TableHead>
+                                <div className="table-head-horizontal">
+                                    Back
+                                    <TooltipComponent>
+                                        Upload a clear, high-quality scan of the back of your card. Alternatively,
+                                        select "white" if the card back is completely white; select "transparent" if
+                                        your card is transparent and the front is visibly mirrored on the back."
+                                    </TooltipComponent>
+                                </div>
+                            </TableHead>
+                            <TableHead>
+                                <div className="table-head-horizontal">
+                                    Member(s)
+                                    <TooltipComponent>Which member(s) is/are on this card?</TooltipComponent>
+                                </div>
+                            </TableHead>
+                            <TableHead>
+                                <div className="table-head-horizontal">
+                                    Size
+                                    <TooltipComponent>
+                                        What is the size category and exact dimensions, in millimeters, of the physical
+                                        photocard? <i>(Ex: "Standard 55x85")</i>
+                                    </TooltipComponent>
+                                </div>
+                            </TableHead>
+                            <TableHead>
+                                <div className="table-head-horizontal">
+                                    Type
+                                    <TooltipComponent>
+                                        Does your card have a special classification?{" "}
+                                        <i>(Ex: Pre-order Benefit, Lucky Draw, Powerstation)</i> If not, select "N/A".
+                                    </TooltipComponent>
+                                </div>
+                            </TableHead>
+                            <TableHead>
+                                <div className="table-head-horizontal">
+                                    Temp
+                                    <TooltipComponent>
+                                        Is your image imperfect or your card clearly damaged? If so, select this to
+                                        allow other users to upload alternatives.
+                                    </TooltipComponent>
+                                </div>
+                            </TableHead>
+                            <TableHead>
+                                <div className="table-head-horizontal">
+                                    Exclusive
+                                    <TooltipComponent>
+                                        Is your card only directly available in a specific country?{" "}
+                                        <i>(Ex: Japan pop-up event cards)</i> If not, select "Global".
+                                    </TooltipComponent>
+                                </div>
+                            </TableHead>
+                            <TableHead></TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {fields.map((field, index) => (
+                            <CreatePhotocardRowComponent
+                                key={field.id}
+                                index={index}
+                                cardSizes={cardSizes}
+                                cardTypes={cardTypes}
+                                forceConvertedBackImage={sameBackImage}
+                                onSameBackImageClick={onSameBackImageClick}
+                                onCreateCardSize={onCreateCardSize}
+                                onCreateCardType={onCreateCardType}
+                                onRemovePhotocard={() => onRemovePhotocard(index)}
+                                expandImages={expandImages}
+                            />
+                        ))}
+                    </TableBody>
+                    <TableFooter>
+                        <TableRow>
+                            <TableCell colSpan={9} className="text-center">
+                                <Button size="icon" type="button" onClick={onAddPhotocard}>
+                                    <PlusIcon className="inline-block" />
+                                </Button>
+                            </TableCell>
+                        </TableRow>
+                    </TableFooter>
+                </Table>
 
-                <Button type="submit">Upload</Button>
+                <Button type="submit" className="mb-16">
+                    Upload
+                </Button>
             </form>
+
+            <Button
+                type="button"
+                className="fixed right-16 bottom-16 z-10 bg-third"
+                onClick={() => setExpandImages(!expandImages)}
+            >
+                {expandImages ? (
+                    <>
+                        <ShrinkIcon /> Collapse pictures
+                    </>
+                ) : (
+                    <>
+                        <ExpandIcon /> Expand pictures
+                    </>
+                )}
+            </Button>
         </FormProvider>
     );
 }

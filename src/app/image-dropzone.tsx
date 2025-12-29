@@ -5,6 +5,7 @@ import { useDropzone } from "react-dropzone";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 
 export interface ConvertedImage {
+    name: string;
     fullSize: ArrayBuffer;
     thumbnail?: ArrayBuffer;
     previewUrl: string; // Object URL for preview
@@ -19,6 +20,8 @@ export function ImageDropzone({
     forceConvertedImage,
     onImageConverted,
     convertThumbnail = true,
+    shortDescription = false,
+    expand = true,
 }: {
     label?: string;
     description?: string;
@@ -28,6 +31,8 @@ export function ImageDropzone({
     forceConvertedImage?: ConvertedImage | null;
     onImageConverted: (converted: ConvertedImage) => void;
     convertThumbnail?: boolean;
+    shortDescription?: boolean;
+    expand?: boolean;
 }) {
     const [convertedImage, setConvertedImage] = useState<ConvertedImage | null>(null);
     const [isConverting, setIsConverting] = useState(false);
@@ -65,7 +70,7 @@ export function ImageDropzone({
         const thumbnail = convertThumbnail ? await convertToAvif(file, THUMBNAIL_COMPRESSION_HEIGHT_PX) : undefined;
         const previewBlob = new Blob([thumbnail ?? fullSize], { type: "image/webp" });
         const previewUrl = URL.createObjectURL(previewBlob);
-        return { fullSize, thumbnail, previewUrl };
+        return { name: file.name, fullSize, thumbnail, previewUrl };
     }
 
     return (
@@ -74,15 +79,21 @@ export function ImageDropzone({
             {description && <FieldDescription>{description}</FieldDescription>}
             <div
                 {...getRootProps({ className: "dropzone" })}
-                className=" bg-white resize-none p-5 text-center rounded-xl"
+                className={`bg-white resize-none ${shortDescription ? "p-1 rounded-md" : "p-5 rounded-xl"} text-center `}
                 hidden={disableUpload}
             >
                 <input {...getInputProps()} />
-                <p>Drop images here.</p>
-                <p>Only images under {MAX_IMAGE_SIZE_BYTES / (1024 * 1024)}MB are allowed.</p>
+                {shortDescription ? (
+                    <p>{convertedImage ? convertedImage.name : "Choose image"}</p>
+                ) : (
+                    <>
+                        <p>Drop images here.</p>
+                        <p>Only images under {MAX_IMAGE_SIZE_BYTES / (1024 * 1024)}MB are allowed.</p>
+                    </>
+                )}
             </div>
             {isConverting && <p className="text-center">Converting...</p>}
-            {convertedImage && !showFileError ? (
+            {convertedImage && !showFileError && expand ? (
                 <div className="mt-2 flex flex-col items-center gap-3">
                     <img
                         src={convertedImage.previewUrl}
