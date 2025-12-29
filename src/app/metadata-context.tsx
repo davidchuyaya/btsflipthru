@@ -36,6 +36,7 @@ interface MetadataContextType {
     addCollectionType: (collectionType: CollectionType) => Promise<number | undefined>;
     addCardType: (cardType: CardType) => Promise<number | undefined>;
     addCardSize: (cardSize: CardSize) => Promise<number | undefined>;
+    setError: (message: string) => void;
 }
 
 const MetadataContext = createContext<MetadataContextType | undefined>(undefined);
@@ -191,7 +192,7 @@ export function MetadataProvider({ children }: { children: ReactNode }) {
     async function addCollection(collection: ParsedCollection, photocards: Photocard[]) {
         const allowed = isAtLeastMod(session);
         if (!allowed) {
-            toast.error("Not authorized to add collection");
+            setError("Not authorized to add collection");
             return false;
         }
 
@@ -292,6 +293,7 @@ export function MetadataProvider({ children }: { children: ReactNode }) {
                 addCollectionType,
                 addCardType,
                 addCardSize,
+                setError,
             }}
         >
             {children}

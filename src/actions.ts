@@ -176,10 +176,13 @@ export async function uploadImage(
     thumbnailImage: ArrayBuffer,
     id: string,
 ): Promise<Result<boolean>> {
-    return uploadImagesToR2([
-        [fullSizeId(id), fullSizeImage],
-        [thumbnailId(id), thumbnailImage],
-    ], true);
+    return uploadImagesToR2(
+        [
+            [fullSizeId(id), fullSizeImage],
+            [thumbnailId(id), thumbnailImage],
+        ],
+        true,
+    );
 }
 
 export async function addCollectionToDB(collection: Collection, photocards: Photocard[]): Promise<Result<boolean>> {
@@ -277,7 +280,12 @@ export async function verifyTurnstile(token: string): Promise<Result<boolean>> {
     }
 }
 
-export async function addReportToDB(report: Report, image: ArrayBuffer, turnstileToken: string): Promise<Result<boolean>> {
+export async function addReportToDB(
+    report: Report,
+    image: ArrayBuffer,
+    turnstileToken: string,
+): Promise<Result<boolean>> {
+    // Check captcha
     const turnstileResult = await verifyTurnstile(turnstileToken);
     if (turnstileResult.error) {
         return turnstileResult;
@@ -304,5 +312,6 @@ export async function addReportToDB(report: Report, image: ArrayBuffer, turnstil
         return result;
     }
 
+    // Also upload the image, since we have one we won't exceed the memory limit so we can do it all together
     return await uploadImagesToR2([[report.imageId, image]], false);
 }

@@ -1,10 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import {
-    MEMBER_TO_OFFICIAL_NAME,
-    Result,
-} from "@/constants";
+import { MEMBER_TO_OFFICIAL_NAME, ReportType, reportWindowURL, Result } from "@/constants";
 import { DEFAULT_CARD_TYPE, useMetadata } from "../metadata-context";
 import { uploadImage } from "@/actions";
 import {
@@ -131,6 +128,7 @@ function CreatePhotocardComponent({
     onCreateCardSize: (cardSize: CardSize, index: number) => void;
     onRemovePhotocard: () => void;
 }) {
+    const { setError } = useMetadata();
     const { control, setValue, watch } = useFormContext<z.infer<typeof formSchema>>();
     function backImageClassName(backImageType: BackImageType) {
         switch (backImageType) {
@@ -146,25 +144,25 @@ function CreatePhotocardComponent({
     function createCardSizeFromString(sizeString: string) {
         const parts = sizeString.split("-");
         if (parts.length !== 2) {
-            toast.error('Please provide dimensions in the format "Name - Width x Height mm"');
+            setError('Please provide dimensions in the format "Name - Width x Height mm"');
             return;
         }
         const name = parts[0].trim();
         if (name === "") {
-            toast.error("Name cannot be empty.");
+            setError("Name cannot be empty.");
             return;
         }
 
         const dimensionPart = parts[1].trim().replace(/\s*mm\s*$/i, "");
         const dimensions = dimensionPart.split("x");
         if (dimensions.length !== 2) {
-            toast.error('Please provide dimensions in the format "Name - Width x Height mm"');
+            setError('Please provide dimensions in the format "Name - Width x Height mm"');
             return;
         }
         const width = Number(dimensions[0].trim());
         const height = Number(dimensions[1].trim());
         if (isNaN(width) || isNaN(height) || width <= 0 || height <= 0) {
-            toast.error("Width and height must be positive numbers.");
+            setError("Width and height must be positive numbers.");
             return;
         }
         onCreateCardSize({ name, width, height }, index);
@@ -438,8 +436,16 @@ function CreatePhotocardComponent({
 }
 
 export default function CreateCollectionComponent() {
-    const { collectionTypes, cardTypes, cardSizes, addCollection, addCollectionType, addCardType, addCardSize } =
-        useMetadata();
+    const {
+        collectionTypes,
+        cardTypes,
+        cardSizes,
+        addCollection,
+        addCollectionType,
+        addCardType,
+        addCardSize,
+        setError,
+    } = useMetadata();
 
     const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
@@ -566,110 +572,116 @@ export default function CreateCollectionComponent() {
             .filter((collectionType) => collectionType.id !== undefined)
             .map((collectionType) => collectionType.id!);
 
-            const collection: ParsedCollection = {
-                name: data.collectionName,
-                releaseDate: new Date(data.releaseDate),
-                collectionTypes: collectionTypesIds,
-            };
+        const collection: ParsedCollection = {
+            name: data.collectionName,
+            releaseDate: new Date(data.releaseDate),
+            collectionTypes: collectionTypesIds,
+        };
 
-            // Find the number of unique images we have to upload
-            // Use the fullSize byteLength as a proxy, since we don't want to compare ArrayBuffers
-            // No 2 converted images should have the exact size
-            const uniqueImageSizes = new Set<number>();
-            for (const photocard of data.photocards) {
-                if (photocard.convertedImage) {
-                    uniqueImageSizes.add(photocard.convertedImage.fullSize.byteLength);
-                }
-                if (photocard.convertedBackImage) {
-                    uniqueImageSizes.add(photocard.convertedBackImage.fullSize.byteLength);
-                }
+        // Find the number of unique images we have to upload
+        // Use the fullSize byteLength as a proxy, since we don't want to compare ArrayBuffers
+        // No 2 converted images should have the exact size
+        const uniqueImageSizes = new Set<number>();
+        for (const photocard of data.photocards) {
+            if (photocard.convertedImage) {
+                uniqueImageSizes.add(photocard.convertedImage.fullSize.byteLength);
             }
-
-            // Create UUIDs
-            // This is safe to do on the client side because any (malicious) collisions will just result in:
-            // 1. Pointers to the wrong image, or
-            // 2. Broken images
-            // (We don't allow overwriting existing images when uploading, see `actions/uploadImage`)
-            const imageSizeToUUID = new Map<number, string>();
-            uniqueImageSizes.forEach((size) => {
-                imageSizeToUUID.set(size, crypto.randomUUID());
-            });
-
-            // Create Photocard objects
-            const photocardsToCreate: Photocard[] = data.photocards.map((localPhotocard) => ({
-                collectionId: 0, // Placeholder, will be set in `createCollectionInDB`
-                imageId: localPhotocard.convertedImage
-                    ? imageSizeToUUID.get(localPhotocard.convertedImage.fullSize.byteLength)!
-                    : null,
-                backImageId: localPhotocard.convertedBackImage
-                    ? imageSizeToUUID.get(localPhotocard.convertedBackImage.fullSize.byteLength)!
-                    : null,
-                backImageType: localPhotocard.backImageType as BackImageType,
-                cardType: localPhotocard.cardType!.id!,
-                sizeId: localPhotocard.cardSize!.id!,
-                effects: null, // TODO: Allow effects
-                temporary: localPhotocard.temporary,
-                exclusiveCountry: localPhotocard.exclusiveCountry as ExclusiveCountry,
-
-                rm: localPhotocard.rm,
-                jimin: localPhotocard.jimin,
-                jungkook: localPhotocard.jungkook,
-                v: localPhotocard.v,
-                jin: localPhotocard.jin,
-                suga: localPhotocard.suga,
-                jhope: localPhotocard.jhope,
-
-                imageContributorId: "", // Placeholder, will be set in `createSetInDB`
-                updatedAt: Date.now(), // Placeholder, will be set in `createSetInDB`
-            }));
-
-            // Call the server and create DB entries
-            const result = await addCollection(collection, photocardsToCreate);
-            if (!result) {
-                toast.error("Error uploading collection to server");
-                return;
+            if (photocard.convertedBackImage) {
+                uniqueImageSizes.add(photocard.convertedBackImage.fullSize.byteLength);
             }
+        }
 
-            // Upload each unique image in parallel
-            // Images are already converted to AVIF on selection, so we just upload them directly
-            const uploadPromises: Promise<Result<boolean>>[] = [];
-            const uploadedSizes = new Set<number>();
+        // Create UUIDs
+        // This is safe to do on the client side because any (malicious) collisions will just result in:
+        // 1. Pointers to the wrong image, or
+        // 2. Broken images
+        // (We don't allow overwriting existing images when uploading, see `actions/uploadImage`)
+        const imageSizeToUUID = new Map<number, string>();
+        uniqueImageSizes.forEach((size) => {
+            imageSizeToUUID.set(size, crypto.randomUUID());
+        });
 
-            for (const photocard of data.photocards) {
-                if (photocard.convertedImage && !uploadedSizes.has(photocard.convertedImage.fullSize.byteLength)) {
-                    const imageId = imageSizeToUUID.get(photocard.convertedImage.fullSize.byteLength)!;
-                    const converted = photocard.convertedImage;
-                    uploadedSizes.add(converted.fullSize.byteLength);
-                    uploadPromises.push(uploadImage(converted.fullSize, converted.thumbnail, imageId));
-                }
-                if (
-                    photocard.convertedBackImage &&
-                    !uploadedSizes.has(photocard.convertedBackImage.fullSize.byteLength)
-                ) {
-                    const backImageId = imageSizeToUUID.get(photocard.convertedBackImage.fullSize.byteLength)!;
-                    const converted = photocard.convertedBackImage;
-                    uploadedSizes.add(converted.fullSize.byteLength);
-                    uploadPromises.push(uploadImage(converted.fullSize, converted.thumbnail, backImageId));
-                }
+        // Create Photocard objects
+        const photocardsToCreate: Photocard[] = data.photocards.map((localPhotocard) => ({
+            collectionId: 0, // Placeholder, will be set in `createCollectionInDB`
+            imageId: localPhotocard.convertedImage
+                ? imageSizeToUUID.get(localPhotocard.convertedImage.fullSize.byteLength)!
+                : null,
+            backImageId: localPhotocard.convertedBackImage
+                ? imageSizeToUUID.get(localPhotocard.convertedBackImage.fullSize.byteLength)!
+                : null,
+            backImageType: localPhotocard.backImageType as BackImageType,
+            cardType: localPhotocard.cardType!.id!,
+            sizeId: localPhotocard.cardSize!.id!,
+            effects: null, // TODO: Allow effects
+            temporary: localPhotocard.temporary,
+            exclusiveCountry: localPhotocard.exclusiveCountry as ExclusiveCountry,
+
+            rm: localPhotocard.rm,
+            jimin: localPhotocard.jimin,
+            jungkook: localPhotocard.jungkook,
+            v: localPhotocard.v,
+            jin: localPhotocard.jin,
+            suga: localPhotocard.suga,
+            jhope: localPhotocard.jhope,
+
+            imageContributorId: "", // Placeholder, will be set in `createSetInDB`
+            updatedAt: Date.now(), // Placeholder, will be set in `createSetInDB`
+        }));
+
+        // Call the server and create DB entries
+        const result = await addCollection(collection, photocardsToCreate);
+        if (!result) {
+            // Don't need to display toast here, `addCollection` already does
+            return;
+        }
+
+        // Upload each unique image in parallel
+        // Images are already converted to AVIF on selection, so we just upload them directly
+        const uploadPromises: Promise<Result<boolean>>[] = [];
+        const uploadedSizes = new Set<number>();
+
+        for (const photocard of data.photocards) {
+            if (photocard.convertedImage && !uploadedSizes.has(photocard.convertedImage.fullSize.byteLength)) {
+                const imageId = imageSizeToUUID.get(photocard.convertedImage.fullSize.byteLength)!;
+                const converted = photocard.convertedImage;
+                uploadedSizes.add(converted.fullSize.byteLength);
+                uploadPromises.push(uploadImage(converted.fullSize, converted.thumbnail, imageId));
             }
+            if (photocard.convertedBackImage && !uploadedSizes.has(photocard.convertedBackImage.fullSize.byteLength)) {
+                const backImageId = imageSizeToUUID.get(photocard.convertedBackImage.fullSize.byteLength)!;
+                const converted = photocard.convertedBackImage;
+                uploadedSizes.add(converted.fullSize.byteLength);
+                uploadPromises.push(uploadImage(converted.fullSize, converted.thumbnail, backImageId));
+            }
+        }
 
-            toast.promise(
-                Promise.all(uploadPromises).then((results) => {
-                    const error = results.find((res) => res.error);
-                    if (error) {
-                        throw new Error(error.error);
-                    }
-                }),
-                {
-                    loading: "Uploading images...",
-                    success: (data) => {
-                        form.reset();
-                        setSameBackImage(null);
-                        return "All images uploaded successfully!";
-                    },
-                    error: (error) => `Error uploading images: ${error.message}`,
+        toast.promise(
+            Promise.all(uploadPromises).then((results) => {
+                const error = results.find((res) => res.error);
+                if (error) {
+                    throw new Error(error.error);
+                }
+            }),
+            {
+                loading: "Uploading images...",
+                success: (data) => {
+                    form.reset();
+                    setSameBackImage(null);
+                    return "All images uploaded successfully!";
                 },
-            );
+                error: (error) => ({
+                    message: "Error uploading images: " + error.message,
+                    action: {
+                        label: "Report",
+                        onClick: () => {
+                            const url = reportWindowURL(ReportType.Error, error.message);
+                            window.open(url, "_blank");
+                        },
+                    },
+                }),
+            },
+        );
     }
 
     return (
