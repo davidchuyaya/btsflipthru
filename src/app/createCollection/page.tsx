@@ -41,7 +41,7 @@ interface LocalPhotocard {
     exclusiveCountry: number;
 }
 
-export const formSchema = z.object({
+const formSchema = z.object({
     collectionName: z.string().min(1, "Collection name is required"),
     releaseDate: z.string().min(1, "Release date is required"),
     collectionTypes: z
@@ -775,7 +775,7 @@ export default function CreateCollectionComponent() {
                     </TableBody>
                     <TableFooter>
                         <TableRow>
-                            <TableCell colSpan={9} className="text-center">
+                            <TableCell colSpan={9} className="text-center bg-none!">
                                 <Button size="icon" type="button" onClick={onAddPhotocard}>
                                     <PlusIcon className="inline-block" />
                                 </Button>
