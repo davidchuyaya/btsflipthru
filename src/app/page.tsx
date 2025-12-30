@@ -11,7 +11,7 @@ export default function Home() {
 
     return (
         <div>
-            <Image src="/LOGO_BORDER.png" alt="Flip Thru Logo" width={200} height={200} />
+            <Image src="/logo_border.svg" alt="Flip Thru Logo" width={200} height={200} />
             <Button onClick={signInGoogle}>Sign In</Button>
             <Button onClick={sessionRefetch}>Activate Mod</Button>
             <div>{JSON.stringify(session)}</div>
