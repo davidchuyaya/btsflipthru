@@ -1,9 +1,13 @@
+import z from "zod";
+import { zfd } from "zod-form-data";
+
 export const SEPARATOR = ","; // Used when arrays are stored as strings in the database
 export const MAX_IMAGE_SIZE_BYTES = 50 * 1024 * 1024; // 50MB
 export const CACHE_DURATION_MS = 5 * 60 * 1000; // 5 minutes before metadata is refetched
 export const THUMBNAIL_DISPLAY_HEIGHT_PX = 200;
 export const THUMBNAIL_COMPRESSION_HEIGHT_PX = THUMBNAIL_DISPLAY_HEIGHT_PX * 2; // To reduce compression artifacts
 export const IMAGES_URL = "https://images.btsflipthru.com/";
+export const IMAGE_TYPE = "image/avif";
 export const CLOUDFLARE_TURNSTILE_SITE_KEY = "0x4AAAAAACJg4L7-eUjaAdjN";
 
 export function fullSizeId(imageId: string): string {
@@ -13,6 +17,24 @@ export function fullSizeId(imageId: string): string {
 export function thumbnailId(imageId: string): string {
     return `${imageId}_thumbnail`;
 }
+
+export function fullSizeUrl(imageId: string): string {
+    return `${IMAGES_URL}${fullSizeId(imageId)}`;
+}
+
+export function thumbnailUrl(imageId: string): string {
+    return `${IMAGES_URL}${thumbnailId(imageId)}`;
+}
+
+export const ImageUploadSchema = zfd.formData({
+    imageId: zfd.text(z.string().min(1)),
+    image: zfd
+        .file()
+        .refine(
+            (file) => file.size <= MAX_IMAGE_SIZE_BYTES,
+            `Image must be smaller than ${MAX_IMAGE_SIZE_BYTES / (1024 * 1024)} MB`,
+        ),
+});
 
 export enum Member {
     rm = "RM",

@@ -5,7 +5,7 @@ import {
     CardType,
     EXCLUSIVE_COUNTRIES_NAME_TO_ENUM,
 } from "@/db";
-import { ConvertedImage, ImageDropzone } from "./image-dropzone";
+import { ImageDropzone } from "./image-dropzone";
 import { useMetadata } from "./metadata-context";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardDescription, CardAction, CardContent } from "@/components/ui/card";
@@ -46,8 +46,8 @@ const formSchema = z.object({
     photocards: z
         .array(
             z.object({
-                convertedImage: z.any().nullable(),
-                convertedBackImage: z.any().nullable(),
+                frontImage: z.file().nullable(),
+                backImage: z.file().nullable(),
                 backImageType: z.number(),
                 rm: z.boolean(),
                 jimin: z.boolean(),
@@ -80,7 +80,7 @@ function CreatePhotocardComponent({
     index,
     cardSizes: possibleCardSizes,
     cardTypes: possibleCardTypes,
-    forceConvertedBackImage,
+    forceBackImage,
     onSameBackImageClick,
     onSameCardTypeClick,
     onSameCardSizeClick,
@@ -91,8 +91,8 @@ function CreatePhotocardComponent({
     index: number;
     cardSizes: Array<CardSize>;
     cardTypes: Array<CardType>;
-    forceConvertedBackImage: ConvertedImage | null;
-    onSameBackImageClick: (converted: ConvertedImage) => void;
+    forceBackImage: File | null;
+    onSameBackImageClick: (file: File) => void;
     onSameCardTypeClick: (cardType: CardType) => void;
     onSameCardSizeClick: (cardSize: CardSize) => void;
     onCreateCardType: (name: string, index: number) => void;
@@ -149,20 +149,20 @@ function CreatePhotocardComponent({
             <CardContent>
                 <FieldGroup>
                     <Controller
-                        name={`photocards.${index}.convertedImage`}
+                        name={`photocards.${index}.frontImage`}
                         control={control}
                         render={({ field }) => (
                             <ImageDropzone
                                 label="Front"
                                 description="Upload a clear, high-quality scan of the front of your card."
-                                onImageConverted={field.onChange}
+                                onImageChanged={field.onChange}
                             />
                         )}
                     />
                     <FieldSeparator />
 
                     <Controller
-                        name={`photocards.${index}.convertedBackImage`}
+                        name={`photocards.${index}.backImage`}
                         control={control}
                         render={({ field: backField }) => (
                             <Controller
@@ -170,7 +170,7 @@ function CreatePhotocardComponent({
                                 control={control}
                                 render={({ field: typeField }) => (
                                     <Controller
-                                        name={`photocards.${index}.convertedImage`}
+                                        name={`photocards.${index}.frontImage`}
                                         control={control}
                                         render={({ field: frontField }) => (
                                             <Field>
@@ -213,10 +213,10 @@ function CreatePhotocardComponent({
                                                     <ImageDropzone
                                                         className="mt-3"
                                                         disableUpload={typeField.value !== BackImageType.Image}
-                                                        onImageConverted={backField.onChange}
-                                                        forceConvertedImage={
+                                                        onImageChanged={backField.onChange}
+                                                        forceImage={
                                                             typeField.value === BackImageType.Image
-                                                                ? forceConvertedBackImage
+                                                                ? forceBackImage
                                                                 : frontField.value
                                                         }
                                                         imgClassName={backImageClassName(typeField.value)}

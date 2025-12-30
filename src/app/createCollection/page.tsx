@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Member, memberFromName, NAME_TO_MEMBER, ReportType, reportWindowURL, Result } from "@/constants";
 import { DEFAULT_CARD_TYPE, useMetadata } from "../metadata-context";
-import { uploadImage } from "@/actions";
+import { uploadFullPhotocard, uploadThumbnailPhotocard } from "@/actions";
 import {
     BACK_IMAGE_TYPES_NAME_TO_ENUM,
     BackImageType,
@@ -25,14 +25,14 @@ import * as z from "zod";
 import { toast } from "sonner";
 import { Field, FieldLabel, FieldError, FieldGroup, FieldDescription, FieldContent } from "@/components/ui/field";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { ConvertedImage, ImageDropzone } from "../image-dropzone";
+import { ImageDropzone } from "../image-dropzone";
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import TooltipComponent from "@/components/ui/tooltip";
 import MultiCombobox from "@/components/ui/multi-combobox";
 
 interface LocalPhotocard {
-    convertedImage: ConvertedImage | null;
-    convertedBackImage: ConvertedImage | null;
+    frontImage: File | null;
+    backImage: File | null;
     backImageType: number;
     members: Member[];
     cardSize?: CardSize;
@@ -60,8 +60,8 @@ const formSchema = z.object({
     photocards: z
         .array(
             z.object({
-                convertedImage: z.any().nullable(),
-                convertedBackImage: z.any().nullable(),
+                frontImage: z.file().nullable(),
+                backImage: z.file().nullable(),
                 backImageType: z.number(),
                 members: z.array(z.enum(Member)).min(1, "At least one member must be selected"),
                 cardSize: z
@@ -88,7 +88,7 @@ function CreatePhotocardRowComponent({
     index,
     cardSizes: possibleCardSizes,
     cardTypes: possibleCardTypes,
-    forceConvertedBackImage,
+    forceBackImage,
     onSameBackImageClick,
     onCreateCardType,
     onCreateCardSize,
@@ -98,8 +98,8 @@ function CreatePhotocardRowComponent({
     index: number;
     cardSizes: Array<CardSize>;
     cardTypes: Array<CardType>;
-    forceConvertedBackImage: ConvertedImage | null;
-    onSameBackImageClick: (converted: ConvertedImage) => void;
+    forceBackImage: File | null;
+    onSameBackImageClick: (backImage: File) => void;
     onCreateCardType: (name: string, index: number) => void;
     onCreateCardSize: (cardSize: CardSize, index: number) => void;
     onRemovePhotocard: () => void;
@@ -146,18 +146,18 @@ function CreatePhotocardRowComponent({
             <TableCell>{index + 1}</TableCell>
             <TableCell>
                 <Controller
-                    name={`photocards.${index}.convertedImage`}
+                    name={`photocards.${index}.frontImage`}
                     control={control}
                     render={({ field }) => (
                         <div className="flex justify-center w-full">
-                            <ImageDropzone onImageConverted={field.onChange} expand={expandImages} shortDescription />
+                            <ImageDropzone onImageChanged={field.onChange} expand={expandImages} shortDescription />
                         </div>
                     )}
                 />
             </TableCell>
             <TableCell>
                 <Controller
-                    name={`photocards.${index}.convertedBackImage`}
+                    name={`photocards.${index}.backImage`}
                     control={control}
                     render={({ field: backField }) => (
                         <Controller
@@ -165,7 +165,7 @@ function CreatePhotocardRowComponent({
                             control={control}
                             render={({ field: typeField }) => (
                                 <Controller
-                                    name={`photocards.${index}.convertedImage`}
+                                    name={`photocards.${index}.frontImage`}
                                     control={control}
                                     render={({ field: frontField }) => (
                                         <Field className="flex flex-col items-center w-full">
@@ -200,10 +200,10 @@ function CreatePhotocardRowComponent({
 
                                             <ImageDropzone
                                                 disableUpload={typeField.value !== BackImageType.Image}
-                                                onImageConverted={backField.onChange}
-                                                forceConvertedImage={
+                                                onImageChanged={backField.onChange}
+                                                forceImage={
                                                     typeField.value === BackImageType.Image
-                                                        ? forceConvertedBackImage
+                                                        ? forceBackImage
                                                         : frontField.value
                                                 }
                                                 imgClassName={backImageClassName(typeField.value)}
@@ -258,7 +258,7 @@ function CreatePhotocardRowComponent({
                             <div className="flex justify-center w-full">
                                 <Combobox
                                     items={possibleCardSizes.map((cs) => [
-                                        `${cs.name} - ${cs.width} x ${cs.height} mm`,
+                                        `${cs.name} ${cs.width}x${cs.height}`,
                                         cs,
                                     ])}
                                     value={field.value}
@@ -354,7 +354,7 @@ export default function CreateCollectionComponent() {
         name: "photocards",
     });
 
-    const [sameBackImage, setSameBackImage] = useState<ConvertedImage | null>(null);
+    const [sameBackImage, setSameBackImage] = useState<File | null>(null);
     const [expandImages, setExpandImages] = useState<boolean>(false);
 
     function onAddCollectionType() {
@@ -398,8 +398,8 @@ export default function CreateCollectionComponent() {
 
     function getDefaultPhotocard(): LocalPhotocard {
         return {
-            convertedImage: null,
-            convertedBackImage: null,
+            frontImage: null,
+            backImage: null,
             backImageType: BackImageType.Image,
             members: [],
             temporary: false,
@@ -434,12 +434,12 @@ export default function CreateCollectionComponent() {
         newPhotocards.forEach((pc) => append(pc));
     }
 
-    function onSameBackImageClick(converted: ConvertedImage) {
+    function onSameBackImageClick(backImage: File) {
         const currentPhotocards = form.getValues("photocards");
         currentPhotocards.forEach((_, index) => {
-            form.setValue(`photocards.${index}.convertedBackImage`, converted);
+            form.setValue(`photocards.${index}.backImage`, backImage);
         });
-        setSameBackImage(converted);
+        setSameBackImage(backImage);
     }
 
     function onSameCardSizeClick(cardSize: CardSize) {
@@ -478,11 +478,11 @@ export default function CreateCollectionComponent() {
         // No 2 converted images should have the exact size
         const uniqueImageSizes = new Set<number>();
         for (const photocard of data.photocards) {
-            if (photocard.convertedImage) {
-                uniqueImageSizes.add(photocard.convertedImage.fullSize.byteLength);
+            if (photocard.frontImage) {
+                uniqueImageSizes.add(photocard.frontImage.size);
             }
-            if (photocard.convertedBackImage) {
-                uniqueImageSizes.add(photocard.convertedBackImage.fullSize.byteLength);
+            if (photocard.backImage) {
+                uniqueImageSizes.add(photocard.backImage.size);
             }
         }
 
@@ -507,11 +507,11 @@ export default function CreateCollectionComponent() {
 
         const photocardsToCreate: Photocard[] = data.photocards.map((localPhotocard) => ({
             collectionId: 0, // Placeholder, will be set in `createCollectionInDB`
-            imageId: localPhotocard.convertedImage
-                ? imageSizeToUUID.get(localPhotocard.convertedImage.fullSize.byteLength)!
+            imageId: localPhotocard.frontImage
+                ? imageSizeToUUID.get(localPhotocard.frontImage.size)!
                 : null,
-            backImageId: localPhotocard.convertedBackImage
-                ? imageSizeToUUID.get(localPhotocard.convertedBackImage.fullSize.byteLength)!
+            backImageId: localPhotocard.backImage
+                ? imageSizeToUUID.get(localPhotocard.backImage.size)!
                 : null,
             backImageType: localPhotocard.backImageType as BackImageType,
             cardType: localPhotocard.cardType!.id!,
@@ -545,17 +545,25 @@ export default function CreateCollectionComponent() {
         const uploadedSizes = new Set<number>();
 
         for (const photocard of data.photocards) {
-            if (photocard.convertedImage && !uploadedSizes.has(photocard.convertedImage.fullSize.byteLength)) {
-                const imageId = imageSizeToUUID.get(photocard.convertedImage.fullSize.byteLength)!;
-                const converted = photocard.convertedImage;
-                uploadedSizes.add(converted.fullSize.byteLength);
-                uploadPromises.push(uploadImage(converted.fullSize, converted.thumbnail, imageId));
+            if (photocard.frontImage && !uploadedSizes.has(photocard.frontImage.size)) {
+                const imageId = imageSizeToUUID.get(photocard.frontImage.size)!;
+                const image = photocard.frontImage;
+                uploadedSizes.add(image.size);
+                const imageForm = new FormData();
+                imageForm.set("image", image);
+                imageForm.set("imageId", imageId);
+                uploadPromises.push(uploadFullPhotocard(imageForm));
+                uploadPromises.push(uploadThumbnailPhotocard(imageForm));
             }
-            if (photocard.convertedBackImage && !uploadedSizes.has(photocard.convertedBackImage.fullSize.byteLength)) {
-                const backImageId = imageSizeToUUID.get(photocard.convertedBackImage.fullSize.byteLength)!;
-                const converted = photocard.convertedBackImage;
-                uploadedSizes.add(converted.fullSize.byteLength);
-                uploadPromises.push(uploadImage(converted.fullSize, converted.thumbnail, backImageId));
+            if (photocard.backImage && !uploadedSizes.has(photocard.backImage.size)) {
+                const imageId = imageSizeToUUID.get(photocard.backImage.size)!;
+                const image = photocard.backImage;
+                uploadedSizes.add(image.size);
+                const imageForm = new FormData();
+                imageForm.set("image", image);
+                imageForm.set("imageId", imageId);
+                uploadPromises.push(uploadFullPhotocard(imageForm));
+                uploadPromises.push(uploadThumbnailPhotocard(imageForm));
             }
         }
 
@@ -683,8 +691,8 @@ export default function CreateCollectionComponent() {
                                     }}
                                 />
                             ))}
-                            <Button type="button" className="max-w-35" onClick={onAddCollectionType}>
-                                <PlusIcon /> Add Another
+                            <Button type="button" size="icon" onClick={onAddCollectionType}>
+                                <PlusIcon />
                             </Button>
                         </div>
                     </Field>
@@ -708,7 +716,7 @@ export default function CreateCollectionComponent() {
                                     <TooltipComponent>
                                         Upload a clear, high-quality scan of the back of your card. Alternatively,
                                         select "white" if the card back is completely white; select "transparent" if
-                                        your card is transparent and the front is visibly mirrored on the back."
+                                        your card is transparent and the front is visibly mirrored on the back.
                                     </TooltipComponent>
                                 </div>
                             </TableHead>
@@ -764,7 +772,7 @@ export default function CreateCollectionComponent() {
                                 index={index}
                                 cardSizes={cardSizes}
                                 cardTypes={cardTypes}
-                                forceConvertedBackImage={sameBackImage}
+                                forceBackImage={sameBackImage}
                                 onSameBackImageClick={onSameBackImageClick}
                                 onCreateCardSize={onCreateCardSize}
                                 onCreateCardType={onCreateCardType}

@@ -113,6 +113,7 @@ CREATE TABLE IF NOT EXISTS reports (
     userId TEXT,
     userEmail TEXT,
     url TEXT NOT NULL,
+    userAgent TEXT,
     createdAt INTEGER NOT NULL
 );
 

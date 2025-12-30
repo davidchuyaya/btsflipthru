@@ -182,6 +182,7 @@ export interface Report {
     userId: string | null; // Null if submitted by someone who hasn't logged in
     userEmail: string | null; // Null if they don't want an email followup
     url: string;
+    userAgent: string;
     createdAt: Date;
 }
 

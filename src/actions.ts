@@ -12,8 +12,18 @@ import {
     parseCollection,
     Report,
 } from "@/db";
-import { fullSizeId, thumbnailId, MAX_IMAGE_SIZE_BYTES, Result } from "@/constants";
+import {
+    fullSizeId,
+    thumbnailId,
+    MAX_IMAGE_SIZE_BYTES,
+    Result,
+    ImageUploadSchema,
+    THUMBNAIL_COMPRESSION_HEIGHT_PX,
+    IMAGE_TYPE,
+} from "@/constants";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
+import z from "zod";
+import { act } from "react";
 
 function getEnv() {
     const { env } = getCloudflareContext();
@@ -24,8 +34,12 @@ function getDb() {
     return db(getEnv());
 }
 
-function getR2() {
-    return getEnv().images;
+function getR2Photocards() {
+    return getEnv().photocards;
+}
+
+function getR2Reports() {
+    return getEnv().reports;
 }
 
 /**
@@ -129,11 +143,19 @@ export async function getCardSizesFromDB(): Promise<CardSize[]> {
 }
 
 /**
- * Upload pre-converted images to R2.
- * @param images Array of [imageId, imageData] tuples to upload
+ * Upload images to R2, converting to `IMAGE_TYPE`.
+ * @param imageForm FormData that adheres to `ImageUploadSchema`
+ * @param bucket R2 bucket to upload to
+ * @param mustBeMod Whether the user must be at least a moderator to upload
+ * @param isThumbnail Whether to resize to thumbnail size
  * @returns Result indicating success or error
  */
-async function uploadImagesToR2(images: [string, ArrayBuffer][], mustBeMod: boolean): Promise<Result<boolean>> {
+async function uploadImageToR2(
+    imageForm: FormData,
+    bucket: R2Bucket,
+    mustBeMod: boolean,
+    isThumbnail: boolean,
+): Promise<Result<boolean>> {
     if (mustBeMod) {
         const result = await isAtLeastMod<boolean>();
         if (result.error) {
@@ -141,48 +163,55 @@ async function uploadImagesToR2(images: [string, ArrayBuffer][], mustBeMod: bool
         }
     }
 
-    // Check all image sizes
-    if (images.some(([, imageData]) => imageData.byteLength > MAX_IMAGE_SIZE_BYTES)) {
-        return { error: "Image exceeds size limit." };
+    // Parse images from form data
+    const result = ImageUploadSchema.safeParse(imageForm);
+    if (!result.success) {
+        return { error: result.error.issues.map((issue) => issue.message).join(", ") };
     }
-
-    const r2 = getR2();
+    const { imageId, image } = result.data;
 
     // Check for existing images
-    const existingChecks = await Promise.all(images.map(([id]) => r2.head(id)));
-    if (existingChecks.some((existing) => existing !== null)) {
+    const actualId = isThumbnail ? thumbnailId(imageId) : fullSizeId(imageId);
+    const existingChecks = await bucket.head(actualId);
+    if (existingChecks !== null) {
         return { error: "Image with the same ID already exists." };
     }
 
+    // Transform
+    const env = getEnv();
+    let stream = env.IMAGES.input(image.stream());
+    if (isThumbnail) {
+        stream = stream.transform({
+            fit: "scale-down",
+            height: THUMBNAIL_COMPRESSION_HEIGHT_PX,
+        });
+    }
+    const convertedImage = await stream.output({ format: IMAGE_TYPE });
+    const response = convertedImage.response();
+    if (!response.ok) {
+        return { error: `Image conversion failed: ${response.status}.` };
+    }
+
     const httpMetadata = {
-        contentType: "image/webp",
+        contentType: IMAGE_TYPE,
         cacheControl: "public, max-age=31536000, immutable",
     };
 
     // Upload all images
-    await Promise.all(images.map(([id, data]) => r2.put(id, data, { httpMetadata })));
+    await bucket.put(actualId, convertedImage.image(), { httpMetadata });
     return { data: true };
 }
 
 /**
- * Upload pre-converted images to R2.
- * Client should convert to AVIF and create thumbnail before calling this.
- * @param fullSizeImage Full-size photocard
- * @param thumbnailImage Thumbnail of photocard
- * @param id Image ID. Error if image with same ID already exists.
+ * Upload photocard to R2.
+ * @param imageForm FormData that adheres to `ImageUploadSchema`
  */
-export async function uploadImage(
-    fullSizeImage: ArrayBuffer,
-    thumbnailImage: ArrayBuffer,
-    id: string,
-): Promise<Result<boolean>> {
-    return uploadImagesToR2(
-        [
-            [fullSizeId(id), fullSizeImage],
-            [thumbnailId(id), thumbnailImage],
-        ],
-        true,
-    );
+export async function uploadFullPhotocard(imageForm: FormData): Promise<Result<boolean>> {
+    return uploadImageToR2(imageForm, getR2Photocards(), true, false);
+}
+
+export async function uploadThumbnailPhotocard(imageForm: FormData): Promise<Result<boolean>> {
+    return uploadImageToR2(imageForm, getR2Photocards(), true, true);
 }
 
 export async function addCollectionToDB(collection: Collection, photocards: Photocard[]): Promise<Result<boolean>> {
@@ -282,7 +311,7 @@ export async function verifyTurnstile(token: string): Promise<Result<boolean>> {
 
 export async function addReportToDB(
     report: Report,
-    image: ArrayBuffer,
+    imageForm: FormData,
     turnstileToken: string,
 ): Promise<Result<boolean>> {
     // Check captcha
@@ -313,5 +342,5 @@ export async function addReportToDB(
     }
 
     // Also upload the image, since we have one we won't exceed the memory limit so we can do it all together
-    return await uploadImagesToR2([[report.imageId, image]], false);
+    return await uploadImageToR2(imageForm, getR2Reports(), false, false);
 }

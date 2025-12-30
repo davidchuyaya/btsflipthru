@@ -1,7 +1,7 @@
 "use client";
 
 import { searchPhotocardsInDB } from "@/actions";
-import { thumbnailUrl } from "@/app/actions-client";
+import { thumbnailUrl } from "@/constants";
 import { Photocard } from "@/db";
 import { useEffect, useState } from "react";
 

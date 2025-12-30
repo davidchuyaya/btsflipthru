@@ -16,6 +16,7 @@ import { Report } from "@/db";
 import { useMetadata } from "../metadata-context";
 import { addReportToDB } from "@/actions";
 import { toast } from "sonner";
+import { UAParser } from "ua-parser-js";
 
 const reportSchema = z.object({
     description: z.string().max(5000, "Description must be at most 5000 characters"),
@@ -31,6 +32,7 @@ function ReportForm() {
     const url = params.get("url");
     const { reportTitle, descriptionPlaceholder, descriptionSmallText } = reportTypeToFields(reportType);
     const { session } = useMetadata();
+    const { browser, device, os } = UAParser();
 
     const form = useForm<z.infer<typeof reportSchema>>({
         defaultValues: {
@@ -57,6 +59,7 @@ function ReportForm() {
             userId: session?.user.id || null,
             userEmail: data.includeEmail && session?.user.email ? session.user.email : null,
             url: url || "",
+            userAgent: `Browser: ${browser.name || "Unknown"} ${browser.version || ""}, OS: ${os.name || "Unknown"} ${os.version || ""}, Device: (${device.vendor || "Unknown Device"} ${device.model || ""})`,
             createdAt: new Date(),
         };
 
@@ -101,8 +104,7 @@ function ReportForm() {
                             label="Upload an image (optional)"
                             description="Please remove any sensitive information from the image."
                             className="mb-2"
-                            onImageConverted={field.onChange}
-                            convertThumbnail={false}
+                            onImageChanged={field.onChange}
                         />
                     )}
                 />

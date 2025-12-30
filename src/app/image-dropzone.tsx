@@ -1,15 +1,7 @@
-import { MAX_IMAGE_SIZE_BYTES, THUMBNAIL_COMPRESSION_HEIGHT_PX, THUMBNAIL_DISPLAY_HEIGHT_PX } from "@/constants";
-import { convertToAvif, formatBytes } from "./actions-client";
+import { MAX_IMAGE_SIZE_BYTES, THUMBNAIL_DISPLAY_HEIGHT_PX } from "@/constants";
 import { useEffect, useState } from "react";
 import { useDropzone } from "react-dropzone";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
-
-export interface ConvertedImage {
-    name: string;
-    fullSize: ArrayBuffer;
-    thumbnail?: ArrayBuffer;
-    previewUrl: string; // Object URL for preview
-}
 
 export function ImageDropzone({
     label,
@@ -17,9 +9,8 @@ export function ImageDropzone({
     disableUpload,
     className,
     imgClassName,
-    forceConvertedImage,
-    onImageConverted,
-    convertThumbnail = true,
+    forceImage,
+    onImageChanged,
     shortDescription = false,
     expand = true,
 }: {
@@ -28,21 +19,19 @@ export function ImageDropzone({
     disableUpload?: boolean;
     className?: string;
     imgClassName?: string;
-    forceConvertedImage?: ConvertedImage | null;
-    onImageConverted: (converted: ConvertedImage) => void;
-    convertThumbnail?: boolean;
+    forceImage?: File | null;
+    onImageChanged: (image: File) => void;
     shortDescription?: boolean;
     expand?: boolean;
 }) {
-    const [convertedImage, setConvertedImage] = useState<ConvertedImage | null>(null);
-    const [isConverting, setIsConverting] = useState(false);
-    const [showFileError, setShowFileError] = useState<boolean>(false);
+    const [fileName, setFileName] = useState<string | null>(null);
+    const [image, setImage] = useState<string | null>(null);
 
     useEffect(() => {
-        if (forceConvertedImage) {
-            setConvertedImage(forceConvertedImage);
+        if (forceImage) {
+            renderImage(forceImage);
         }
-    }, [forceConvertedImage]);
+    }, [forceImage]);
 
     const { fileRejections, getRootProps, getInputProps } = useDropzone({
         accept: {
@@ -50,27 +39,20 @@ export function ImageDropzone({
         },
         maxFiles: 1,
         maxSize: MAX_IMAGE_SIZE_BYTES,
-        onDrop: async (files) => {
-            setIsConverting(true);
-            try {
-                const converted = await convertFileToImages(files[0]);
-                setConvertedImage(converted);
-                onImageConverted(converted);
-                setShowFileError(false);
-            } catch (err) {
-                setShowFileError(true);
-            } finally {
-                setIsConverting(false);
-            }
+        onDropAccepted(files, event) {
+            const file = files[0];
+            renderImage(file);
+            onImageChanged(file);
         },
     });
 
-    async function convertFileToImages(file: File): Promise<ConvertedImage> {
-        const fullSize = await convertToAvif(file);
-        const thumbnail = convertThumbnail ? await convertToAvif(file, THUMBNAIL_COMPRESSION_HEIGHT_PX) : undefined;
-        const previewBlob = new Blob([thumbnail ?? fullSize], { type: "image/webp" });
-        const previewUrl = URL.createObjectURL(previewBlob);
-        return { name: file.name, fullSize, thumbnail, previewUrl };
+    function renderImage(file: File) {
+        if (image) {
+            // Free up memory
+            URL.revokeObjectURL(image);
+        }
+        setImage(URL.createObjectURL(file));
+        setFileName(file.name);
     }
 
     return (
@@ -84,7 +66,7 @@ export function ImageDropzone({
             >
                 <input {...getInputProps()} />
                 {shortDescription ? (
-                    <p>{convertedImage ? convertedImage.name : "Choose image"}</p>
+                    <p>{fileName ?? "Choose image"}</p>
                 ) : (
                     <>
                         <p>Drop images here.</p>
@@ -92,29 +74,22 @@ export function ImageDropzone({
                     </>
                 )}
             </div>
-            {isConverting && <p className="text-center">Converting...</p>}
-            {convertedImage && !showFileError && expand ? (
-                <div className="mt-2 flex flex-col items-center gap-3">
-                    <img
-                        src={convertedImage.previewUrl}
-                        className={imgClassName}
-                        alt="Preview"
-                        height={THUMBNAIL_DISPLAY_HEIGHT_PX}
-                        width={THUMBNAIL_DISPLAY_HEIGHT_PX}
-                    />
-                    <p>
-                        Full: {formatBytes(convertedImage.fullSize.byteLength)}{" "}
-                        {convertedImage.thumbnail ? (
-                            <>| Thumbnail: {formatBytes(convertedImage.thumbnail!.byteLength)}</>
-                        ) : null}
-                    </p>
-                </div>
+            {image && expand ? (
+                <img
+                    src={image}
+                    className={`${imgClassName} object-scale-down w-auto! max-w-none flex-auto`}
+                    alt="Preview"
+                    height={THUMBNAIL_DISPLAY_HEIGHT_PX}
+                    style={{
+                        height: `${THUMBNAIL_DISPLAY_HEIGHT_PX}px`,
+                    }}
+                />
             ) : null}
-            {showFileError ? (
+            {fileRejections.map(({ file, errors }) => (
                 <p className="text-center" style={{ color: "red" }}>
-                    File size exceeds {MAX_IMAGE_SIZE_BYTES / (1024 * 1024)}MB limit or conversion failed.
+                    {errors.map((e) => e.message).join(", ")}
                 </p>
-            ) : null}
+            ))}
         </Field>
     );
 }
