@@ -1,21 +1,20 @@
 export const SEPARATOR = ","; // Used when arrays are stored as strings in the database
-export const MAX_IMAGE_SIZE_BYTES = 50 * 1024 * 1024; // 50MB
+export const MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024; // 10MB. Enforced by Cloudinary's free tier
 export const CACHE_DURATION_MS = 5 * 60 * 1000; // 5 minutes before metadata is refetched
 export const THUMBNAIL_DISPLAY_HEIGHT_PX = 200;
 export const THUMBNAIL_COMPRESSION_HEIGHT_PX = THUMBNAIL_DISPLAY_HEIGHT_PX * 2; // To reduce compression artifacts
-export const IMAGE_TYPE = "image/avif";
 export const CLOUDFLARE_TURNSTILE_SITE_KEY = "0x4AAAAAACJg4L7-eUjaAdjN";
 export const CLOUDINARY_CLOUD_NAME = "dddxuuyxu";
 export const CLOUDINARY_API_KEY = "688582694844734";
 
 export function fullSizeUrl(imageId: string): string {
-    return `https://res.cloudinary.com/${CLOUDINARY_CLOUD_NAME}/image/upload/${imageId}`;
+    return `https://res.cloudinary.com/${CLOUDINARY_CLOUD_NAME}/image/upload/${imageId}.avif`;
 }
 
 const THUMBNAIL_POSTFIX = `c_scale,h_${THUMBNAIL_COMPRESSION_HEIGHT_PX}/f_avif`;
 
 export function thumbnailUrl(imageId: string): string {
-    return `https://res.cloudinary.com/${CLOUDINARY_CLOUD_NAME}/image/upload/${THUMBNAIL_POSTFIX}/${imageId}`;
+    return `https://res.cloudinary.com/${CLOUDINARY_CLOUD_NAME}/image/upload/${THUMBNAIL_POSTFIX}/${imageId}.avif`;
 }
 
 export const NameToMember = {
