@@ -17,7 +17,6 @@ export default function RootLayout({
     return (
         <html lang="en">
             <head>
-                <link rel="icon" href="/LOGO.png" type="image/png"></link>
                 <link rel="stylesheet" href="https://use.typekit.net/gpm8jeo.css"></link>
             </head>
             <body className="antialiased">
