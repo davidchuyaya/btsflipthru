@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Member, memberFromName, NAME_TO_MEMBER, ReportType, reportWindowURL, Result } from "@/constants";
-import { DEFAULT_CARD_TYPE, useMetadata } from "../metadata-context";
+import { DEFAULT_CARD_TYPE, useMetadata } from "@/metadata-context";
 import { uploadFullPhotocard, uploadThumbnailPhotocard } from "@/actions";
 import {
     BACK_IMAGE_TYPES_NAME_TO_ENUM,

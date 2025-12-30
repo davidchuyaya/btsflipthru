@@ -13,7 +13,7 @@ import { Suspense, useRef } from "react";
 import Script from "next/script";
 import useTurnstile from "@/hooks/useTurnstile";
 import { Report } from "@/db";
-import { useMetadata } from "../metadata-context";
+import { useMetadata } from "@/metadata-context";
 import { addReportToDB } from "@/actions";
 import { toast } from "sonner";
 import { UAParser } from "ua-parser-js";

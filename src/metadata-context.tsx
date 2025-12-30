@@ -13,7 +13,7 @@ import {
     getCollectionTypesFromDB,
 } from "@/actions";
 import { ReportType, reportWindowURL, CACHE_DURATION_MS } from "@/constants";
-import { authClient, ClientSession, isAtLeastMod } from "./auth-client";
+import { authClient, ClientSession, isAtLeastMod } from "../auth-client";
 import { toast } from "sonner";
 
 const STORAGE_KEYS = {
@@ -280,8 +280,8 @@ export function MetadataProvider({ children }: { children: ReactNode }) {
                 sessionRefetch: async () => {
                     await sessionRefetch({
                         query: {
-                            disableCookieCache: true
-                        }
+                            disableCookieCache: true,
+                        },
                     });
                 },
                 collections,

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { MetadataProvider } from "./metadata-context";
+import { MetadataProvider } from "@/metadata-context";
 import { Toaster } from "@/components/ui/sonner";
 import CursorGlow from "./cursor-glow";
 
