@@ -7,6 +7,11 @@ import { ChevronDown } from "lucide-react";
 import * as React from "react";
 
 import { cn } from "@/lib/utils";
+import { useMetadata } from "@/metadata-context";
+import { signInGoogle } from "@/auth-client";
+import Image from "next/image";
+import { isAtLeastMod } from "@/auth-client";
+import { Button } from "./button";
 import Link from "next/link";
 
 function NavigationMenu({
@@ -54,7 +59,7 @@ function NavigationMenuItem({ className, ...props }: React.ComponentProps<typeof
 }
 
 const navigationMenuTriggerStyle = cva(
-    "group inline-flex h-10 w-max items-center justify-center text-main-foreground rounded-base bg-main px-4 py-2 text-sm font-heading text-foreground! transition-colors focus:outline-none disabled:pointer-events-none disabled:opacity-50",
+    "group inline-flex h-10 w-max items-center justify-center rounded-base bg-main px-4 py-2 text-sm font-heading text-accent transition-colors focus:outline-none disabled:pointer-events-none disabled:opacity-50",
 );
 
 function NavigationMenuTrigger({
@@ -140,25 +145,62 @@ function NavigationMenuIndicator({
     );
 }
 
-export interface NavItem {
-    title: string;
-    href?: string;
-    onClick?: () => void;
-    middle: boolean;
-}
+type NavItem =
+    | { title: string; href: string; middle: boolean; onClick?: never }
+    | { title: string; onClick: () => void; middle: boolean; href?: never };
 
-export default function NavigationComponent({ navItems }: { navItems: NavItem[] }) {
+const navItems: NavItem[] = [
+    { title: "About", href: "/about", middle: false },
+    { title: "FAQ", href: "/faq", middle: false },
+    { title: "Contact", href: "/contact", middle: false },
+    { title: "Photocards Archive", href: "/search", middle: true },
+    { title: "My Binders", href: "/binder", middle: false },
+    { title: "Sign in", onClick: signInGoogle, middle: false },
+];
+
+export default function NavigationComponent() {
+    const { session } = useMetadata();
+    // const pathname = usePathname();
+
+    // function getTitle(pathname: string) {
+    //     switch (pathname) {
+    //         case "/":
+    //             return "BTS";
+    //         case "/about":
+    //             return "About";
+    //     }
+    // }
+
     return (
-        <NavigationMenu className="z-5 w-svw max-w-svw">
-            <NavigationMenuList>
-                {navItems.map((item, index) => (
-                    <NavigationMenuItem key={index} className={item.middle ? "grow text-center" : ""}>
-                        <NavigationMenuLink href={item.href} onClick={item.onClick} className={navigationMenuTriggerStyle()}>
-                            {item.title}
-                        </NavigationMenuLink>
-                    </NavigationMenuItem>
-                ))}
-            </NavigationMenuList>
-        </NavigationMenu>
+        <>
+            <div className="flex flex-row m-4 justify-center items-center gap-8">
+                <h1 className="text-9xl text-main">BTS</h1>
+                <Image src="/logo_border.svg" alt="Flip Thru Logo" width={200} height={200} />
+            </div>
+            <NavigationMenu className="z-5 w-svw max-w-svw">
+                <NavigationMenuList>
+                    {navItems.map((item, index) => (
+                        <NavigationMenuItem key={index} className={item.middle ? "grow text-center" : ""}>
+                            {item.href ? (
+                                <NavigationMenuLink asChild>
+                                    <Link href={item.href} className={navigationMenuTriggerStyle()}>
+                                        {item.title}
+                                    </Link>
+                                </NavigationMenuLink>
+                            ) : (
+                                <NavigationMenuLink asChild>
+                                    <button onClick={item.onClick} className={navigationMenuTriggerStyle()}>
+                                        {item.title}
+                                    </button>
+                                </NavigationMenuLink>
+                            )}
+                        </NavigationMenuItem>
+                    ))}
+                </NavigationMenuList>
+            </NavigationMenu>
+            <Button hidden={!isAtLeastMod(session)} asChild>
+                <Link href="/createCollection">Add to Archive</Link>
+            </Button>
+        </>
     );
 }

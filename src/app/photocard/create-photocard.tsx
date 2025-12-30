@@ -5,7 +5,7 @@ import {
     CardType,
     EXCLUSIVE_COUNTRIES_NAME_TO_ENUM,
 } from "@/db";
-import { ImageDropzone } from "./image-dropzone";
+import { ImageDropzone } from "@/app/image-dropzone";
 import { useMetadata } from "@/metadata-context";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardDescription, CardAction, CardContent } from "@/components/ui/card";

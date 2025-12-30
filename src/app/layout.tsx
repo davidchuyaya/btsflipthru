@@ -3,6 +3,7 @@ import "./globals.css";
 import { MetadataProvider } from "@/metadata-context";
 import { Toaster } from "@/components/ui/sonner";
 import CursorGlow from "./cursor-glow";
+import NavigationComponent from "@/components/ui/navigation-menu";
 
 export const metadata: Metadata = {
     title: "BTS Flipthru",
@@ -21,7 +22,10 @@ export default function RootLayout({
             </head>
             <body className="antialiased">
                 <CursorGlow />
-                <MetadataProvider>{children}</MetadataProvider>
+                <MetadataProvider>
+                    <NavigationComponent />
+                    {children}
+                </MetadataProvider>
                 <Toaster />
             </body>
         </html>

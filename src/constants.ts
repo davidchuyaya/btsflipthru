@@ -36,20 +36,16 @@ export const ImageUploadSchema = zfd.formData({
         ),
 });
 
-export enum Member {
-    rm = "RM",
-    jin = "Jin",
-    suga = "Suga",
-    jhope = "j-hope",
-    jimin = "Jimin",
-    v = "V",
-    jungkook = "Jung Kook",
+export const NameToMember = {
+    "RM": "rm",
+    "Jin": "jin",
+    "Suga": "suga",
+    "j-hope": "jhope",
+    "Jimin": "jimin",
+    "V": "v",
+    "Jung Kook": "jungkook",
 }
-export const NAME_TO_MEMBER: [string, Member][] = Object.entries(Member).map(([key, value]) => [value, key as Member]);
-export function memberFromName(name: string): Member | undefined {
-    const entry = NAME_TO_MEMBER.find(([memberName, _]) => memberName === name);
-    return entry ? entry[1] : undefined;
-}
+export type NameToMember = typeof NameToMember[keyof typeof NameToMember];
 
 export const MEMBER_TO_EMOJI = {
     rm: "🐨",

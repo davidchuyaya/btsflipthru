@@ -3,55 +3,50 @@ import { D1Dialect } from "kysely-d1";
 import { SEPARATOR } from "./constants";
 
 // Important: Any number used by an enum should not be reused in the future
-export enum Role {
-    USER = 0,
-    MOD = 1,
-    ADMIN = 2,
-}
+export const Role = {
+    USER: 0,
+    MOD: 1,
+    ADMIN: 2,
+} as const;
+export type Role = typeof Role[keyof typeof Role];
 
-export enum ExclusiveCountry {
-    Global = 0,
-    USA = 1,
-    Korea = 2,
-    Japan = 3,
-    Taiwan = 4,
-    Australia = 5,
-    Brazil = 6,
-    Canada = 7,
-    Chile = 8,
-    China = 9,
-    England = 10,
-    France = 11,
-    Germany = 12,
-    HongKong = 13,
-    Indonesia = 14,
-    Italy = 15,
-    Malaysia = 16,
-    Mexico = 17,
-    Netherlands = 18,
-    Philippines = 19,
-    Russia = 20,
-    Singapore = 21,
-    Spain = 22,
-    Sweden = 23,
-    Thailand = 24,
-    UAE = 25,
-    Vietnam = 26,
+export const ExclusiveCountry = {
+    "Global": 0,
+    "USA": 1,
+    "Korea": 2,
+    "Japan": 3,
+    "Taiwan": 4,
+    "Australia": 5,
+    "Brazil": 6,
+    "Canada": 7,
+    "Chile": 8,
+    "China": 9,
+    "England": 10,
+    "France": 11,
+    "Germany": 12,
+    "Hong Kong": 13,
+    "Indonesia": 14,
+    "Italy": 15,
+    "Malaysia": 16,
+    "Mexico": 17,
+    "Netherlands": 18,
+    "Philippines": 19,
+    "Russia": 20,
+    "Singapore": 21,
+    "Spain": 22,
+    "Sweden": 23,
+    "Thailand": 24,
+    "United Arab Emirates": 25,
+    "Vietnam": 26,
 }
-export const EXCLUSIVE_COUNTRIES = Object.values(ExclusiveCountry);
-export const EXCLUSIVE_COUNTRIES_NAME_TO_ENUM: [string, number][] = Object.entries(ExclusiveCountry).filter(
-    ([_, value]) => typeof value === "number",
-) as [string, number][];
+export type ExclusiveCountry = typeof ExclusiveCountry[keyof typeof ExclusiveCountry];
 
-export enum BackImageType {
-    Image = 0,
-    White = 1,
-    Transparent = 2,
+export const BackImageType = {
+    "Image": 0,
+    "White": 1,
+    "Transparent": 2,
 }
-export const BACK_IMAGE_TYPES = Object.values(BackImageType).filter((value) => typeof value === "number") as number[];
-export const BACK_IMAGE_TYPES_NAME_TO_ENUM = Object.entries(BackImageType).filter(
-    ([_, value]) => typeof value === "number",
-) as [string, number][];
+export type BackImageType = typeof BackImageType[keyof typeof BackImageType];
 
 interface User {
     id: string;

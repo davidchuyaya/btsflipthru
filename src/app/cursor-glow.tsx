@@ -52,6 +52,7 @@ export default function HoldGlow() {
                 borderRadius: "50%",
                 background: "radial-gradient(circle, #efe1f1 0%, rgba(0,255,255,0) 70%)",
                 transition: "opacity 0.1s",
+                zIndex: 9999,
             }}
         />
     );

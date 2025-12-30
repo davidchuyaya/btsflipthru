@@ -1,15 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { Member, memberFromName, NAME_TO_MEMBER, ReportType, reportWindowURL, Result } from "@/constants";
+import { NameToMember, ReportType, reportWindowURL, Result } from "@/constants";
 import { DEFAULT_CARD_TYPE, useMetadata } from "@/metadata-context";
 import { uploadFullPhotocard, uploadThumbnailPhotocard } from "@/actions";
 import {
-    BACK_IMAGE_TYPES_NAME_TO_ENUM,
     BackImageType,
     CardSize,
     CardType,
-    EXCLUSIVE_COUNTRIES_NAME_TO_ENUM,
     ExclusiveCountry,
     ParsedCollection,
     Photocard,
@@ -33,12 +31,12 @@ import MultiCombobox from "@/components/ui/multi-combobox";
 interface LocalPhotocard {
     frontImage: File | null;
     backImage: File | null;
-    backImageType: number;
-    members: Member[];
+    backImageType: BackImageType;
+    members: NameToMember[];
     cardSize?: CardSize;
     temporary: boolean;
     cardType: CardType;
-    exclusiveCountry: number;
+    exclusiveCountry: ExclusiveCountry;
 }
 
 const formSchema = z.object({
@@ -60,10 +58,10 @@ const formSchema = z.object({
     photocards: z
         .array(
             z.object({
-                frontImage: z.file().nullable(),
-                backImage: z.file().nullable(),
-                backImageType: z.number(),
-                members: z.array(z.enum(Member)).min(1, "At least one member must be selected"),
+                frontImage: z.instanceof(File).nullable(),
+                backImage: z.instanceof(File).nullable(),
+                backImageType: z.enum(BackImageType),
+                members: z.array(z.enum(NameToMember)).min(1, "At least one member must be selected"),
                 cardSize: z
                     .object({
                         id: z.number().optional(),
@@ -78,7 +76,7 @@ const formSchema = z.object({
                     id: z.number().optional(),
                     name: z.string(),
                 }),
-                exclusiveCountry: z.number(),
+                exclusiveCountry: z.enum(ExclusiveCountry),
             }),
         )
         .min(1, "At least one photocard is required"),
@@ -148,10 +146,13 @@ function CreatePhotocardRowComponent({
                 <Controller
                     name={`photocards.${index}.frontImage`}
                     control={control}
-                    render={({ field }) => (
-                        <div className="flex justify-center w-full">
-                            <ImageDropzone onImageChanged={field.onChange} expand={expandImages} shortDescription />
-                        </div>
+                    render={({ field, fieldState }) => (
+                        <Field data-invalid={fieldState.invalid}>
+                            <div className="flex justify-center w-full">
+                                <ImageDropzone onImageChanged={field.onChange} expand={expandImages} shortDescription />
+                            </div>
+                            {fieldState.error && <FieldError errors={[fieldState.error]} />}
+                        </Field>
                     )}
                 />
             </TableCell>
@@ -185,14 +186,14 @@ function CreatePhotocardRowComponent({
                                                     }
                                                 }}
                                             >
-                                                {BACK_IMAGE_TYPES_NAME_TO_ENUM.map(
-                                                    ([backImageTypeName, backImageTypeEnum]) => (
+                                                {Object.entries(BackImageType).map(
+                                                    ([name, value]) => (
                                                         <ToggleGroupItem
-                                                            key={backImageTypeEnum}
-                                                            value={backImageTypeEnum.toString()}
+                                                            key={value}
+                                                            value={value.toString()}
                                                             className=" data-[state=on]:bg-main data-[state=on]:font-bold"
                                                         >
-                                                            {backImageTypeName}
+                                                            {name}
                                                         </ToggleGroupItem>
                                                     ),
                                                 )}
@@ -238,7 +239,7 @@ function CreatePhotocardRowComponent({
                         <Field data-invalid={fieldState.invalid}>
                             <div className="flex justify-center w-full">
                                 <MultiCombobox
-                                    items={NAME_TO_MEMBER}
+                                    items={Object.entries(NameToMember)}
                                     allItem="OT7"
                                     selectedItems={field.value}
                                     onSelect={(items) => field.onChange([...items])}
@@ -257,10 +258,7 @@ function CreatePhotocardRowComponent({
                         <Field data-invalid={fieldState.invalid}>
                             <div className="flex justify-center w-full">
                                 <Combobox
-                                    items={possibleCardSizes.map((cs) => [
-                                        `${cs.name} ${cs.width}x${cs.height}`,
-                                        cs,
-                                    ])}
+                                    items={possibleCardSizes.map((cs) => [`${cs.name} ${cs.width}x${cs.height}`, cs])}
                                     value={field.value}
                                     onValueChange={field.onChange}
                                     onCreate={createCardSizeFromString}
@@ -310,7 +308,7 @@ function CreatePhotocardRowComponent({
                     render={({ field }) => (
                         <div className="flex justify-center w-full">
                             <Combobox
-                                items={EXCLUSIVE_COUNTRIES_NAME_TO_ENUM}
+                                items={Object.entries(ExclusiveCountry)}
                                 value={field.value}
                                 onValueChange={field.onChange}
                             />
@@ -463,6 +461,7 @@ export default function CreateCollectionComponent() {
      * Converts `LocalPhotocard` to `Photocard` and call `createCollectionInDB`.
      */
     async function onSubmit(data: z.infer<typeof formSchema>) {
+        console.log("Submitting collection", data);
         const collectionTypesIds = data.collectionTypes
             .filter((collectionType) => collectionType.id !== undefined)
             .map((collectionType) => collectionType.id!);
@@ -497,22 +496,10 @@ export default function CreateCollectionComponent() {
         });
 
         // Create Photocard objects
-        const rmEnum = memberFromName(Member.rm)!;
-        const jiminEnum = memberFromName(Member.jimin)!;
-        const jungkookEnum = memberFromName(Member.jungkook)!;
-        const vEnum = memberFromName(Member.v)!;
-        const jinEnum = memberFromName(Member.jin)!;
-        const sugaEnum = memberFromName(Member.suga)!;
-        const jhopeEnum = memberFromName(Member.jhope)!;
-
         const photocardsToCreate: Photocard[] = data.photocards.map((localPhotocard) => ({
             collectionId: 0, // Placeholder, will be set in `createCollectionInDB`
-            imageId: localPhotocard.frontImage
-                ? imageSizeToUUID.get(localPhotocard.frontImage.size)!
-                : null,
-            backImageId: localPhotocard.backImage
-                ? imageSizeToUUID.get(localPhotocard.backImage.size)!
-                : null,
+            imageId: localPhotocard.frontImage ? imageSizeToUUID.get(localPhotocard.frontImage.size)! : null,
+            backImageId: localPhotocard.backImage ? imageSizeToUUID.get(localPhotocard.backImage.size)! : null,
             backImageType: localPhotocard.backImageType as BackImageType,
             cardType: localPhotocard.cardType!.id!,
             sizeId: localPhotocard.cardSize!.id!,
@@ -520,13 +507,13 @@ export default function CreateCollectionComponent() {
             temporary: localPhotocard.temporary,
             exclusiveCountry: localPhotocard.exclusiveCountry as ExclusiveCountry,
 
-            rm: localPhotocard.members.includes(rmEnum),
-            jimin: localPhotocard.members.includes(jiminEnum),
-            jungkook: localPhotocard.members.includes(jungkookEnum),
-            v: localPhotocard.members.includes(vEnum),
-            jin: localPhotocard.members.includes(jinEnum),
-            suga: localPhotocard.members.includes(sugaEnum),
-            jhope: localPhotocard.members.includes(jhopeEnum),
+            rm: localPhotocard.members.includes(NameToMember.RM),
+            jimin: localPhotocard.members.includes(NameToMember.Jimin),
+            jungkook: localPhotocard.members.includes(NameToMember["Jung Kook"]),
+            v: localPhotocard.members.includes(NameToMember.V),
+            jin: localPhotocard.members.includes(NameToMember.Jin),
+            suga: localPhotocard.members.includes(NameToMember.Suga),
+            jhope: localPhotocard.members.includes(NameToMember["j-hope"]),
 
             imageContributorId: "", // Placeholder, will be set in `createSetInDB`
             updatedAt: Date.now(), // Placeholder, will be set in `createSetInDB`
@@ -567,6 +554,13 @@ export default function CreateCollectionComponent() {
             }
         }
 
+        if (uploadPromises.length === 0) {
+            toast.success("Collection created successfully!");
+            form.reset();
+            setSameBackImage(null);
+            return;
+        }
+
         toast.promise(
             Promise.all(uploadPromises).then((results) => {
                 const error = results.find((res) => res.error);
@@ -599,10 +593,7 @@ export default function CreateCollectionComponent() {
         <FormProvider {...form}>
             <form
                 onSubmit={form.handleSubmit(onSubmit, (errors) => {
-                    // Only show toast for errors not associated with a specific visible field
-                    if (errors.photocards && !Array.isArray(errors.photocards)) {
-                        toast.error(errors.photocards.message);
-                    }
+                    console.error("Form validation errors:", errors);
                 })}
                 className="flex flex-col gap-4 m-4 items-center"
             >
