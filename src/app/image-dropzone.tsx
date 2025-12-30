@@ -66,7 +66,7 @@ export function ImageDropzone({
             >
                 <input {...getInputProps()} />
                 {shortDescription ? (
-                    <p>{fileName ?? "Choose image"}</p>
+                    <p className="p-4">{fileName ?? "Choose image"}</p>
                 ) : (
                     <>
                         <p>Drop images here.</p>
