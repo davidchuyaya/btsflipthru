@@ -14,8 +14,7 @@ import Script from "next/script";
 import useTurnstile from "@/hooks/useTurnstile";
 import { Report } from "@/db";
 import { useMetadata } from "@/metadata-context";
-import { addReportToDB, convertUploadedReport } from "@/actions";
-import { toast } from "sonner";
+import { addReportToDB } from "@/actions";
 import { UAParser } from "ua-parser-js";
 import { uploadImage } from "@/actions-client";
 
@@ -73,14 +72,9 @@ function ReportForm() {
 
         if (result.data) {
             // Upload image, convert, then delete the original
-            const uploadResult = await uploadImage(result.data.url, data.image!);
+            const uploadResult = await uploadImage(result.data, data.image!);
             if (uploadResult.error) {
                 setError(`Error uploading image: ${uploadResult.error}`);
-                return;
-            }
-            const convertResult = await convertUploadedReport(result.data.imageId);
-            if (convertResult.error) {
-                setError(`Error processing uploaded image: ${convertResult.error}`);
                 return;
             }
         }

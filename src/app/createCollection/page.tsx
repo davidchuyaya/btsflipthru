@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { NameToMember, ReportType, reportWindowURL, Result } from "@/constants";
+import { NameToMember, PresignedUrl, ReportType, reportWindowURL, Result } from "@/constants";
 import { DEFAULT_CARD_TYPE, useMetadata } from "@/metadata-context";
-import { generateSignedUploadUrlForPhotocards, convertUploadedPhotocard } from "@/actions";
+import { generateSignedUploadUrlForPhotocards } from "@/actions";
 import {
     BackImageType,
     CardSize,
@@ -488,21 +488,21 @@ export default function CreateCollectionComponent() {
 
         // Get pre-signed upload URLs
         const uniqueImageSizesArray = Array.from(uniqueImageSizes);
-        const signedUrlToIds = await generateSignedUploadUrlForPhotocards(uniqueImageSizesArray);
+        const signedUrlToIds = await generateSignedUploadUrlForPhotocards(uniqueImageSizes.size);
         if (signedUrlToIds.error) {
-            setError(`Error fetching URLs for images: ${signedUrlToIds.error}`);
+            setError(`Error generating URLs for images: ${signedUrlToIds.error}`);
             return;
         }
-        const sizeToUrlAndId = new Map<number, { url: string; imageId: string }>();
+        const sizeToUrl = new Map<number, PresignedUrl>();
         for (let i = 0; i < signedUrlToIds.data!.length; i++) {
-            sizeToUrlAndId.set(uniqueImageSizesArray[i], signedUrlToIds.data![i]);
+            sizeToUrl.set(uniqueImageSizesArray[i], signedUrlToIds.data![i]);
         }
 
         // Create Photocard objects
         const photocardsToCreate: Photocard[] = data.photocards.map((localPhotocard) => ({
             collectionId: 0, // Placeholder, will be set in `createCollectionInDB`
-            imageId: localPhotocard.frontImage ? sizeToUrlAndId.get(localPhotocard.frontImage.size)!.imageId : null,
-            backImageId: localPhotocard.backImage ? sizeToUrlAndId.get(localPhotocard.backImage.size)!.imageId : null,
+            imageId: localPhotocard.frontImage ? sizeToUrl.get(localPhotocard.frontImage.size)!.params.public_id : null,
+            backImageId: localPhotocard.backImage ? sizeToUrl.get(localPhotocard.backImage.size)!.params.public_id : null,
             backImageType: localPhotocard.backImageType as BackImageType,
             cardType: localPhotocard.cardType!.id!,
             sizeId: localPhotocard.cardSize!.id!,
@@ -536,14 +536,7 @@ export default function CreateCollectionComponent() {
         for (const photocard of data.photocards) {
             for (const image of [photocard.frontImage, photocard.backImage]) {
                 if (image && !uploadedSizes.has(image.size)) {
-                    const { url, imageId } = sizeToUrlAndId.get(image.size)!;
-                    // Upload, then convert and delete the original
-                    uploadPromises.push(uploadImage(url, image).then((result) =>{ 
-                        if (result.error) {
-                            throw new Error(result.error);
-                        }
-                        return convertUploadedPhotocard(imageId);
-                    }));
+                    uploadPromises.push(uploadImage(sizeToUrl.get(image.size)!, image));
                     uploadedSizes.add(image.size);
                 }
             }
