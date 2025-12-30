@@ -15,15 +15,16 @@ import {
 import {
     fullSizeId,
     thumbnailId,
-    MAX_IMAGE_SIZE_BYTES,
     Result,
     ImageUploadSchema,
     THUMBNAIL_COMPRESSION_HEIGHT_PX,
     IMAGE_TYPE,
+    CLOUDFLARE_R2_PREPROCESS_ENDPOINT,
+    MAX_IMAGE_SIZE_BYTES,
 } from "@/constants";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
-import z from "zod";
-import { act } from "react";
+import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 function getEnv() {
     const { env } = getCloudflareContext();
@@ -32,14 +33,6 @@ function getEnv() {
 
 function getDb() {
     return db(getEnv());
-}
-
-function getR2Photocards() {
-    return getEnv().photocards;
-}
-
-function getR2Reports() {
-    return getEnv().reports;
 }
 
 /**
@@ -142,19 +135,92 @@ export async function getCardSizesFromDB(): Promise<CardSize[]> {
     return await database.selectFrom("cardSizes").selectAll().execute();
 }
 
+function getPreprocessS3Client() {
+    const env = getEnv();
+    return new S3Client({
+        region: "auto",
+        endpoint: CLOUDFLARE_R2_PREPROCESS_ENDPOINT,
+        credentials: {
+            accessKeyId: env.R2_PREPROCESS_S3_ACCESS_KEY_ID,
+            secretAccessKey: env.R2_PREPROCESS_S3_SECRET_ACCESS_KEY,
+        },
+    });
+}
+
 /**
- * Upload images to R2, converting to `IMAGE_TYPE`.
- * @param imageForm FormData that adheres to `ImageUploadSchema`
- * @param bucket R2 bucket to upload to
- * @param mustBeMod Whether the user must be at least a moderator to upload
- * @param isThumbnail Whether to resize to thumbnail size
- * @returns Result indicating success or error
+ * Generate pre-signed URLs for the client to upload images directly to R2.
+ * @param numImages How many images does the client plan on uploading?
+ * @param mustBeMod Whether the client must be a mod to get these URLs. Since this is toggle-able, do not export this function; otherwise the client can turn off authentication.
+ * @returns (Array of pre-signed URLs, imageIds)
  */
-async function uploadImageToR2(
-    imageForm: FormData,
-    bucket: R2Bucket,
+async function generateSignedUploadUrl(
+    imageLengths: number[],
     mustBeMod: boolean,
-    isThumbnail: boolean,
+): Promise<Result<{ url: string; imageId: string }[]>> {
+    if (mustBeMod) {
+        const result = await isAtLeastMod<boolean>();
+        if (result.error) {
+            return result;
+        }
+    }
+
+    if (imageLengths.some((length) => length > MAX_IMAGE_SIZE_BYTES)) {
+        return { error: `One or more images exceed the maximum size of ${MAX_IMAGE_SIZE_BYTES / (1024 * 1024)} MB.` };
+    }
+
+    const s3Client = getPreprocessS3Client();
+    const imageIds: string[] = [];
+    const putUrlPromises: Promise<string>[] = [];
+    for (const imageLength of imageLengths) {
+        const imageId = crypto.randomUUID();
+        imageIds.push(imageId);
+        putUrlPromises.push(
+            getSignedUrl(
+                s3Client,
+                new PutObjectCommand({
+                    Bucket: "preprocess",
+                    Key: imageId,
+                    ContentLength: imageLength, // The uploaded image must match this length
+                    ContentType: "image/*",
+                }),
+                { expiresIn: 900 },
+            ), // URLs valid for 15 minutes
+        );
+    }
+
+    const putUrls = await Promise.all(putUrlPromises).catch((error) => {
+        return { error: `Error generating signed URLs: ${error}` };
+    });
+    if (!Array.isArray(putUrls)) {
+        return putUrls; // it's an error
+    }
+
+    const resultArray: { url: string; imageId: string }[] = [];
+    for (let i = 0; i < imageLengths.length; i++) {
+        resultArray.push({ url: putUrls[i], imageId: imageIds[i] });
+    }
+    return { data: resultArray };
+}
+
+export async function generateSignedUploadUrlForPhotocards(
+    imageLengths: number[],
+): Promise<Result<{ url: string; imageId: string }[]>> {
+    return generateSignedUploadUrl(imageLengths, true);
+}
+
+/**
+ * Converts the uploaded image in the preprocess bucket into `IMAGE_TYPE`, moves it to the destination bucket, then deletes the image from the preprocess bucket.
+ *
+ * @param imageId The ID of the image in the preprocess bucket.
+ * @param destinationBucket Where to place the image after converting into `IMAGE_TYPE`
+ * @param mustBeMod Whether the user must be at least a moderator to upload. Note: Do NOT export this function, as the client could then bypass authentication.
+ * @param makeThumbnail Whether to also create a thumbnail. If true, then the original image will be stored at `fullSizeId(imageId)` and the thumbnail at `thumbnailId(imageId)`.
+ */
+async function convertUploadedImage(
+    imageId: string,
+    destinationBucket: R2Bucket,
+    mustBeMod: boolean,
+    makeThumbnail: boolean,
 ): Promise<Result<boolean>> {
     if (mustBeMod) {
         const result = await isAtLeastMod<boolean>();
@@ -163,55 +229,80 @@ async function uploadImageToR2(
         }
     }
 
-    // Parse images from form data
-    const result = ImageUploadSchema.safeParse(imageForm);
-    if (!result.success) {
-        return { error: result.error.issues.map((issue) => issue.message).join(", ") };
+    // Fetch the original image
+    const originalImage = await getEnv().preprocessedPhotocards.get(imageId);
+    if (originalImage === null) {
+        return { error: "Could not find uploaded image in preprocess bucket." };
     }
-    const { imageId, image } = result.data;
 
-    // Check for existing images
-    const actualId = isThumbnail ? thumbnailId(imageId) : fullSizeId(imageId);
-    const existingChecks = await bucket.head(actualId);
+    // Check if there's a collision on the destination
+    const actualId = makeThumbnail ? fullSizeId(imageId) : imageId;
+    const existingChecks = await destinationBucket.head(actualId);
     if (existingChecks !== null) {
+        // Delete the original image since we won't be using it
+        await getEnv().preprocessedPhotocards.delete(imageId);
         return { error: "Image with the same ID already exists." };
     }
 
-    // Transform
+    // Transform the full-size image
     const env = getEnv();
-    let stream = env.IMAGES.input(image.stream());
-    if (isThumbnail) {
-        stream = stream.transform({
-            fit: "scale-down",
-            height: THUMBNAIL_COMPRESSION_HEIGHT_PX,
-        });
-    }
-    const convertedImage = await stream.output({ format: IMAGE_TYPE });
-    const response = convertedImage.response();
-    if (!response.ok) {
-        return { error: `Image conversion failed: ${response.status}.` };
+    const convertedFullSizeImage = await env.IMAGES.input(originalImage.body).output({ format: IMAGE_TYPE });
+    const fullSizeResponse = convertedFullSizeImage.response();
+    if (!fullSizeResponse.ok) {
+        return { error: `Image conversion failed: ${fullSizeResponse.status}.` };
     }
 
+    // Place the full-size image into the destination bucket
     const httpMetadata = {
         contentType: IMAGE_TYPE,
         cacheControl: "public, max-age=31536000, immutable",
     };
+    await destinationBucket.put(actualId, convertedFullSizeImage.image(), { httpMetadata });
 
-    // Upload all images
-    await bucket.put(actualId, convertedImage.image(), { httpMetadata });
+    // Transform the thumbnail if requested
+    if (makeThumbnail) {
+        // Fetch the image again to reinitialize the stream
+        const originalImageForThumbnail = await getEnv().preprocessedPhotocards.get(imageId);
+        if (originalImageForThumbnail === null) {
+            return { error: "Could not find uploaded image in preprocess bucket for thumbnail." };
+        }
+
+        const convertedThumbnailImage = await env.IMAGES.input(originalImageForThumbnail.body)
+            .transform({
+                fit: "scale-down",
+                height: THUMBNAIL_COMPRESSION_HEIGHT_PX,
+            })
+            .output({ format: IMAGE_TYPE });
+        const thumbnailResponse = convertedThumbnailImage.response();
+        if (!thumbnailResponse.ok) {
+            return { error: `Thumbnail conversion failed: ${thumbnailResponse.status}.` };
+        }
+
+        // Place the thumbnail into the destination bucket
+        await destinationBucket.put(thumbnailId(imageId), convertedThumbnailImage.image(), { httpMetadata });
+    }
+
+    // Delete the original image since we won't be using it
+    await getEnv().preprocessedPhotocards.delete(imageId);
+
     return { data: true };
 }
 
 /**
- * Upload photocard to R2.
- * @param imageForm FormData that adheres to `ImageUploadSchema`
+ * Converts the uploaded photocard image in the preprocess bucket into `IMAGE_TYPE`, creates a thumbnail, moves both to the photocards bucket, then deletes the original.
+ * @param imageId ID of the image to convert
  */
-export async function uploadFullPhotocard(imageForm: FormData): Promise<Result<boolean>> {
-    return uploadImageToR2(imageForm, getR2Photocards(), true, false);
+export async function convertUploadedPhotocard(imageId: string): Promise<Result<boolean>> {
+    return convertUploadedImage(imageId, getEnv().photocards, true, false);
 }
 
-export async function uploadThumbnailPhotocard(imageForm: FormData): Promise<Result<boolean>> {
-    return uploadImageToR2(imageForm, getR2Photocards(), true, true);
+/**
+ * Converts the uploaded report image in the preprocess bucket into `IMAGE_TYPE`, moves it to the reports bucket, then deletes the original.
+ * @param imageId ID of the image to convert
+ * @returns
+ */
+export async function convertUploadedReport(imageId: string): Promise<Result<boolean>> {
+    return convertUploadedImage(imageId, getEnv().reports, false, true);
 }
 
 export async function addCollectionToDB(collection: Collection, photocards: Photocard[]): Promise<Result<boolean>> {
@@ -290,7 +381,7 @@ export async function searchPhotocardsInDB() {
     return await database.selectFrom("photocards").selectAll().orderBy("updatedAt", "desc").limit(50).execute();
 }
 
-export async function verifyTurnstile(token: string): Promise<Result<boolean>> {
+async function verifyTurnstile(token: string): Promise<Result<boolean>> {
     try {
         const response = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
             method: "POST",
@@ -309,15 +400,34 @@ export async function verifyTurnstile(token: string): Promise<Result<boolean>> {
     }
 }
 
+/**
+ * Verifies the user with a captcha, then adds a report to the database, optionally generating a pre-signed URL for image upload.
+ * @param report Report to submit to DB
+ * @param imageSize Size of the image to submit. Null if none provided
+ * @param turnstileToken Captcha
+ * @returns If an image was provided, returns the pre-signed URL and image ID for uploading. Null if no image was provided.
+ */
 export async function addReportToDB(
     report: Report,
-    imageForm: FormData,
+    imageSize: number | null,
     turnstileToken: string,
-): Promise<Result<boolean>> {
+): Promise<Result<{ url: string; imageId: string } | null>> {
     // Check captcha
     const turnstileResult = await verifyTurnstile(turnstileToken);
     if (turnstileResult.error) {
         return turnstileResult;
+    }
+
+    // Fetch the pre-signed URL
+    let presignUrl: string | null = null;
+    if (imageSize !== null) {
+        const urlResult = await generateSignedUploadUrl([imageSize], false);
+        if (urlResult.error) {
+            return { error: `Error generating signed URL for report image: ${urlResult.error}` };
+        }
+        const { url, imageId } = urlResult.data![0];
+        report.imageId = imageId;
+        presignUrl = url;
     }
 
     const database = getDb();
@@ -330,7 +440,7 @@ export async function addReportToDB(
                 if (result.insertId === undefined) {
                     return { error: "Could not add report to database." };
                 }
-                return { data: true };
+                return { data: null };
             },
             (reason) => ({
                 error: "Could not add report to database.",
@@ -341,6 +451,6 @@ export async function addReportToDB(
         return result;
     }
 
-    // Also upload the image, since we have one we won't exceed the memory limit so we can do it all together
-    return await uploadImageToR2(imageForm, getR2Reports(), false, false);
+    // Return the pre-signed URL and image ID for uploading
+    return { data: { url: presignUrl!, imageId: report.imageId } };
 }

@@ -14,9 +14,10 @@ import Script from "next/script";
 import useTurnstile from "@/hooks/useTurnstile";
 import { Report } from "@/db";
 import { useMetadata } from "@/metadata-context";
-import { addReportToDB } from "@/actions";
+import { addReportToDB, convertUploadedReport } from "@/actions";
 import { toast } from "sonner";
 import { UAParser } from "ua-parser-js";
+import { uploadImage } from "@/actions-client";
 
 const reportSchema = z.object({
     description: z.string().max(5000, "Description must be at most 5000 characters"),
@@ -31,7 +32,7 @@ function ReportForm() {
     const title = params.get("title");
     const url = params.get("url");
     const { reportTitle, descriptionPlaceholder, descriptionSmallText } = reportTypeToFields(reportType);
-    const { session } = useMetadata();
+    const { session, setError } = useMetadata();
     const { browser, device, os } = UAParser();
 
     const form = useForm<z.infer<typeof reportSchema>>({
@@ -63,11 +64,25 @@ function ReportForm() {
             createdAt: new Date(),
         };
 
-        const result = await addReportToDB(report, data.image, data.turnstileToken);
+        const result = await addReportToDB(report, data.image?.size || null, data.turnstileToken);
         if (result.error) {
-            toast.error(`Error submitting report: ${result.error}`);
+            setError(`Error submitting report: ${result.error}`);
             resetTurnstile(ref);
             return;
+        }
+
+        if (result.data) {
+            // Upload image, convert, then delete the original
+            const uploadResult = await uploadImage(result.data.url, data.image!);
+            if (uploadResult.error) {
+                setError(`Error uploading image: ${uploadResult.error}`);
+                return;
+            }
+            const convertResult = await convertUploadedReport(result.data.imageId);
+            if (convertResult.error) {
+                setError(`Error processing uploaded image: ${convertResult.error}`);
+                return;
+            }
         }
 
         form.reset();

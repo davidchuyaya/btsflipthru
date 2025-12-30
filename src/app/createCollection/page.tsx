@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { NameToMember, ReportType, reportWindowURL, Result } from "@/constants";
 import { DEFAULT_CARD_TYPE, useMetadata } from "@/metadata-context";
-import { uploadFullPhotocard, uploadThumbnailPhotocard } from "@/actions";
+import { generateSignedUploadUrlForPhotocards, convertUploadedPhotocard } from "@/actions";
 import {
     BackImageType,
     CardSize,
@@ -27,6 +27,7 @@ import { ImageDropzone } from "../image-dropzone";
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import TooltipComponent from "@/components/ui/tooltip";
 import MultiCombobox from "@/components/ui/multi-combobox";
+import { uploadImage } from "@/actions-client";
 
 interface LocalPhotocard {
     frontImage: File | null;
@@ -485,21 +486,23 @@ export default function CreateCollectionComponent() {
             }
         }
 
-        // Create UUIDs
-        // This is safe to do on the client side because any (malicious) collisions will just result in:
-        // 1. Pointers to the wrong image, or
-        // 2. Broken images
-        // (We don't allow overwriting existing images when uploading, see `actions/uploadImage`)
-        const imageSizeToUUID = new Map<number, string>();
-        uniqueImageSizes.forEach((size) => {
-            imageSizeToUUID.set(size, crypto.randomUUID());
-        });
+        // Get pre-signed upload URLs
+        const uniqueImageSizesArray = Array.from(uniqueImageSizes);
+        const signedUrlToIds = await generateSignedUploadUrlForPhotocards(uniqueImageSizesArray);
+        if (signedUrlToIds.error) {
+            setError(`Error fetching URLs for images: ${signedUrlToIds.error}`);
+            return;
+        }
+        const sizeToUrlAndId = new Map<number, { url: string; imageId: string }>();
+        for (let i = 0; i < signedUrlToIds.data!.length; i++) {
+            sizeToUrlAndId.set(uniqueImageSizesArray[i], signedUrlToIds.data![i]);
+        }
 
         // Create Photocard objects
         const photocardsToCreate: Photocard[] = data.photocards.map((localPhotocard) => ({
             collectionId: 0, // Placeholder, will be set in `createCollectionInDB`
-            imageId: localPhotocard.frontImage ? imageSizeToUUID.get(localPhotocard.frontImage.size)! : null,
-            backImageId: localPhotocard.backImage ? imageSizeToUUID.get(localPhotocard.backImage.size)! : null,
+            imageId: localPhotocard.frontImage ? sizeToUrlAndId.get(localPhotocard.frontImage.size)!.imageId : null,
+            backImageId: localPhotocard.backImage ? sizeToUrlAndId.get(localPhotocard.backImage.size)!.imageId : null,
             backImageType: localPhotocard.backImageType as BackImageType,
             cardType: localPhotocard.cardType!.id!,
             sizeId: localPhotocard.cardSize!.id!,
@@ -527,33 +530,26 @@ export default function CreateCollectionComponent() {
         }
 
         // Upload each unique image in parallel
-        // Images are already converted to AVIF on selection, so we just upload them directly
         const uploadPromises: Promise<Result<boolean>>[] = [];
         const uploadedSizes = new Set<number>();
 
         for (const photocard of data.photocards) {
-            if (photocard.frontImage && !uploadedSizes.has(photocard.frontImage.size)) {
-                const imageId = imageSizeToUUID.get(photocard.frontImage.size)!;
-                const image = photocard.frontImage;
-                uploadedSizes.add(image.size);
-                const imageForm = new FormData();
-                imageForm.set("image", image);
-                imageForm.set("imageId", imageId);
-                uploadPromises.push(uploadFullPhotocard(imageForm));
-                uploadPromises.push(uploadThumbnailPhotocard(imageForm));
-            }
-            if (photocard.backImage && !uploadedSizes.has(photocard.backImage.size)) {
-                const imageId = imageSizeToUUID.get(photocard.backImage.size)!;
-                const image = photocard.backImage;
-                uploadedSizes.add(image.size);
-                const imageForm = new FormData();
-                imageForm.set("image", image);
-                imageForm.set("imageId", imageId);
-                uploadPromises.push(uploadFullPhotocard(imageForm));
-                uploadPromises.push(uploadThumbnailPhotocard(imageForm));
+            for (const image of [photocard.frontImage, photocard.backImage]) {
+                if (image && !uploadedSizes.has(image.size)) {
+                    const { url, imageId } = sizeToUrlAndId.get(image.size)!;
+                    // Upload, then convert and delete the original
+                    uploadPromises.push(uploadImage(url, image).then((result) =>{ 
+                        if (result.error) {
+                            throw new Error(result.error);
+                        }
+                        return convertUploadedPhotocard(imageId);
+                    }));
+                    uploadedSizes.add(image.size);
+                }
             }
         }
 
+        // Early exit if no images to upload
         if (uploadPromises.length === 0) {
             toast.success("Collection created successfully!");
             form.reset();

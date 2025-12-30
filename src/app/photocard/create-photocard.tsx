@@ -1,9 +1,8 @@
 import {
-    BACK_IMAGE_TYPES_NAME_TO_ENUM,
     BackImageType,
     CardSize,
     CardType,
-    EXCLUSIVE_COUNTRIES_NAME_TO_ENUM,
+    ExclusiveCountry,
 } from "@/db";
 import { ImageDropzone } from "@/app/image-dropzone";
 import { useMetadata } from "@/metadata-context";
@@ -25,7 +24,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Trash2Icon } from "lucide-react";
 import { useFormContext, Controller } from "react-hook-form";
 import z from "zod";
-import { NAME_TO_MEMBER } from "@/constants";
+import { NameToMember } from "@/constants";
 
 const formSchema = z.object({
     collectionName: z.string().min(1, "Collection name is required"),
@@ -46,9 +45,9 @@ const formSchema = z.object({
     photocards: z
         .array(
             z.object({
-                frontImage: z.file().nullable(),
-                backImage: z.file().nullable(),
-                backImageType: z.number(),
+                frontImage: z.instanceof(File).nullable(),
+                backImage: z.instanceof(File).nullable(),
+                backImageType: z.enum(BackImageType),
                 rm: z.boolean(),
                 jimin: z.boolean(),
                 jungkook: z.boolean(),
@@ -70,7 +69,7 @@ const formSchema = z.object({
                     id: z.number().optional(),
                     name: z.string(),
                 }),
-                exclusiveCountry: z.number(),
+                exclusiveCountry: z.enum(ExclusiveCountry),
             }),
         )
         .min(1, "At least one photocard is required"),
@@ -197,7 +196,7 @@ function CreatePhotocardComponent({
                                                             }
                                                         }}
                                                     >
-                                                        {BACK_IMAGE_TYPES_NAME_TO_ENUM.map(
+                                                        {Object.entries(BackImageType).map(
                                                             ([backImageTypeName, backImageTypeEnum]) => (
                                                                 <ToggleGroupItem
                                                                     key={backImageTypeEnum}
@@ -246,7 +245,7 @@ function CreatePhotocardComponent({
                     <Field>
                         <FieldLabel>Member</FieldLabel>
                         <FieldDescription>Which member(s) is/are on this card?</FieldDescription>
-                        {NAME_TO_MEMBER.map(([officialName, member]) => (
+                        {Object.entries(NameToMember).map(([officialName, member]) => (
                             <Controller
                                 key={member}
                                 name={`photocards.${index}.${member}` as any}
@@ -386,7 +385,7 @@ function CreatePhotocardComponent({
                                     </FieldDescription>
                                 </FieldContent>
                                 <Combobox
-                                    items={EXCLUSIVE_COUNTRIES_NAME_TO_ENUM}
+                                    items={Object.entries(ExclusiveCountry)}
                                     value={field.value}
                                     onValueChange={field.onChange}
                                 />

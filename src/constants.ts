@@ -9,6 +9,7 @@ export const THUMBNAIL_COMPRESSION_HEIGHT_PX = THUMBNAIL_DISPLAY_HEIGHT_PX * 2; 
 export const IMAGES_URL = "https://images.btsflipthru.com/";
 export const IMAGE_TYPE = "image/avif";
 export const CLOUDFLARE_TURNSTILE_SITE_KEY = "0x4AAAAAACJg4L7-eUjaAdjN";
+export const CLOUDFLARE_R2_PREPROCESS_ENDPOINT = "https://3c96a0744e155d77114ed3d8e86abd7d.r2.cloudflarestorage.com";
 
 export function fullSizeId(imageId: string): string {
     return `${imageId}_fullSize`;
