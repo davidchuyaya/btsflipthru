@@ -38,7 +38,7 @@ async function detectBorderRadius(imageUrl: string): Promise<number> {
                     // In a circle, the distance from (0,0) to the curve at 45°
                     // is roughly r * (2 - √2)
                     const radius = i / (1 - Math.SQRT1_2);
-                    resolve(Math.round(radius));
+                    resolve(Math.ceil((radius * THUMBNAIL_DISPLAY_HEIGHT_PX) / img.naturalHeight));
                     return;
                 }
             }
@@ -85,7 +85,7 @@ export default function PhotocardComponent({
 
     useEffect(() => {
         init();
-    }, [src, className, effects]);
+    }, [src, className, effects, borderRadius]);
 
     async function init() {
         await import("hover-tilt/web-component");
@@ -93,7 +93,19 @@ export default function PhotocardComponent({
 
         // 1. Create and configure
         const el = document.createElement("hover-tilt");
-        el.setAttribute("glare-intensity", effects === Effects.Matte ? "0.3" : "1.5");
+        let glareIntensity = "";
+        switch (effects) {
+            case Effects.Matte:
+                glareIntensity = "0.3";
+                break;
+            case Effects.Glossy:
+                glareIntensity = "1.0";
+                break;
+            case Effects.Shiny:
+                glareIntensity = "1.5";
+                break;
+        }
+        el.setAttribute("glare-intensity", glareIntensity);
         el.setAttribute("tilt-factor", "0.7");
         el.setAttribute("scale-factor", "1");
         if (effects === Effects.Shiny) {
@@ -105,12 +117,7 @@ export default function PhotocardComponent({
         hostRef.current.appendChild(el);
 
         // 3. Now set styles safely
-        if (el.style) {
-            el.style.display = "inline-block";
-            if (src) {
-                el.style.setProperty("--detected-radius", `${borderRadius}px`);
-            }
-        }
+        hostRef.current.style.setProperty("--detected-radius", `${borderRadius}px`);
 
         // 4. Inject Image
         if (!src) {
