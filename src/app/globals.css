@@ -179,11 +179,6 @@
     color: var(--third-lightest);
 }
 
-h1 {
-    font-size: var(--text-7xl);
-    color: var(--main);
-}
-
 input[type="file"]::file-selector-button {
     border: 2px solid #6c5ce7;
     padding: 0.2em 0.4em;
@@ -299,10 +294,36 @@ hover-tilt::part(tilt) {
     transform: translate(1px, 1px);
 }
 
+h1 {
+    font-size: var(--text-7xl);
+    color: var(--main);
+}
+
+h2 {
+    font-size: var(--text-5xl);
+    color: var(--main);
+}
+
 .page {
     display: flex;
     flex-direction: column;
-    gap: calc(var(--spacing) * 4);
     align-items: center;
-    margin: calc(var(--spacing) * 8);
+    justify-content: space-evenly;
+    gap: calc(var(--spacing) * 8);
+    max-width: 80%;
+    margin: auto;
+    padding-top: calc(var(--spacing) * 8);
+    padding-bottom: calc(var(--spacing) * 8);
+    text-align: center;;
+}
+
+.page-body, .page-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: calc(var(--spacing) * 4);
+}
+
+.page-section {
+    gap: var(--spacing) !important;
 }

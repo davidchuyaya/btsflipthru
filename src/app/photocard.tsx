@@ -71,17 +71,19 @@ export default function PhotocardComponent({
     className,
     src,
     effects,
+    manualRadius = false,
 }: {
     className?: string;
     src: string | null;
     effects: Effects;
+    manualRadius?: boolean;
 }) {
     const [borderRadius, setBorderRadius] = useState<number>(16);
     const hostRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
-        if (src) detectBorderRadius(src).then(setBorderRadius);
-    }, [src]);
+        if (src && !manualRadius) detectBorderRadius(src).then(setBorderRadius);
+    }, [src, manualRadius]);
 
     useEffect(() => {
         init();
@@ -134,6 +136,10 @@ export default function PhotocardComponent({
             img.src = src;
             img.style.height = `${THUMBNAIL_DISPLAY_HEIGHT_PX}px`;
             img.style.maxWidth = "none";
+            if (manualRadius) {
+                // Crop image
+                img.style.borderRadius = "16px";
+            }
             el.appendChild(img);
         }
     }

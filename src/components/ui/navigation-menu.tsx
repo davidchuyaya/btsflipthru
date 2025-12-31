@@ -204,7 +204,9 @@ export default function NavigationComponent() {
                 <Link href="/">
                     <Image src="/logo_border.svg" alt="Flip Thru Logo" width={200} height={200} />
                 </Link>
-                <p className="text-5xl! font-heading text-main grow">For BTS Photocard Collectors</p>
+                <p className="text-5xl! font-heading text-main-light grow">
+                    For <span className="text-main">BTS</span> Photocard Collectors
+                </p>
                 <div className="flex flex-row">
                     <SocialButtonComponent
                         href="https://www.instagram.com/btsflipthru/"
@@ -226,24 +228,13 @@ export default function NavigationComponent() {
             <NavigationMenu className="z-5 w-svw max-w-svw">
                 <NavigationMenuList className="flex-wrap">
                     {navItems.map((item, index) => (
-                        <MenuItemComponent
-                            key={index}
-                            title={item.title}
-                            href={item.href}
-                            middle={item.middle}
-                        />
+                        <MenuItemComponent key={index} title={item.title} href={item.href} middle={item.middle} />
                     ))}
                     {session === null ? (
-                        <MenuItemComponent
-                            title="Sign In"
-                            onClick={signInGoogle}
-                            middle={false}
-                        />
-                    ) : <MenuItemComponent
-                          title="Profile"
-                          href="/profile"
-                          middle={false}
-                      />}
+                        <MenuItemComponent title="Sign In" onClick={signInGoogle} middle={false} />
+                    ) : (
+                        <MenuItemComponent title="Profile" href="/profile" middle={false} />
+                    )}
                 </NavigationMenuList>
             </NavigationMenu>
             <Button hidden={!isAtLeastMod(session)} asChild>
