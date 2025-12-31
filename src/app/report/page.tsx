@@ -114,6 +114,8 @@ function ReportForm() {
                             description="Please remove any sensitive information from the image."
                             className="mb-2"
                             onImageChanged={field.onChange}
+                            onDelete={() => field.onChange(null)}
+                            photocard={false}
                         />
                     )}
                 />

@@ -1,29 +1,22 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { NameToMember, PresignedUrl, ReportType, reportWindowURL, Result } from "@/constants";
 import { DEFAULT_CARD_TYPE, useMetadata } from "@/metadata-context";
 import { generateSignedUploadUrlForPhotocards } from "@/actions";
-import {
-    BackImageType,
-    CardSize,
-    CardType,
-    ExclusiveCountry,
-    ParsedCollection,
-    Photocard,
-} from "@/db";
+import { BackImageType, CardSize, CardType, Effects, ExclusiveCountry, ParsedCollection, Photocard } from "@/db";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import Combobox from "@/components/ui/combobox";
 import { ExpandIcon, PlusIcon, ShrinkIcon, Trash2Icon } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { Controller, FormProvider, useFieldArray, useForm, useFormContext } from "react-hook-form";
+import { Controller, FormProvider, useFieldArray, useForm, useFormContext, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { toast } from "sonner";
 import { Field, FieldLabel, FieldError, FieldGroup, FieldDescription, FieldContent } from "@/components/ui/field";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { ImageDropzone } from "../image-dropzone";
+import { ImageDropzone, ImageDropzoneRef } from "../image-dropzone";
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import TooltipComponent from "@/components/ui/tooltip";
 import MultiCombobox from "@/components/ui/multi-combobox";
@@ -31,6 +24,7 @@ import { uploadImage } from "@/actions-client";
 
 interface LocalPhotocard {
     frontImage: File | null;
+    effects: Effects;
     backImage: File | null;
     backImageType: BackImageType;
     members: NameToMember[];
@@ -60,6 +54,7 @@ const formSchema = z.object({
         .array(
             z.object({
                 frontImage: z.instanceof(File).nullable(),
+                effects: z.enum(Effects),
                 backImage: z.instanceof(File).nullable(),
                 backImageType: z.enum(BackImageType),
                 members: z.array(z.enum(NameToMember)).min(1, "At least one member must be selected"),
@@ -105,7 +100,9 @@ function CreatePhotocardRowComponent({
     expandImages: boolean;
 }) {
     const { setError } = useMetadata();
-    const { control } = useFormContext<z.infer<typeof formSchema>>();
+    const { control, getValues, setValue } = useFormContext<z.infer<typeof formSchema>>();
+    const backImageRef = useRef<ImageDropzoneRef>(null);
+
     function backImageClassName(backImageType: BackImageType) {
         switch (backImageType) {
             case BackImageType.White:
@@ -140,6 +137,29 @@ function CreatePhotocardRowComponent({
         onCreateCardSize({ name, width, height }, index);
     }
 
+    const frontImage = useWatch({ control, name: `photocards.${index}.frontImage` });
+    const backImage = useWatch({ control, name: `photocards.${index}.backImage` });
+    const backImageType = useWatch({ control, name: `photocards.${index}.backImageType` });
+
+    const bothFrontAndBackUploaded = useMemo(() => {
+        const frontSelected = frontImage != null;
+        const backSelected = backImage != null || forceBackImage != null;
+        const backTypeAcceptable = backImageType === BackImageType.White || backImageType === BackImageType.Transparent;
+
+        return frontSelected && (backSelected || backTypeAcceptable);
+    }, [frontImage, backImage, forceBackImage, backImageType]);
+
+    const prevBothRef = useRef<boolean>(bothFrontAndBackUploaded);
+
+    useEffect(() => {
+        if (bothFrontAndBackUploaded && !prevBothRef.current) {
+            setValue(`photocards.${index}.temporary`, false);
+        } else if (!bothFrontAndBackUploaded && prevBothRef.current) {
+            setValue(`photocards.${index}.temporary`, true);
+        }
+        prevBothRef.current = bothFrontAndBackUploaded;
+    }, [bothFrontAndBackUploaded, index, setValue]);
+
     return (
         <TableRow key={index}>
             <TableCell>{index + 1}</TableCell>
@@ -147,13 +167,55 @@ function CreatePhotocardRowComponent({
                 <Controller
                     name={`photocards.${index}.frontImage`}
                     control={control}
-                    render={({ field, fieldState }) => (
-                        <Field data-invalid={fieldState.invalid}>
-                            <div className="flex justify-center w-full">
-                                <ImageDropzone onImageChanged={field.onChange} expand={expandImages} shortDescription />
-                            </div>
-                            {fieldState.error && <FieldError errors={[fieldState.error]} />}
-                        </Field>
+                    render={({ field: frontField, fieldState: frontFieldState }) => (
+                        <Controller
+                            name={`photocards.${index}.effects`}
+                            control={control}
+                            render={({ field: effectsField }) => (
+                                <Field
+                                    data-invalid={frontFieldState.invalid}
+                                    className="flex flex-col items-center w-full"
+                                >
+                                    <ToggleGroup
+                                        className="w-auto!"
+                                        type="single"
+                                        variant="outline"
+                                        value={effectsField.value.toString()}
+                                        onValueChange={(v) => effectsField.onChange(Number(v))}
+                                    >
+                                        {Object.entries(Effects).map(([name, value]) => (
+                                            <ToggleGroupItem
+                                                key={value}
+                                                value={value.toString()}
+                                                className=" data-[state=on]:bg-main data-[state=on]:font-bold"
+                                            >
+                                                {name}
+                                            </ToggleGroupItem>
+                                        ))}
+                                    </ToggleGroup>
+                                    <div className="flex justify-center w-full">
+                                        <ImageDropzone
+                                            onImageChanged={frontField.onChange}
+                                            onDelete={() => {
+                                                // If the back image depends on the front image, clear it too
+                                                if (
+                                                    getValues().photocards[index].backImageType !== BackImageType.Image
+                                                ) {
+                                                    setValue(`photocards.${index}.backImageType`, BackImageType.Image);
+                                                    setValue(`photocards.${index}.backImage`, null);
+                                                    backImageRef.current?.delete();
+                                                }
+                                                frontField.onChange(null);
+                                            }}
+                                            expand={expandImages}
+                                            effects={effectsField.value}
+                                            shortDescription
+                                        />
+                                    </div>
+                                    {frontFieldState.error && <FieldError errors={[frontFieldState.error]} />}
+                                </Field>
+                            )}
+                        />
                     )}
                 />
             </TableCell>
@@ -179,30 +241,36 @@ function CreatePhotocardRowComponent({
                                                 onValueChange={(value) => {
                                                     if (value) {
                                                         const selectedType = Number(value);
-                                                        typeField.onChange(selectedType);
-                                                        // If changing to non-image type, clear back image
-                                                        if (selectedType !== BackImageType.Image) {
+                                                        // If changing from image to non-image type or vice versa, clear back image
+                                                        if (
+                                                            (selectedType !== BackImageType.Image &&
+                                                                typeField.value === BackImageType.Image) ||
+                                                            (selectedType === BackImageType.Image &&
+                                                                typeField.value !== BackImageType.Image)
+                                                        ) {
                                                             backField.onChange(null);
+                                                            backImageRef.current?.delete();
                                                         }
+                                                        typeField.onChange(selectedType);
                                                     }
                                                 }}
                                             >
-                                                {Object.entries(BackImageType).map(
-                                                    ([name, value]) => (
-                                                        <ToggleGroupItem
-                                                            key={value}
-                                                            value={value.toString()}
-                                                            className=" data-[state=on]:bg-main data-[state=on]:font-bold"
-                                                        >
-                                                            {name}
-                                                        </ToggleGroupItem>
-                                                    ),
-                                                )}
+                                                {Object.entries(BackImageType).map(([name, value]) => (
+                                                    <ToggleGroupItem
+                                                        key={value}
+                                                        value={value.toString()}
+                                                        className=" data-[state=on]:bg-main data-[state=on]:font-bold"
+                                                    >
+                                                        {name}
+                                                    </ToggleGroupItem>
+                                                ))}
                                             </ToggleGroup>
 
                                             <ImageDropzone
+                                                ref={backImageRef}
                                                 disableUpload={typeField.value !== BackImageType.Image}
                                                 onImageChanged={backField.onChange}
+                                                onDelete={() => backField.onChange(null)}
                                                 forceImage={
                                                     typeField.value === BackImageType.Image
                                                         ? forceBackImage
@@ -210,6 +278,7 @@ function CreatePhotocardRowComponent({
                                                 }
                                                 imgClassName={backImageClassName(typeField.value)}
                                                 expand={expandImages}
+                                                effects={Effects.Matte} // Back is always matte
                                                 shortDescription
                                             />
                                             <Button
@@ -297,7 +366,11 @@ function CreatePhotocardRowComponent({
                     control={control}
                     render={({ field }) => (
                         <div className="flex justify-center w-full">
-                            <Switch checked={field.value} onCheckedChange={field.onChange} />
+                            <Switch
+                                checked={field.value}
+                                onCheckedChange={field.onChange}
+                                disabled={!bothFrontAndBackUploaded}
+                            />
                         </div>
                     )}
                 />
@@ -398,10 +471,11 @@ export default function CreateCollectionComponent() {
     function getDefaultPhotocard(): LocalPhotocard {
         return {
             frontImage: null,
+            effects: Effects.Matte,
             backImage: null,
             backImageType: BackImageType.Image,
             members: [],
-            temporary: false,
+            temporary: true, // True unless both front & back are uploaded
             cardType: DEFAULT_CARD_TYPE,
             exclusiveCountry: ExclusiveCountry.Global,
         };
@@ -423,36 +497,12 @@ export default function CreateCollectionComponent() {
         remove(index);
     }
 
-    function onAddPhotocardForEachMember() {
-        const members = ["rm", "jimin", "jungkook", "v", "jin", "suga", "jhope"];
-        const newPhotocards = members.map((member) => {
-            const photocard = getDefaultPhotocard();
-            (photocard as any)[member] = true;
-            return photocard;
-        });
-        newPhotocards.forEach((pc) => append(pc));
-    }
-
     function onSameBackImageClick(backImage: File) {
         const currentPhotocards = form.getValues("photocards");
         currentPhotocards.forEach((_, index) => {
             form.setValue(`photocards.${index}.backImage`, backImage);
         });
         setSameBackImage(backImage);
-    }
-
-    function onSameCardSizeClick(cardSize: CardSize) {
-        const currentPhotocards = form.getValues("photocards");
-        currentPhotocards.forEach((_, index) => {
-            form.setValue(`photocards.${index}.cardSize`, cardSize);
-        });
-    }
-
-    function onSameCardTypesClick(cardType: CardType) {
-        const currentPhotocards = form.getValues("photocards");
-        currentPhotocards.forEach((_, index) => {
-            form.setValue(`photocards.${index}.cardType`, cardType);
-        });
     }
 
     /**
@@ -502,12 +552,15 @@ export default function CreateCollectionComponent() {
         const photocardsToCreate: Photocard[] = data.photocards.map((localPhotocard) => ({
             collectionId: 0, // Placeholder, will be set in `createCollectionInDB`
             imageId: localPhotocard.frontImage ? sizeToUrl.get(localPhotocard.frontImage.size)!.params.public_id : null,
-            backImageId: localPhotocard.backImage ? sizeToUrl.get(localPhotocard.backImage.size)!.params.public_id : null,
+            backImageId: localPhotocard.backImage
+                ? sizeToUrl.get(localPhotocard.backImage.size)!.params.public_id
+                : null,
             backImageType: localPhotocard.backImageType as BackImageType,
             cardType: localPhotocard.cardType!.id!,
             sizeId: localPhotocard.cardSize!.id!,
-            effects: null, // TODO: Allow effects
-            temporary: localPhotocard.temporary,
+            effects: localPhotocard.effects,
+            modTemporary: localPhotocard.temporary, // Placeholder, server will pick correct one based on role
+            adminTemporary: localPhotocard.temporary, // Placeholder, server will pick correct one based on role
             exclusiveCountry: localPhotocard.exclusiveCountry as ExclusiveCountry,
 
             rm: localPhotocard.members.includes(NameToMember.RM),
@@ -518,8 +571,8 @@ export default function CreateCollectionComponent() {
             suga: localPhotocard.members.includes(NameToMember.Suga),
             jhope: localPhotocard.members.includes(NameToMember["j-hope"]),
 
-            imageContributorId: "", // Placeholder, will be set in `createSetInDB`
-            updatedAt: Date.now(), // Placeholder, will be set in `createSetInDB`
+            imageContributorId: "", // Placeholder, will be set on server
+            updatedAt: Date.now(), // Placeholder, will be set on server
         }));
 
         // Call the server and create DB entries
@@ -678,7 +731,7 @@ export default function CreateCollectionComponent() {
                     </Field>
                 </FieldGroup>
 
-                <Table>
+                <Table className="mt-8">
                     <TableHeader>
                         <TableRow className="table-header-row">
                             <TableHead>#</TableHead>

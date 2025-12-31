@@ -78,9 +78,10 @@ CREATE TABLE IF NOT EXISTS photocards (
     backImageType INTEGER NOT NULL DEFAULT 0,
     cardType INTEGER,
     sizeId INTEGER NOT NULL,
-    temporary INTEGER NOT NULL,
+    modTemporary INTEGER NOT NULL DEFAULT 0,
+    adminTemporary INTEGER NOT NULL DEFAULT 0,
     exclusiveCountry INTEGER NOT NULL,
-    effects TEXT,
+    effects INTEGER NOT NULL DEFAULT 0,
     rm INTEGER NOT NULL DEFAULT 0,
     jimin INTEGER NOT NULL DEFAULT 0,
     jungkook INTEGER NOT NULL DEFAULT 0,
@@ -126,6 +127,8 @@ CREATE INDEX IF NOT EXISTS idx_user_email ON user(email);
 CREATE INDEX IF NOT EXISTS idx_photocards_collectionId ON photocards(collectionId);
 CREATE INDEX IF NOT EXISTS idx_photocards_cardType ON photocards(cardType);
 CREATE INDEX IF NOT EXISTS idx_photocards_sizeId ON photocards(sizeId);
+CREATE INDEX IF NOT EXISTS idx_photocards_modTemporary ON photocards(modTemporary);
+CREATE INDEX IF NOT EXISTS idx_photocards_adminTemporary ON photocards(adminTemporary);
 CREATE INDEX IF NOT EXISTS idx_photocards_exclusiveCountry ON photocards(exclusiveCountry);
 CREATE INDEX IF NOT EXISTS idx_photocards_rm ON photocards(rm);
 CREATE INDEX IF NOT EXISTS idx_photocards_jimin ON photocards(jimin);

@@ -145,9 +145,7 @@ function NavigationMenuIndicator({
     );
 }
 
-type NavItem =
-    | { title: string; href: string; middle: boolean; onClick?: never }
-    | { title: string; onClick: () => void; middle: boolean; href?: never };
+type NavItem = { title: string; href: string; middle: boolean; onClick?: never };
 
 const navItems: NavItem[] = [
     { title: "About", href: "/about", middle: false },
@@ -155,47 +153,97 @@ const navItems: NavItem[] = [
     { title: "Contact", href: "/contact", middle: false },
     { title: "Photocards Archive", href: "/search", middle: true },
     { title: "My Binders", href: "/binder", middle: false },
-    { title: "Sign in", onClick: signInGoogle, middle: false },
 ];
+
+function SocialButtonComponent({ href, imgSrc, altText }: { href: string; imgSrc: string; altText: string }) {
+    return (
+        <Button variant="imageShadow" asChild>
+            <Link href={href} className="p-2">
+                <img src={imgSrc} alt={altText} width={28} height={28} className="w-8 max-w-none" />
+            </Link>
+        </Button>
+    );
+}
+
+function MenuItemComponent({
+    title,
+    href,
+    middle,
+    onClick,
+}: {
+    title: string;
+    href?: string;
+    middle: boolean;
+    onClick?: () => void;
+}) {
+    return (
+        <NavigationMenuItem className={middle ? "grow text-center" : ""}>
+            <NavigationMenuLink asChild>
+                {href ? (
+                    <Button variant="textShadow" asChild>
+                        <Link href={href} className={navigationMenuTriggerStyle()}>
+                            {title}
+                        </Link>
+                    </Button>
+                ) : (
+                    <Button variant="textShadow" onClick={onClick} className={navigationMenuTriggerStyle()}>
+                        {title}
+                    </Button>
+                )}
+            </NavigationMenuLink>
+        </NavigationMenuItem>
+    );
+}
 
 export default function NavigationComponent() {
     const { session } = useMetadata();
-    // const pathname = usePathname();
-
-    // function getTitle(pathname: string) {
-    //     switch (pathname) {
-    //         case "/":
-    //             return "BTS";
-    //         case "/about":
-    //             return "About";
-    //     }
-    // }
 
     return (
         <>
-            <div className="flex flex-row m-4 justify-center items-center gap-8">
-                <h1 className="text-9xl text-main">BTS</h1>
-                <Image src="/logo_border.svg" alt="Flip Thru Logo" width={200} height={200} />
+            <div className="flex flex-row m-4 items-center gap-8">
+                <Link href="/">
+                    <Image src="/logo_border.svg" alt="Flip Thru Logo" width={200} height={200} />
+                </Link>
+                <p className="text-5xl! font-heading text-main grow">For BTS Photocard Collectors</p>
+                <div className="flex flex-row">
+                    <SocialButtonComponent
+                        href="https://www.instagram.com/btsflipthru/"
+                        imgSrc="/instagram.svg"
+                        altText="Instagram Icon"
+                    />
+                    <SocialButtonComponent
+                        href="https://bsky.app/profile/btsflipthru.bsky.social"
+                        imgSrc="/bluesky.svg"
+                        altText="Bluesky Icon"
+                    />
+                    <SocialButtonComponent
+                        href="https://twitter.com/btsflipthru"
+                        imgSrc="/twitter.svg"
+                        altText="Twitter Icon"
+                    />
+                </div>
             </div>
             <NavigationMenu className="z-5 w-svw max-w-svw">
-                <NavigationMenuList>
+                <NavigationMenuList className="flex-wrap">
                     {navItems.map((item, index) => (
-                        <NavigationMenuItem key={index} className={item.middle ? "grow text-center" : ""}>
-                            {item.href ? (
-                                <NavigationMenuLink asChild>
-                                    <Link href={item.href} className={navigationMenuTriggerStyle()}>
-                                        {item.title}
-                                    </Link>
-                                </NavigationMenuLink>
-                            ) : (
-                                <NavigationMenuLink asChild>
-                                    <button onClick={item.onClick} className={navigationMenuTriggerStyle()}>
-                                        {item.title}
-                                    </button>
-                                </NavigationMenuLink>
-                            )}
-                        </NavigationMenuItem>
+                        <MenuItemComponent
+                            key={index}
+                            title={item.title}
+                            href={item.href}
+                            middle={item.middle}
+                        />
                     ))}
+                    {session === null ? (
+                        <MenuItemComponent
+                            title="Sign In"
+                            onClick={signInGoogle}
+                            middle={false}
+                        />
+                    ) : <MenuItemComponent
+                          title="Profile"
+                          href="/profile"
+                          middle={false}
+                      />}
                 </NavigationMenuList>
             </NavigationMenu>
             <Button hidden={!isAtLeastMod(session)} asChild>

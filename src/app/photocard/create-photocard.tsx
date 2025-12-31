@@ -155,6 +155,7 @@ function CreatePhotocardComponent({
                                 label="Front"
                                 description="Upload a clear, high-quality scan of the front of your card."
                                 onImageChanged={field.onChange}
+                                onDelete={() => field.onChange(null)}
                             />
                         )}
                     />
@@ -213,10 +214,11 @@ function CreatePhotocardComponent({
                                                         className="mt-3"
                                                         disableUpload={typeField.value !== BackImageType.Image}
                                                         onImageChanged={backField.onChange}
+                                                        onDelete={() => backField.onChange(null)}
                                                         forceImage={
                                                             typeField.value === BackImageType.Image
                                                                 ? forceBackImage
-                                                                : frontField.value
+                                                                : frontField.value // TODO: The logic here (and in other parts of this file) is out-of-date
                                                         }
                                                         imgClassName={backImageClassName(typeField.value)}
                                                     />

@@ -11,6 +11,7 @@ import {
     ParsedCollection,
     parseCollection,
     Report,
+    Role,
 } from "@/db";
 import {
     Result,
@@ -204,6 +205,17 @@ export async function addCollectionToDB(collection: Collection, photocards: Phot
         photocard.collectionId = collectionId.data!;
         photocard.imageContributorId = session.data!.user.id;
         photocard.updatedAt = date;
+
+        // Only Admins can set adminTemporary = false; only Mods and above can set modTemporary = false
+        switch (session.data!.user.role) {
+            case Role.MOD:
+                photocard.adminTemporary = true;
+                break;
+            case Role.USER: // Never reached for now, but just in case
+                photocard.adminTemporary = true;
+                photocard.modTemporary = true;
+                break;
+        }
     }
     const photocardIds: Result<boolean>[] = await Promise.all(
         photocards.map(async (photocard) =>

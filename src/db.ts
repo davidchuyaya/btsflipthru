@@ -48,6 +48,13 @@ export const BackImageType = {
 }
 export type BackImageType = typeof BackImageType[keyof typeof BackImageType];
 
+export const Effects = {
+    "Matte": 0,
+    "Glossy": 1,
+    "Shiny": 2,
+}
+export type Effects = typeof Effects[keyof typeof Effects];
+
 interface User {
     id: string;
     name: string;
@@ -103,9 +110,10 @@ export interface Photocard {
     backImageType: number; // Should be one of BackImageType enum values
     cardType: number | null;
     sizeId: number;
-    effects: string | null;
+    effects: number; // Should be one of Effects enum values
     exclusiveCountry: number; // Should be one of ExclusiveCountry enum key types
-    temporary: boolean; // True for all user uploads. Can be marked false by admin/mod (no more overwrites)
+    modTemporary: boolean; // True for all user uploads. Can be marked false by mod (no more user overwrites)
+    adminTemporary: boolean; // True for all user/mod uploads. Can be marked false by admin (no more user/mod overwrites)
 
     rm: boolean;
     jimin: boolean;

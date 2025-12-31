@@ -179,6 +179,11 @@
     color: var(--third-lightest);
 }
 
+h1 {
+    font-size: var(--text-7xl);
+    color: var(--main);
+}
+
 input[type="file"]::file-selector-button {
     border: 2px solid #6c5ce7;
     padding: 0.2em 0.4em;
@@ -212,50 +217,92 @@ label {
 }
 
 td:not(:first-of-type):not(:last-of-type) {
-  background-image:
-    repeating-linear-gradient(
-      180deg,
-      #333 0,
-      #333 10px,
-      transparent 10px,
-      transparent 27px
-    ),
-    repeating-linear-gradient(
-      180deg,
-      #333 0,
-      #333 10px,
-      transparent 10px,
-      transparent 27px
-    );
-  background-size: 1px 100%, 1px 100%;
-  background-position: left top, right top;
-  background-repeat: no-repeat;
+    background-image:
+        repeating-linear-gradient(180deg, #333 0, #333 10px, transparent 10px, transparent 27px),
+        repeating-linear-gradient(180deg, #333 0, #333 10px, transparent 10px, transparent 27px);
+    background-size:
+        1px 100%,
+        1px 100%;
+    background-position:
+        left top,
+        right top;
+    background-repeat: no-repeat;
 }
 
 td:last-of-type {
-  background-image:
-    repeating-linear-gradient(
-      180deg,
-      #333 0,
-      #333 10px,
-      transparent 10px,
-      transparent 27px
-    );
-  background-size: 1px 100%;
-  background-position: left top;
-  background-repeat: no-repeat;
+    background-image: repeating-linear-gradient(180deg, #333 0, #333 10px, transparent 10px, transparent 27px);
+    background-size: 1px 100%;
+    background-position: left top;
+    background-repeat: no-repeat;
 }
 
 td:first-of-type {
-  background-image:
-    repeating-linear-gradient(
-      180deg,
-      #333 0,
-      #333 10px,
-      transparent 10px,
-      transparent 27px
-    );
-  background-size: 1px 100%;
-  background-position: right top;
-  background-repeat: no-repeat;
+    background-image: repeating-linear-gradient(180deg, #333 0, #333 10px, transparent 10px, transparent 27px);
+    background-size: 1px 100%;
+    background-position: right top;
+    background-repeat: no-repeat;
+}
+
+.btn-text-shadow {
+    text-shadow: 2px 2px 0 var(--black);
+    transform: translate(0, 0);
+    transition:
+        text-shadow 160ms ease,
+        transform 160ms ease;
+    will-change: text-shadow, transform;
+}
+
+.btn-text-shadow:hover,
+.btn-text-shadow:active {
+    text-shadow: 1px 1px 0 var(--black);
+    transform: translate(1px, 1px);
+}
+
+/* Allow dynamic border-radius for hover-tilt via CSS variable set on host */
+hover-tilt {
+    border-radius: var(--detected-radius, 16px);
+}
+
+hover-tilt::part(container),
+hover-tilt::part(tilt) {
+    border-radius: var(--detected-radius, 16px);
+}
+
+/* Pokemon V Style Gradient */
+.shiny::part(container) {
+  --hover-tilt-custom-gradient: linear-gradient(
+    110deg,
+    transparent calc((var(--gradient-x, 50%) / 2 + var(--gradient-y, 50%) / 2) - 20%),
+    rgba(255, 255, 255, 0.4) calc((var(--gradient-x, 50%) / 2 + var(--gradient-y, 50%) / 2) - 10%),
+    rgba(255, 255, 255, 0.8) calc((var(--gradient-x, 50%) / 2 + var(--gradient-y, 50%) / 2)),
+    rgba(255, 255, 255, 0.4) calc((var(--gradient-x, 50%) / 2 + var(--gradient-y, 50%) / 2) + 10%),
+    transparent calc((var(--gradient-x, 50%) / 2 + var(--gradient-y, 50%) / 2) + 20%)
+  );
+  
+  /* Matches the blend mode often used in the Simey project for V cards */
+  --hover-tilt-glare-blend-mode: color-dodge;
+}
+
+/* Image shadow for transparent images: large drop-shadow that the image 'sinks' into on hover */
+.image-shadow {
+    filter: drop-shadow(2px 2px 0 var(--black));
+    transform: translate(0, 0);
+    transition:
+        filter 160ms ease,
+        transform 160ms ease;
+    will-change: filter, transform;
+}
+
+.image-shadow:hover,
+.image-shadow:active {
+    filter: drop-shadow(1px 1px 0 var(--black));
+    transform: translate(1px, 1px);
+}
+
+.page {
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--spacing) * 4);
+    align-items: center;
+    margin: calc(var(--spacing) * 8);
 }
