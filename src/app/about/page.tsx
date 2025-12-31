@@ -1,9 +1,12 @@
 "use client";
 
 import { Effects } from "@/db";
-import PhotocardComponent from "../photocard";
+import PhotocardComponent, { PlaceholderType } from "../photocard";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { Card, CardTitle } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { ReportType, reportWindowURL } from "@/constants";
 
 export default function AboutComponent() {
     return (
@@ -11,25 +14,139 @@ export default function AboutComponent() {
             <h1>What We Do</h1>
             <div className="page-body">
                 <p>
-                    Flipthru is a <b>BTS photocard archive, binder planning tool, and personal wishlist tracker</b> all
-                    in one!
+                    Flipthru is a home-grown BTS photocard archive, binder planning tool, and personal wishlist tracker
+                    all in one!
                 </p>
 
                 <p>
-                    Our goal is to become <b>the most comprehensive BTS photocard archive on the internet.</b> In doing
-                    so, we plan to serve as an informational and social hub for ARMY around the world while promoting
-                    BTS’s ongoing activities.
+                    Our goal is to serve as a BTS-exclusive community hub for collectors and creators worldwide.
+                    Equally, we aim to support the past, present, and future activities of BTS - especially as we count
+                    down to the 2026 comeback! See more about our mission and what we stand for in the “How We Do It”
+                    section below.
                 </p>
 
                 <p>
-                    <b>Flipthru is built by and for ARMY.</b> We aim to contribute to the fan community by making it
-                    easier, more accessible, and even more fun than it already is to participate in photocard
-                    collecting, virtually or otherwise.
+                    Ultimately, Flipthru is built by and for ARMY. You can learn about the creators via our profiles
+                    below! We aim to contribute to the fan community by making it easier, more accessible, and more fun
+                    to participate in photocard collecting, virtually or otherwise.
                 </p>
                 <p>
-                    Whether you’re an avid collector or a visitor looking up one particular card,{" "}
-                    <b>we’re glad to have you here!</b>
+                    Whether you’re an avid collector or a visitor looking up one particular card, we’re glad to have you
+                    here!
                 </p>
+            </div>
+            <h1>How We Do it</h1>
+            <div className="page-body">
+                <div className="page-section">
+                    <h2>Flipthru is community-focused</h2>
+                    <p>
+                        We support BTS, ARMY, artists, designers, and creators of all kinds, since we are small-scale
+                        ARMY creators ourselves. If you’d like to be featured on Flipthru, please reach out to us via
+                        the{" "}
+                        <Button variant="underline" size="noPadding" asChild>
+                            <Link href="/contact">Contact</Link>
+                        </Button>{" "}
+                        tab!
+                    </p>
+                    <p>We are steadfastly anti-AI, anti-NFT, and anti-ads.</p>
+                    <p>
+                        Flipthru will never run ads, nor will we sell your data, promote generative AI,
+                        steal/sell/scrape content from other creators, or otherwise undercut the hard work that our
+                        community does to show their talent and love for BTS.
+                    </p>
+                    <p>
+                        To this end, we expect that all of our scans are submitted by someone who owns that card IRL;
+                        Kate and David, our site admins, have scanned hundreds of them by hand themselves from their own
+                        collection already (now you see why it took so long to launch)!
+                    </p>
+                    <Button className="mt-4" asChild>
+                        <Link href="/">See Our Process (Coming soon!)</Link>
+                    </Button>
+                    <Button className="mt-4" asChild>
+                        <Link href="/search">Contribute Your Own Cards</Link>
+                    </Button>
+                    <Button className="mt-4" asChild>
+                        <Link href={reportWindowURL(ReportType.AIStolenContent, "/about", "AI/Stolen Content")}>
+                            Report AI/Stolen Content
+                        </Link>
+                    </Button>
+                </div>
+                <div className="page-section">
+                    <h2>Flipthru is free for everyone, forever</h2>
+                    <p>
+                        We are fans of BTS first, and we don’t want to make money for ourselves off of their success.
+                        We’re also keeping site costs low to make sure we can run this site for ARMY forever.
+                    </p>
+                    <p>
+                        We do have a Ko-fi set up purely to offset the cost of operating the site, but it’s completely
+                        optional, and we are able to comfortably run the site out-of-pocket without any financial
+                        contributions from ARMY whatsoever. If our proceeds from Ko-fi ever exceed the cost of running
+                        the site, it will be rolled over to cover the release of more costly features (we have lots of
+                        ideas!).
+                    </p>
+                    <p className="mb-4">
+                        You can see exactly how much it costs to run Flipthru and how we use our Ko-fi funds here.
+                    </p>
+                    <Table className="max-w-150 m-auto">
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Service</TableHead>
+                                <TableHead>Cost/Month</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            <TableRow>
+                                <TableCell className="text-left">URL</TableCell>
+                                <TableCell className="text-right">$0.87</TableCell>
+                            </TableRow>
+                            <TableRow>
+                                <TableCell className="text-left">Database (Cloudflare D1 Free Tier)</TableCell>
+                                <TableCell className="text-right">$0</TableCell>
+                            </TableRow>
+                            <TableRow>
+                                <TableCell className="text-left">
+                                    Image Hosting/Compression (Cloudinary Free Tier)
+                                </TableCell>
+                                <TableCell className="text-right">$0</TableCell>
+                            </TableRow>
+                        </TableBody>
+                        <TableFooter>
+                            <TableRow>
+                                <TableCell className="text-left">Total</TableCell>
+                                <TableCell className="text-right">$0.87</TableCell>
+                            </TableRow>
+                        </TableFooter>
+                    </Table>
+                </div>
+                <div className="page-section">
+                    <h2>Flipthru’s code is open-source</h2>
+                    <p>
+                        This means our code is public for anyone to use, so you can reproduce a site just like this one
+                        themed for your favorite group(s). If you want to make, say, a Twice version of Flipthru, please
+                        feel free to do so! We’d love to see people making use of all the work that went into this site
+                        over the first three years of development. We have two repositories - one that we scrapped due
+                        to code inefficiency, and the one that contains the code that we use now, linked below for your
+                        perusal and usage.
+                    </p>
+                    <Button className="m-4" asChild>
+                        <Link href="https://github.com/davidchuyaya/btsflipthru">
+                            <img
+                                src="/github.svg"
+                                alt="GitHub Logo"
+                                width={28}
+                                height={28}
+                                className="w-5 max-w-none"
+                            />
+                            View Flipthru's Code on Github
+                        </Link>
+                    </Button>
+                    <p>
+                        The code being open-source also means that Flipthru will be safe from take-downs no matter what
+                        happens to Kate & David, because anyone can bring it back to life exactly as it is right now.
+                        But don’t worry, we’ll stick around - this is a fan project, so we’re not beholden to the whims
+                        of a company or shareholders.
+                    </p>
+                </div>
             </div>
             <h1>Who We Are</h1>
             <div className="page-body">
@@ -42,6 +159,7 @@ export default function AboutComponent() {
                     />
                     <PhotocardComponent
                         src={null}
+                        placeholderType={PlaceholderType.ARMY}
                         effects={Effects.Matte}
                         className="absolute top-6 right-0 rotate-13 z-10"
                     />

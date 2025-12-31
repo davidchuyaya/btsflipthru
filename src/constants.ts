@@ -42,10 +42,11 @@ export type Result<T> = { data: T; error?: never } | { data?: never; error: stri
 
 export enum ReportType {
     Error = "error",
+    AIStolenContent = "ai_stolen_content",
 }
 
-export function reportWindowURL(reportType: ReportType, title: string) {
-    return `/report?reportType=${reportType}&url=${encodeURIComponent(window.location.href)}&title=${encodeURIComponent(title)}`;
+export function reportWindowURL(reportType: ReportType, url: string, title: string) {
+    return `/report?reportType=${reportType}&url=${encodeURIComponent(url)}&title=${encodeURIComponent(title)}`;
 }
 
 export function reportTypeToFields(type: ReportType) {
@@ -56,6 +57,13 @@ export function reportTypeToFields(type: ReportType) {
                 descriptionPlaceholder: 'I clicked on "Create Photocard," but nothing happened.',
                 descriptionSmallText:
                     "Include steps to reproduce the issue, what you expected to happen, and any other relevant information.",
+            };
+        case ReportType.AIStolenContent:
+            return {
+                reportTitle: "Report AI/Stolen Content",
+                descriptionPlaceholder: "I found this photocard with my watermark on it.",
+                descriptionSmallText:
+                    "Please provide as much detail as possible, including links to the content in question.",
             };
     }
 }

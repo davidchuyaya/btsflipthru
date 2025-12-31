@@ -182,7 +182,7 @@ export function MetadataProvider({ children }: { children: ReactNode }) {
             action: {
                 label: "Report",
                 onClick: () => {
-                    const url = reportWindowURL(ReportType.Error, message);
+                    const url = reportWindowURL(ReportType.Error, window.location.href, message);
                     window.open(url, "_blank");
                 },
             },

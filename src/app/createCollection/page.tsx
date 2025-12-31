@@ -622,7 +622,7 @@ export default function CreateCollectionComponent() {
                     action: {
                         label: "Report",
                         onClick: () => {
-                            const url = reportWindowURL(ReportType.Error, error.message);
+                            const url = reportWindowURL(ReportType.Error, "/createCollection", error.message);
                             window.open(url, "_blank");
                         },
                     },

@@ -47,7 +47,12 @@ async function detectBorderRadius(imageUrl: string): Promise<number> {
     });
 }
 
-function PlaceholderComponent() {
+export enum PlaceholderType {
+    BTS = "/bts logo.svg",
+    ARMY = "/army logo.svg"
+}
+
+function PlaceholderComponent({ type }: { type: PlaceholderType }) {
     return (
         <div
             className="bg-accent flex items-center justify-center rounded-[16]"
@@ -57,7 +62,7 @@ function PlaceholderComponent() {
             }}
         >
             <img
-                src="/placeholder logo.svg"
+                src={type}
                 alt="Placeholder photocard"
                 style={{
                     height: `${THUMBNAIL_DISPLAY_HEIGHT_PX / 2}px`,
@@ -72,11 +77,13 @@ export default function PhotocardComponent({
     src,
     effects,
     manualRadius = false,
+    placeholderType = PlaceholderType.BTS,
 }: {
     className?: string;
     src: string | null;
     effects: Effects;
     manualRadius?: boolean;
+    placeholderType?: PlaceholderType;
 }) {
     const [borderRadius, setBorderRadius] = useState<number>(16);
     const hostRef = useRef<HTMLDivElement>(null);
@@ -130,7 +137,7 @@ export default function PhotocardComponent({
 
             // 2. Mount the React component into that div
             const root = createRoot(placeholderContainer);
-            root.render(<PlaceholderComponent />);
+            root.render(<PlaceholderComponent type={placeholderType} />);
         } else {
             const img = document.createElement("img");
             img.src = src;

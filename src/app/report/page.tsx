@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { ImageDropzone } from "../image-dropzone";
-import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
+import { Field, FieldContent, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import z from "zod";
 import { Controller, useForm } from "react-hook-form";
 import { useSearchParams } from "next/navigation";
@@ -38,7 +38,7 @@ function ReportForm() {
         defaultValues: {
             description: "",
             image: null,
-            includeEmail: true,
+            includeEmail: false,
             turnstileToken: "",
         },
     });
@@ -88,7 +88,7 @@ function ReportForm() {
             <FieldGroup className="max-w-2xl m-8">
                 <FieldLabel className="text-4xl!">{reportTitle}</FieldLabel>
                 <FieldDescription>
-                    Your feedback will be reviewed by a moderator. The previous URL and your username will be included
+                    Your feedback will be reviewed by a moderator. The previous URL {session && "and your username "}will be included
                     in the report.
                 </FieldDescription>
 
@@ -125,8 +125,11 @@ function ReportForm() {
                     control={form.control}
                     render={({ field }) => (
                         <Field orientation="horizontal">
-                            <FieldLabel>Follow-up via email</FieldLabel>
-                            <Switch checked={field.value} onCheckedChange={field.onChange} />
+                            <FieldContent>
+                                <FieldLabel>Follow-up via email</FieldLabel>
+                                <FieldDescription>Disabled for non-users.</FieldDescription>
+                            </FieldContent>
+                            <Switch checked={field.value} onCheckedChange={field.onChange} disabled={session === null} />
                         </Field>
                     )}
                 />
