@@ -87,8 +87,17 @@ export default function AboutComponent() {
                     <PhotocardComponent src="/aboutdavid.png" effects={Effects.Shiny} manualRadius />
                     <div className="page-body text-start items-start!">
                         <p>
-                            I've only pulled a few photocards in my time, but thanks to my marriage to Kate, together we own multiple
-                            binders of them. With the launch of Flipthru's virtual binder feature, we'll soon be stewards of many virtual binders as well! Kate introduced me to BTS in 2021, and I found that I enjoy Jin's singing, RM's earnestness, and watching wholesome Run BTS content. Using my background as a computer science PhD student, I'm in charge of implementing the vision of Flipthru and ensuring that it all runs smoothly.
+                            I've only pulled a few photocards in my time, but thanks to my marriage to Kate, together we
+                            own multiple binders of them. With the launch of Flipthru's virtual binder feature, we'll
+                            soon be stewards of many virtual binders as well! Kate introduced me to BTS in 2021, and I
+                            found that I enjoy Jin's singing, RM's earnestness, and watching wholesome Run BTS content.
+                            Outside of Flipthru, I'm a distributed systems and databases PhD student at Berkeley; you
+                            can check out my research
+                            <Button variant="underline" size="noPadding" asChild>
+                                <Link href="https://davidchuyaya.github.io/">here</Link>
+                            </Button>
+                            . I'm in charge of implementing the vision of Flipthru and ensuring that it all runs
+                            smoothly.
                         </p>
                         <p>
                             <b>Bias:</b> RM
@@ -97,12 +106,12 @@ export default function AboutComponent() {
                             <b>Favorite Song:</b> “The Astronaut”
                         </p>
                         <p>
-                            <b>Favorite BTS experience:</b> Watching the{" "}
-                            <Button variant="underline" asChild>
+                            <b>Favorite BTS experience:</b> Watching the
+                            <Button variant="underline" size="noPadding" asChild>
                                 <Link href="https://www.youtube.com/watch?v=D09aWA_lhG4">
                                     BTS Christmas Carol Medley
                                 </Link>
-                            </Button>{" "}
+                            </Button>
                             from the 2019 SBS Gayo Daejeon Music Festival about twenty times every winter with Kate. My
                             favorite song is Jingle Bell Rock!
                         </p>
