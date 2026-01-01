@@ -218,7 +218,7 @@ export default function Home() {
                 </div>
             </div>
             <div>
-                <h2 className="text-center">Recently Added</h2>
+                <h2 className="text-center mb-4">Recently Added</h2>
                 <PhotocardGrid photocards={photocards} />
             </div>
         </div>
