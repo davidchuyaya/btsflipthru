@@ -27,6 +27,12 @@ export default function SocialButtonsComponent({ size = 8, className }: { size?:
     return (
         <div className={`flex flex-row ${className}`}>
             <SocialButton
+                href="https://discord.gg/KtT6Zsfz"
+                imgSrc="/discord.svg"
+                altText="Discord Icon"
+                size={size}
+            />
+            <SocialButton
                 href="https://www.instagram.com/btsflipthru/"
                 imgSrc="/instagram.svg"
                 altText="Instagram Icon"

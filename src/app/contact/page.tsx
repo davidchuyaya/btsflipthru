@@ -1,7 +1,8 @@
 "use client";
 
+import { ReportType } from "@/constants";
+import ReportForm from "../report/report";
+
 export default function ContactComponent() {
-    return <div className="page">
-        <h1 className="text-center">Coming soon!</h1>
-    </div>;
+    return <ReportForm reportType={ReportType.Contact} title={"Contact Us"} url="/contact" />;
 }

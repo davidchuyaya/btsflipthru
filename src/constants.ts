@@ -18,15 +18,15 @@ export function thumbnailUrl(imageId: string): string {
 }
 
 export const NameToMember = {
-    "RM": "rm",
-    "Jin": "jin",
-    "Suga": "suga",
+    RM: "rm",
+    Jin: "jin",
+    Suga: "suga",
     "j-hope": "jhope",
-    "Jimin": "jimin",
-    "V": "v",
+    Jimin: "jimin",
+    V: "v",
     "Jung Kook": "jungkook",
-}
-export type NameToMember = typeof NameToMember[keyof typeof NameToMember];
+};
+export type NameToMember = (typeof NameToMember)[keyof typeof NameToMember];
 
 export const MEMBER_TO_EMOJI = {
     rm: "🐨",
@@ -44,6 +44,7 @@ export enum ReportType {
     Error = "error",
     AIStolenContent = "ai_stolen_content",
     FeatureRequest = "feature_request",
+    Contact = "contact",
 }
 
 export function reportWindowURL(reportType: ReportType, url: string, title: string) {
@@ -66,12 +67,17 @@ export function reportTypeToFields(type: ReportType) {
                 descriptionSmallText:
                     "Please provide as much detail as possible, including links to the content in question.",
             };
-            case ReportType.FeatureRequest:
+        case ReportType.FeatureRequest:
             return {
                 reportTitle: "Submit Feature Request",
                 descriptionPlaceholder: "It would be great to have a feature that...",
-                descriptionSmallText:
-                    "Describe the feature you'd like to see and how it would benefit users like you.",
+                descriptionSmallText: "Describe the feature you'd like to see and how it would benefit users like you.",
+            };
+        case ReportType.Contact:
+            return {
+                reportTitle: "Contact Us",
+                descriptionPlaceholder: "I would like to get in touch regarding...",
+                descriptionSmallText: "Feel free to reach out with any questions, comments, or concerns.",
             };
     }
 }
@@ -82,12 +88,12 @@ export type CloudinarySignedParams = {
     overwrite: boolean;
     transformation: string;
     eager?: string;
-}
+};
 
 export type PresignedUrl = {
     signature: string;
     params: CloudinarySignedParams;
-}
+};
 
 export function generateSignedParams(createThumbnail: boolean): CloudinarySignedParams {
     const params: CloudinarySignedParams = {

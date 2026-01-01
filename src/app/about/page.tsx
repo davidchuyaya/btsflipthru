@@ -37,8 +37,8 @@ export default function AboutComponent() {
             </div>
             
             <div className="page-body gap-8!">
+                <h1 className="">How We Do it</h1>
                 <div className="page-section">
-                    <h1 className="">How We Do it</h1>
                     <h2>Flipthru is community-focused</h2>
                     <p>
                         We support BTS, ARMY, artists, designers, and creators of all kinds, since we are small-scale
@@ -151,8 +151,8 @@ export default function AboutComponent() {
             </div>
             <div className="page-body">
                 <h1>Who We Are</h1>
-                <h2 className="-mt-4">BTS & Army</h2>
-                <div className="relative w-65 h-40 mb-20">
+                <h2>BTS & Army</h2>
+                <div className="relative w-65 h-40 mt-2 mb-20">
                     <PhotocardComponent
                         src={null}
                         effects={Effects.Matte}

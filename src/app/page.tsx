@@ -160,9 +160,9 @@ export default function Home() {
                 <div className="flex flex-col gap-8">
                     <CountdownClock />
                     <div className="flex flex-row gap-4 justify-center">
+                        <HomeButton text="About Flipthru" href="/about" />
                         <HomeButton text="Search Archive" href="/search" />
                         <HomeButton text="Make a Binder" href="/binder" />
-                        <HomeButton text="About" href="/about" />
                     </div>
                     <div className="bg-accent-light rounded-2xl pt-4 pb-4 pl-8 pr-8 text-left">
                         <h2 className="mb-4">News</h2>
