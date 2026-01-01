@@ -4,6 +4,7 @@ import { MetadataProvider } from "@/metadata-context";
 import { Toaster } from "@/components/ui/sonner";
 import CursorGlow from "./cursor-glow";
 import NavigationComponent from "@/components/ui/navigation-menu";
+import FooterComponent from "./footer";
 
 export const metadata: Metadata = {
     title: "BTS Flipthru",
@@ -25,6 +26,7 @@ export default function RootLayout({
                 <MetadataProvider>
                     <NavigationComponent />
                     {children}
+                    <FooterComponent />
                 </MetadataProvider>
                 <Toaster />
             </body>

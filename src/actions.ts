@@ -12,16 +12,13 @@ import {
     parseCollection,
     Report,
     Role,
+    UserData,
+    PhotocardData,
 } from "@/db";
-import {
-    Result,
-    generateSignedParams,
-    PresignedUrl,
-    CLOUDINARY_API_KEY,
-    CLOUDINARY_CLOUD_NAME,
-} from "@/constants";
+import { Result, generateSignedParams, PresignedUrl, CLOUDINARY_API_KEY, CLOUDINARY_CLOUD_NAME } from "@/constants";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { v2 as cloudinary } from "cloudinary";
+import { User } from "better-auth";
 
 function getEnv() {
     const { env } = getCloudflareContext();
@@ -150,9 +147,7 @@ function generateSignedUploadUrl(createThumbnail: boolean): PresignedUrl {
     return { signature, params };
 }
 
-export async function generateSignedUploadUrlForPhotocards(
-    numPhotocards: number,
-): Promise<Result<PresignedUrl[]>> {
+export async function generateSignedUploadUrlForPhotocards(numPhotocards: number): Promise<Result<PresignedUrl[]>> {
     const result = await isAtLeastMod<boolean>();
     if (result.error) {
         return result;
@@ -246,12 +241,6 @@ export async function getCollectionsFromDB(): Promise<ParsedCollection[]> {
     return collections.map((collection) => parseCollection(collection));
 }
 
-export async function searchPhotocardsInDB() {
-    //TODO: Currently always shows the 50 most recently added cards, change later
-    const database = getDb();
-    return await database.selectFrom("photocards").selectAll().orderBy("updatedAt", "desc").limit(50).execute();
-}
-
 async function verifyTurnstile(token: string): Promise<Result<boolean>> {
     try {
         const response = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
@@ -320,4 +309,125 @@ export async function addReportToDB(
 
     // Return the pre-signed URL
     return { data: presignUrl };
+}
+
+export async function getMostContributionsUser(): Promise<Result<UserData>> {
+    const database = getDb();
+    return await database
+        .selectFrom("user_data")
+        .selectAll()
+        .orderBy("contributions", "desc")
+        .limit(1)
+        .executeTakeFirstOrThrow()
+        .then(
+            (userData) => ({ data: userData }),
+            (reason) => ({
+                error: "Could not fetch most contributions user: " + reason,
+            }),
+        );
+}
+
+export async function getMostOwnedPhotocard(): Promise<Result<Photocard>> {
+    const database = getDb();
+    const photocardData: Result<PhotocardData> = await database
+        .selectFrom("photocard_data")
+        .selectAll()
+        .orderBy("numOwners", "desc")
+        .limit(1)
+        .executeTakeFirstOrThrow()
+        .then(
+            (data) => ({ data: data }),
+            (reason) => ({
+                error: "Could not fetch most owned photocard data: " + reason,
+            }),
+        );
+    if (photocardData.error) {
+        return photocardData;
+    }
+
+    return await database
+        .selectFrom("photocards")
+        .selectAll()
+        .where("id", "=", photocardData.data!.photocardId)
+        .executeTakeFirstOrThrow()
+        .then(
+            (card) => ({ data: card }),
+            (reason) => ({
+                error: "Could not fetch most owned photocard: " + reason,
+            }),
+        );
+}
+
+export async function getMostWishlistedPhotocard(): Promise<Result<Photocard>> {
+    const database = getDb();
+    const photocardData: Result<PhotocardData> = await database
+        .selectFrom("photocard_data")
+        .selectAll()
+        .orderBy("numWishlists", "desc")
+        .limit(1)
+        .executeTakeFirstOrThrow()
+        .then(
+            (data) => ({ data: data }),
+            (reason) => ({
+                error: "Could not fetch most wishlisted photocard data: " + reason,
+            }),
+        );
+    if (photocardData.error) {
+        return photocardData;
+    }
+
+    return await database
+        .selectFrom("photocards")
+        .selectAll()
+        .where("id", "=", photocardData.data!.photocardId)
+        .executeTakeFirstOrThrow()
+        .then(
+            (card) => ({ data: card }),
+            (reason) => ({
+                error: "Could not fetch most wishlisted photocard: " + reason,
+            }),
+        );
+}
+
+export async function getTotalPhotocards(): Promise<Result<number>> {
+    const database = getDb();
+    return await database
+        .selectFrom("db_data")
+        .select("numPhotocards")
+        .executeTakeFirstOrThrow()
+        .then(
+            (data) => ({ data: data.numPhotocards }),
+            (reason) => ({
+                error: "Could not fetch total photocards: " + reason,
+            }),
+        );
+}
+
+export async function getTotalPhotocardsWithoutImages(): Promise<Result<number>> {
+    const database = getDb();
+    return await database
+        .selectFrom("db_data")
+        .select("numPhotocardsWithoutImages")
+        .executeTakeFirstOrThrow()
+        .then(
+            (data) => ({ data: data.numPhotocardsWithoutImages }),
+            (reason) => ({
+                error: "Could not fetch total photocards without images: " + reason,
+            }),
+        );
+}
+
+/**
+ *
+ * @returns Photocards with an image ID
+ */
+export async function getRecentlyAddedPhotocardsInDB() {
+    const database = getDb();
+    return await database
+        .selectFrom("photocards")
+        .selectAll()
+        .where("imageId", "is not", null)
+        .orderBy("updatedAt", "desc")
+        .limit(50)
+        .execute();
 }

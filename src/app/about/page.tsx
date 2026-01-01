@@ -251,6 +251,7 @@ export default function AboutComponent() {
                     <p>Beth</p>
                     <p>Leonid</p>
                     <p>Lucky</p>
+                    <p>Shadaj</p>
                 </div>
             </div>
         </div>

@@ -8,52 +8,52 @@ export const Role = {
     MOD: 1,
     ADMIN: 2,
 } as const;
-export type Role = typeof Role[keyof typeof Role];
+export type Role = (typeof Role)[keyof typeof Role];
 
 export const ExclusiveCountry = {
-    "Global": 0,
-    "USA": 1,
-    "Korea": 2,
-    "Japan": 3,
-    "Taiwan": 4,
-    "Australia": 5,
-    "Brazil": 6,
-    "Canada": 7,
-    "Chile": 8,
-    "China": 9,
-    "England": 10,
-    "France": 11,
-    "Germany": 12,
+    Global: 0,
+    USA: 1,
+    Korea: 2,
+    Japan: 3,
+    Taiwan: 4,
+    Australia: 5,
+    Brazil: 6,
+    Canada: 7,
+    Chile: 8,
+    China: 9,
+    England: 10,
+    France: 11,
+    Germany: 12,
     "Hong Kong": 13,
-    "Indonesia": 14,
-    "Italy": 15,
-    "Malaysia": 16,
-    "Mexico": 17,
-    "Netherlands": 18,
-    "Philippines": 19,
-    "Russia": 20,
-    "Singapore": 21,
-    "Spain": 22,
-    "Sweden": 23,
-    "Thailand": 24,
+    Indonesia: 14,
+    Italy: 15,
+    Malaysia: 16,
+    Mexico: 17,
+    Netherlands: 18,
+    Philippines: 19,
+    Russia: 20,
+    Singapore: 21,
+    Spain: 22,
+    Sweden: 23,
+    Thailand: 24,
     "United Arab Emirates": 25,
-    "Vietnam": 26,
-}
-export type ExclusiveCountry = typeof ExclusiveCountry[keyof typeof ExclusiveCountry];
+    Vietnam: 26,
+};
+export type ExclusiveCountry = (typeof ExclusiveCountry)[keyof typeof ExclusiveCountry];
 
 export const BackImageType = {
-    "Image": 0,
-    "White": 1,
-    "Transparent": 2,
-}
-export type BackImageType = typeof BackImageType[keyof typeof BackImageType];
+    Image: 0,
+    White: 1,
+    Transparent: 2,
+};
+export type BackImageType = (typeof BackImageType)[keyof typeof BackImageType];
 
 export const Effects = {
-    "Matte": 0,
-    "Glossy": 1,
-    "Shiny": 2,
-}
-export type Effects = typeof Effects[keyof typeof Effects];
+    Matte: 0,
+    Glossy: 1,
+    Shiny: 2,
+};
+export type Effects = (typeof Effects)[keyof typeof Effects];
 
 interface User {
     id: string;
@@ -176,7 +176,6 @@ export interface CollectionType {
     name: string;
 }
 
-
 export interface Report {
     id?: number;
     title: string;
@@ -187,6 +186,80 @@ export interface Report {
     url: string;
     userAgent: string;
     createdAt: Date;
+}
+
+export interface Creation {
+    id?: number;
+    contributorId: string;
+    imageId: number;
+    name: string;
+    type: number;
+    width: number;
+    height: number;
+    collectionId: number | null;
+    createdAt: number;
+}
+
+export interface UserData {
+    userId: string;
+    username: string;
+    description: string | null;
+    armySince: number | null;
+    bcdId: string | null;
+    blueskyId: string | null;
+    twitterId: string | null;
+    intagramId: string | null;
+    discordId: string | null;
+    imageId: string | null;
+    profilePhotocardId: number | null;
+    bias: number | null;
+    disableCursor: boolean;
+    disableEffects: boolean;
+    spotifyPlaylist: string | null;
+    contributions: number;
+    uploadedCreations: number;
+    friends: string | null; // Array stored as string
+    binders: string | null; // Array stored as string
+}
+
+export interface UserPhotocards {
+    userId: string;
+    photocards: string; // Array stored as string
+}
+
+export interface UserWishlist {
+    userId: string;
+    wishlist: string; // Array stored as string
+}
+
+export interface UserSavedCreations {
+    userId: string;
+    creations: string; // Array stored as string
+}
+
+export interface UserBinder {
+    id?: number;
+    userId: string;
+    name: string;
+    description: string | null;
+    coverId: string | null;
+    createdAt: number;
+    lastUpdatedAt: number;
+    binder: string | null; // Array stored as string
+}
+
+export interface PhotocardData {
+    photocardId: number;
+    numOwners: number;
+    numWishlists: number;
+}
+
+export interface DbData {
+    numUsers: number;
+    numPhotocards: number;
+    numPhotocardsWithoutImages: number;
+    numBinders: number;
+    numCreations: number;
 }
 
 interface Database {
@@ -200,6 +273,14 @@ interface Database {
     collections: Collection;
     collectionTypes: CollectionType;
     reports: Report;
+    creations: Creation;
+    user_data: UserData;
+    user_photocards: UserPhotocards;
+    user_wishlist: UserWishlist;
+    user_saved_creations: UserSavedCreations;
+    user_binders: UserBinder;
+    photocard_data: PhotocardData;
+    db_data: DbData;
 }
 
 export const db = (env: Env) => new Kysely<Database>({ dialect: new D1Dialect({ database: env.DB }) });

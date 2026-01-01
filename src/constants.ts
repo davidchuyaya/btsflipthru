@@ -43,6 +43,7 @@ export type Result<T> = { data: T; error?: never } | { data?: never; error: stri
 export enum ReportType {
     Error = "error",
     AIStolenContent = "ai_stolen_content",
+    FeatureRequest = "feature_request",
 }
 
 export function reportWindowURL(reportType: ReportType, url: string, title: string) {
@@ -64,6 +65,13 @@ export function reportTypeToFields(type: ReportType) {
                 descriptionPlaceholder: "I found this photocard with my watermark on it.",
                 descriptionSmallText:
                     "Please provide as much detail as possible, including links to the content in question.",
+            };
+            case ReportType.FeatureRequest:
+            return {
+                reportTitle: "Submit Feature Request",
+                descriptionPlaceholder: "It would be great to have a feature that...",
+                descriptionSmallText:
+                    "Describe the feature you'd like to see and how it would benefit users like you.",
             };
     }
 }

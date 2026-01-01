@@ -1,6 +1,6 @@
 "use client";
 
-import { searchPhotocardsInDB } from "@/actions";
+import { getRecentlyAddedPhotocardsInDB } from "@/actions";
 import { Effects, Photocard } from "@/db";
 import { useEffect, useState } from "react";
 import PhotocardComponent from "../photocard";
@@ -11,13 +11,13 @@ export default function SearchComponent() {
 
     // Run on launch
     useEffect(() => {
-        searchPhotocardsInDB().then((cards) => {
+        getRecentlyAddedPhotocardsInDB().then((cards) => {
             setPhotocards(cards);
         });
     }, []);
 
     return (
-        <div className="flex flex-row justify-center">
+        <div className="page">
             <h1 className="text-center">Coming soon!</h1>
             {/* {photocards.map((card) => (
                 <PhotocardComponent key={card.id!} src={card.imageId ? thumbnailUrl(card.imageId) : null} effects={card.effects} />

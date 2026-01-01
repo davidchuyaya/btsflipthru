@@ -265,17 +265,17 @@ hover-tilt::part(tilt) {
 
 /* Pokemon V Style Gradient */
 .shiny::part(container) {
-  --hover-tilt-custom-gradient: linear-gradient(
-    110deg,
-    transparent calc((var(--gradient-x, 50%) / 2 + var(--gradient-y, 50%) / 2) - 20%),
-    rgba(255, 255, 255, 0.4) calc((var(--gradient-x, 50%) / 2 + var(--gradient-y, 50%) / 2) - 10%),
-    rgba(255, 255, 255, 0.8) calc((var(--gradient-x, 50%) / 2 + var(--gradient-y, 50%) / 2)),
-    rgba(255, 255, 255, 0.4) calc((var(--gradient-x, 50%) / 2 + var(--gradient-y, 50%) / 2) + 10%),
-    transparent calc((var(--gradient-x, 50%) / 2 + var(--gradient-y, 50%) / 2) + 20%)
-  );
-  
-  /* Matches the blend mode often used in the Simey project for V cards */
-  --hover-tilt-glare-blend-mode: color-dodge;
+    --hover-tilt-custom-gradient: linear-gradient(
+        110deg,
+        transparent calc((var(--gradient-x, 50%) / 2 + var(--gradient-y, 50%) / 2) - 20%),
+        rgba(255, 255, 255, 0.4) calc((var(--gradient-x, 50%) / 2 + var(--gradient-y, 50%) / 2) - 10%),
+        rgba(255, 255, 255, 0.8) calc((var(--gradient-x, 50%) / 2 + var(--gradient-y, 50%) / 2)),
+        rgba(255, 255, 255, 0.4) calc((var(--gradient-x, 50%) / 2 + var(--gradient-y, 50%) / 2) + 10%),
+        transparent calc((var(--gradient-x, 50%) / 2 + var(--gradient-y, 50%) / 2) + 20%)
+    );
+
+    /* Matches the blend mode often used in the Simey project for V cards */
+    --hover-tilt-glare-blend-mode: color-dodge;
 }
 
 /* Image shadow for transparent images: large drop-shadow that the image 'sinks' into on hover */
@@ -304,6 +304,11 @@ h2 {
     color: var(--main);
 }
 
+h3 {
+    font-size: var(--text-3xl);
+    color: var(--main);
+}
+
 .page {
     display: flex;
     flex-direction: column;
@@ -311,13 +316,15 @@ h2 {
     justify-content: space-evenly;
     gap: calc(var(--spacing) * 8);
     max-width: 80%;
+    min-height: 100svh;
     margin: auto;
     padding-top: calc(var(--spacing) * 8);
     padding-bottom: calc(var(--spacing) * 8);
-    text-align: center;;
+    text-align: center;
 }
 
-.page-body, .page-section {
+.page-body,
+.page-section {
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -326,4 +333,18 @@ h2 {
 
 .page-section {
     gap: var(--spacing) !important;
+}
+
+.ul-spaced li {
+    margin-bottom: calc(var(--spacing) * 4);
+}
+
+.ul-spaced li::before {
+    content: "";
+    display: inline-block;
+    height: 1em;
+    width: 1em;
+    background-image: url("/bts logo.svg");
+    background-size: contain;
+    background-repeat: no-repeat;
 }

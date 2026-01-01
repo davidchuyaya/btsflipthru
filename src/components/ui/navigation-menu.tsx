@@ -13,6 +13,7 @@ import Image from "next/image";
 import { isAtLeastMod } from "@/auth-client";
 import { Button } from "./button";
 import Link from "next/link";
+import SocialButtonsComponent from "@/app/social-buttons";
 
 function NavigationMenu({
     className,
@@ -151,19 +152,9 @@ const navItems: NavItem[] = [
     { title: "About", href: "/about", middle: false },
     { title: "FAQ", href: "/faq", middle: false },
     { title: "Contact", href: "/contact", middle: false },
-    { title: "Photocards Archive", href: "/search", middle: true },
+    { title: "Photocard Archive", href: "/search", middle: true },
     { title: "My Binders", href: "/binder", middle: false },
 ];
-
-function SocialButtonComponent({ href, imgSrc, altText }: { href: string; imgSrc: string; altText: string }) {
-    return (
-        <Button variant="imageShadow" asChild>
-            <Link href={href} className="p-2">
-                <img src={imgSrc} alt={altText} width={28} height={28} className="w-8 max-w-none" />
-            </Link>
-        </Button>
-    );
-}
 
 function MenuItemComponent({
     title,
@@ -207,23 +198,7 @@ export default function NavigationComponent() {
                 <p className="text-5xl! font-heading text-main-light grow">
                     For <span className="text-main">BTS</span> Photocard Collectors
                 </p>
-                <div className="flex flex-row">
-                    <SocialButtonComponent
-                        href="https://www.instagram.com/btsflipthru/"
-                        imgSrc="/instagram.svg"
-                        altText="Instagram Icon"
-                    />
-                    <SocialButtonComponent
-                        href="https://bsky.app/profile/btsflipthru.bsky.social"
-                        imgSrc="/bluesky.svg"
-                        altText="Bluesky Icon"
-                    />
-                    <SocialButtonComponent
-                        href="https://twitter.com/btsflipthru"
-                        imgSrc="/twitter.svg"
-                        altText="Twitter Icon"
-                    />
-                </div>
+                <SocialButtonsComponent />
             </div>
             <NavigationMenu className="z-5 w-svw max-w-svw">
                 <NavigationMenuList className="flex-wrap">
