@@ -1,5 +1,5 @@
 "use client";
 
 export default function FaqComponent() {
-    return <div>FAQ Page</div>;
+    return <h1 className="text-center">Coming soon!</h1>;
 }

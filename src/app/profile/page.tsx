@@ -8,6 +8,7 @@ export default function ProfileComponent() {
     return (
         <div>
             <Button onClick={sessionRefetch}>Activate Mod</Button>
+            <h1 className="text-center">Coming soon!</h1>
         </div>
     );
 }

@@ -78,11 +78,11 @@ export default function AboutComponent() {
                         We’re also keeping site costs low to make sure we can run this site for ARMY forever.
                     </p>
                     <p>
-                        We do have a Ko-fi set up purely to offset the cost of operating the site, but it’s completely
-                        optional, and we are able to comfortably run the site out-of-pocket without any financial
-                        contributions from ARMY whatsoever. If our proceeds from Ko-fi ever exceed the cost of running
-                        the site, it will be rolled over to cover the release of more costly features (we have lots of
-                        ideas!).
+                        We plan to eventually set up a Ko-fi purely to offset the cost of operating the site, but it’s
+                        completely optional, and we are able to comfortably run the site out-of-pocket without any
+                        financial contributions from ARMY whatsoever. If our proceeds from Ko-fi ever exceed the cost of
+                        running the site, it will be rolled over to cover the release of more costly features (we have
+                        lots of ideas!).
                     </p>
                     <p className="mb-4">
                         You can see exactly how much it costs to run Flipthru and how we use our Ko-fi funds here.

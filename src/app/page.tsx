@@ -4,7 +4,7 @@ export default function Home() {
 
     return (
         <div>
-            Home page
+            <h1 className="text-center">Coming soon!</h1>
         </div>
     );
 }

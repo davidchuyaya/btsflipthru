@@ -1,5 +1,5 @@
 "use client";
 
 export default function ContactComponent() {
-    return <div>Contact Page</div>;
+    return <h1 className="text-center">Coming soon!</h1>;
 }
