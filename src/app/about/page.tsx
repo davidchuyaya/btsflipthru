@@ -10,9 +10,9 @@ import { ReportType, reportWindowURL } from "@/constants";
 
 export default function AboutComponent() {
     return (
-        <div className="page">
-            <h1>What We Do</h1>
+        <div className="page max-w-7/10!">
             <div className="page-body">
+                <h1>What We Do</h1>
                 <p>
                     Flipthru is a home-grown BTS photocard archive, binder planning tool, and personal wishlist tracker
                     all in one!
@@ -35,9 +35,10 @@ export default function AboutComponent() {
                     here!
                 </p>
             </div>
-            <h1>How We Do it</h1>
-            <div className="page-body">
+            
+            <div className="page-body gap-8!">
                 <div className="page-section">
+                    <h1 className="">How We Do it</h1>
                     <h2>Flipthru is community-focused</h2>
                     <p>
                         We support BTS, ARMY, artists, designers, and creators of all kinds, since we are small-scale
@@ -148,9 +149,9 @@ export default function AboutComponent() {
                     </p>
                 </div>
             </div>
-            <h1>Who We Are</h1>
             <div className="page-body">
-                <h2>BTS & Army</h2>
+                <h1>Who We Are</h1>
+                <h2 className="-mt-4">BTS & Army</h2>
                 <div className="relative w-65 h-40 mb-20">
                     <PhotocardComponent
                         src={null}
@@ -236,8 +237,9 @@ export default function AboutComponent() {
                     </div>
                 </div>
             </div>
-            <h1>Major Contributors</h1>
+            
             <div className="page-body">
+                <h1>Major Contributors</h1>
                 <p>
                     While our site is built and maintained by countless ARMYs, we’d like to give a special thanks to our
                     named contributors.

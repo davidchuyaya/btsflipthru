@@ -428,6 +428,6 @@ export async function getRecentlyAddedPhotocardsInDB() {
         .selectAll()
         .where("imageId", "is not", null)
         .orderBy("updatedAt", "desc")
-        .limit(50)
+        .limit(14)
         .execute();
 }

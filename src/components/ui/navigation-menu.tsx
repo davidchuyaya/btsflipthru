@@ -191,13 +191,13 @@ export default function NavigationComponent() {
 
     return (
         <>
-            <div className="flex flex-row m-4 items-center gap-8">
-                <Link href="/">
+            <div className="flex flex-row m-4 items-center justify-between">
+                <Link href="/" className="flex flex-row items-center">
                     <Image src="/logo_border.svg" alt="Flip Thru Logo" width={200} height={200} />
+                    <p className="text-5xl! font-heading text-main-light pl-8 pr-8">
+                        For <span className="text-main">BTS</span> Photocard Collectors
+                    </p>
                 </Link>
-                <p className="text-5xl! font-heading text-main-light grow">
-                    For <span className="text-main">BTS</span> Photocard Collectors
-                </p>
                 <SocialButtonsComponent />
             </div>
             <NavigationMenu className="z-5 w-svw max-w-svw">

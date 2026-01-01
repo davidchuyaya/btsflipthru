@@ -16,12 +16,17 @@ import BigProgressBar from "./big-progress-bar";
 import PhotocardComponent from "./photocard";
 import CountdownClock from "./countdown-clock";
 import { useMetadata } from "@/metadata-context";
+import { set } from "zod";
+import { Button } from "@/components/ui/button";
 
 function HomeButton({ text, href }: { text: string; href: string }) {
     return (
-        <Link href={href} className="font-heading p-8 bg-main-light text-accent-light rounded-2xl text-5xl! max-w-60">
-            {text}
-        </Link>
+        <Button
+            className="font-heading text-accent-light text-5xl! pt-4 pb-4 px-6 w-50 h-auto whitespace-normal text-center bg-main-light"
+            asChild
+        >
+            <Link href={href}>{text}</Link>
+        </Button>
     );
 }
 
@@ -137,7 +142,6 @@ export default function Home() {
                 setError(total.error);
                 return;
             }
-            console.log("Total photocards: ", total.data);
             setTotalPhotocards(total.data!);
         });
         getTotalPhotocardsWithoutImages().then((withoutImages) => {
@@ -145,7 +149,6 @@ export default function Home() {
                 setError(withoutImages.error);
                 return;
             }
-            console.log("Photocards without images: ", withoutImages.data);
             setPhotocardsWithoutImages(withoutImages.data!);
         });
     }, []);
@@ -153,12 +156,13 @@ export default function Home() {
     return (
         <div className="page gap-4">
             <div className="flex flex-row gap-8 items-stretch">
-                <BigProgressBar progress={70} description="% v1 features implemented" />
+                <BigProgressBar progress={70} description="% V1 features implemented" />
                 <div className="flex flex-col gap-8">
                     <CountdownClock />
                     <div className="flex flex-row gap-4 justify-center">
                         <HomeButton text="Search Archive" href="/search" />
                         <HomeButton text="Make a Binder" href="/binder" />
+                        <HomeButton text="About" href="/about" />
                     </div>
                     <div className="bg-accent-light rounded-2xl pt-4 pb-4 pl-8 pr-8 text-left">
                         <h2 className="mb-4">News</h2>
@@ -172,7 +176,14 @@ export default function Home() {
                         </ul>
                     </div>
                 </div>
-                <BigProgressBar progress={totalPhotocards === 0 ? 0 : Math.round((totalPhotocards - photocardsWithoutImages) / totalPhotocards * 100)} description="% of photocards with images uploaded on Flipthru" />
+                <BigProgressBar
+                    progress={
+                        totalPhotocards === 0 || photocardsWithoutImages === 0
+                            ? 0
+                            : Math.round(((totalPhotocards - photocardsWithoutImages) / totalPhotocards) * 100)
+                    }
+                    description="% of photocards with images uploaded on Flipthru"
+                />
             </div>
             <div className="bg-third-lightest rounded-2xl pt-4 pb-8 pl-8 pr-8 self-stretch text-left">
                 <h2>Leaderboard</h2>
@@ -180,26 +191,28 @@ export default function Home() {
                     <PhotocardLeaderboard
                         title="Most Contributions"
                         photoSrc={mostContributionsUser?.imageId ?? null}
-                        description={mostContributionsUser?.username ?? "Loading..."}
+                        description={
+                            mostContributionsUser?.username ? `@${mostContributionsUser.username}` : "Loading..."
+                        }
                     />
                     <PhotocardLeaderboard
                         title="Most Owned"
                         photoSrc={mostOwnedPhotocard?.imageId ?? null}
-                        description={mostOwnedPhotocard ? photocardToName(
-                            mostOwnedPhotocard,
-                            collections,
-                            cardTypes,
-                        ) : "Coming soon!"}
+                        description={
+                            mostOwnedPhotocard
+                                ? photocardToName(mostOwnedPhotocard, collections, cardTypes)
+                                : "Coming soon!"
+                        }
                         // TODO: Change to Loading... once feature implemented
                     />
                     <PhotocardLeaderboard
                         title="Most Wishlisted"
                         photoSrc={mostWishlistedPhotocard?.imageId ?? null}
-                        description={mostWishlistedPhotocard ? photocardToName(
-                            mostWishlistedPhotocard,
-                            collections,
-                            cardTypes,
-                        ) : "Coming soon!"}
+                        description={
+                            mostWishlistedPhotocard
+                                ? photocardToName(mostWishlistedPhotocard, collections, cardTypes)
+                                : "Coming soon!"
+                        }
                         // TODO: Change to Loading... once feature implemented
                     />
                 </div>

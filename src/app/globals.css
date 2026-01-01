@@ -347,4 +347,7 @@ h3 {
     background-image: url("/bts logo.svg");
     background-size: contain;
     background-repeat: no-repeat;
+    vertical-align: middle;
+    margin-bottom: 0.2em;
+    margin-right: 0.3em;
 }
