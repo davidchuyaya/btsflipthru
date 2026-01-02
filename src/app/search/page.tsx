@@ -551,10 +551,15 @@ export default function SearchComponent() {
      *
      * @returns Collections that were selected, in the SortType order, before/after the previously covered (searched) collections, up to NUM_LOAD_COLLECTIONS, if sorting by release date
      */
-    function limitSearchCollections(currentFilters: Filters, selectedCollections: Set<number>, ignorePrevSearch: boolean): number[] {
-        const prevCollections = prevSearch && !ignorePrevSearch
-            ? collections.filter((col) => prevSearch.coveredCollectionIds.includes(col.id!))
-            : [];
+    function limitSearchCollections(
+        currentFilters: Filters,
+        selectedCollections: Set<number>,
+        ignorePrevSearch: boolean,
+    ): number[] {
+        const prevCollections =
+            prevSearch && !ignorePrevSearch
+                ? collections.filter((col) => prevSearch.coveredCollectionIds.includes(col.id!))
+                : [];
         let sortedAndFilteredCollections: ParsedCollection[] = [];
         switch (currentFilters.sort) {
             case SortType.ReleaseDateAsc:
@@ -920,7 +925,11 @@ export default function SearchComponent() {
                 <div className="flex flex-col mt-4 mb-4 gap-4 grow">
                     <PhotocardGrid
                         photocards={photocards}
-                        collections={collections}
+                        collections={collections.sort((a, b) =>
+                            filters.sort === SortType.ReleaseDateAsc
+                                ? new Date(a.releaseDate).getTime() - new Date(b.releaseDate).getTime()
+                                : new Date(b.releaseDate).getTime() - new Date(a.releaseDate).getTime(),
+                        )}
                         displayCollections={
                             filters.sort === SortType.ReleaseDateAsc || filters.sort === SortType.ReleaseDateDesc
                         }
