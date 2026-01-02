@@ -2,6 +2,7 @@
 
 import { THUMBNAIL_DISPLAY_HEIGHT_PX } from "@/constants";
 import { Effects } from "@/db";
+import { CheckboxWithoutLabel } from "@/components/ui/checkbox";
 import { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 
@@ -103,6 +104,9 @@ export default function PhotocardComponent({
     manualRadius = false,
     placeholderType = PlaceholderType.BTS,
     children,
+    selectable = false,
+    isSelected = false,
+    onToggle,
 }: {
     className?: string;
     src: string | null;
@@ -111,6 +115,9 @@ export default function PhotocardComponent({
     manualRadius?: boolean;
     placeholderType?: PlaceholderType;
     children?: React.ReactNode;
+    selectable?: boolean;
+    isSelected?: boolean;
+    onToggle?: () => void;
 }) {
     const [borderRadius, setBorderRadius] = useState<number>(16);
     const [aspectRatio, setAspectRatio] = useState<string>(DEFAULT_ASPECT_RATIO);
@@ -193,8 +200,19 @@ export default function PhotocardComponent({
     }
 
     return (
-        <div className={`${className} flex justify-center`}>
-            <div ref={hostRef} className="inline-block" />
+        <div 
+            className={`${className} flex justify-center relative`}
+            onClick={() => selectable && onToggle?.()}
+        >
+            <div ref={hostRef} className={`inline-block transition-opacity ${selectable ? (isSelected ? "opacity-100" : "opacity-50") : ""}`} />
+            {selectable && (
+                <div className="absolute inset-0 flex items-center justify-center z-20 cursor-pointer">
+                    <CheckboxWithoutLabel
+                        checked={isSelected}
+                        className="w-8 h-8 border-2 pointer-events-none"
+                    />
+                </div>
+            )}
         </div>
     );
 }

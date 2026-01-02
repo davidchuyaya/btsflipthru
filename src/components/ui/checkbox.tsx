@@ -43,4 +43,4 @@ function Checkbox({ className, text, ...props }: CheckboxProps) {
     );
 }
 
-export { Checkbox };
+export { Checkbox, CheckboxWithoutLabel };

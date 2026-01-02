@@ -8,11 +8,17 @@ function PhotocardGridWithoutCollections({
     className,
     showFront,
     collections,
+    isSelectionMode,
+    selectedIds,
+    onToggleSelection,
 }: {
     photocards: Photocard[];
     className?: string;
     showFront?: boolean;
     collections?: Record<number, string>;
+    isSelectionMode?: boolean;
+    selectedIds?: Set<number>;
+    onToggleSelection?: (id: number) => void;
 }) {
     return (
         <div className={`flex flex-row flex-wrap gap-4 justify-center ${className}`}>
@@ -38,11 +44,23 @@ function PhotocardGridWithoutCollections({
                               : null
                     }
                     effects={photocard.effects}
+                    selectable={isSelectionMode}
+                    isSelected={selectedIds?.has(photocard.id!)}
+                    onToggle={() => onToggleSelection?.(photocard.id!)}
                 >
                     {(() => {
                         const albumName = collections?.[photocard.collectionId];
-                        const memberKey = Object.entries(NameToMember).find(([_, key]) => photocard[key as keyof Photocard]);
-                        const memberName = memberKey ? memberKey[0] : null;
+                        const memberEntries = Object.entries(NameToMember);
+                        const presentMembers = memberEntries.filter(
+                            ([_, key]) => photocard[key as keyof Photocard]
+                        );
+
+                        let memberName: string | null = null;
+                        if (presentMembers.length === memberEntries.length) {
+                            memberName = "OT7";
+                        } else if (presentMembers.length > 0) {
+                            memberName = presentMembers.map(([name]) => name).join(", ");
+                        }
 
                         return (
                             <>
@@ -63,15 +81,21 @@ export default function PhotocardGrid({
     displayCollections = false,
     className,
     showFront,
+    isSelectionMode = false,
+    selectedIds,
+    onToggleSelection,
 }: {
     photocards: Photocard[]; // Will be displayed in order provided
     collections?: ParsedCollection[]; // Will be displayed in order provided
     displayCollections?: boolean;
     className?: string;
     showFront?: boolean;
+    isSelectionMode?: boolean;
+    selectedIds?: Set<number>;
+    onToggleSelection?: (id: number) => void;
 }) {
     return displayCollections ? (
-        <div className="flex flex-col gap-4 justify-center items-center ${className}">
+        <div className={`flex flex-col gap-4 justify-center items-center ${className}`}>
             {collections!.map((collection) => {
                 const children = photocards.filter((pc) => pc.collectionId === collection.id);
                 const hidden = children.length === 0;
@@ -85,6 +109,9 @@ export default function PhotocardGrid({
                             showFront={showFront}
                             className={hidden ? "hidden" : ""}
                             collections={collectionMap}
+                            isSelectionMode={isSelectionMode}
+                            selectedIds={selectedIds}
+                            onToggleSelection={onToggleSelection}
                         />
                     </React.Fragment>
                 );
@@ -102,6 +129,9 @@ export default function PhotocardGrid({
                     },
                     {} as Record<number, string>
                 ), [collections])}
+            isSelectionMode={isSelectionMode}
+            selectedIds={selectedIds}
+            onToggleSelection={onToggleSelection}
         />
     );
 }

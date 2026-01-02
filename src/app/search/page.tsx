@@ -26,7 +26,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
-import { ChevronDown, SquareCheckBigIcon, SquareIcon } from "lucide-react";
+import { ChevronDown, PlusIcon, SquareCheckBigIcon, SquareIcon } from "lucide-react";
 import { useMetadata } from "@/metadata-context";
 import React from "react";
 import { Button } from "@/components/ui/button";
@@ -137,7 +137,7 @@ type VisibleOptions = {
 };
 
 export default function SearchComponent() {
-    const { collections, collectionTypes, cardTypes, cardSizes, setError } = useMetadata();
+    const { collections, collectionTypes, cardTypes, cardSizes, session, setError } = useMetadata();
     const [topCollections, setTopCollections] = useState<Array<{ collection: ParsedCollection; hasSub: boolean }>>([]); // Purely for display & ease of selecting children, doesn't affect search query
     const [subCollections, setSubCollections] = useState<ParsedCollection[]>([]);
     const [photocards, setPhotocards] = useState<Array<Photocard>>([]);
@@ -443,11 +443,11 @@ export default function SearchComponent() {
 
         setTopCollections(
             topCols.sort(
-                (a, b) => new Date(a.collection.releaseDate).getTime() - new Date(b.collection.releaseDate).getTime(),
+                (a, b) => new Date(b.collection.releaseDate).getTime() - new Date(a.collection.releaseDate).getTime(),
             ),
         );
         setSubCollections(
-            subCols.sort((a, b) => new Date(a.releaseDate).getTime() - new Date(b.releaseDate).getTime()),
+            subCols.sort((a, b) => new Date(b.releaseDate).getTime() - new Date(a.releaseDate).getTime()),
         );
 
         const topColsSet = new Set(topCols.map((col) => col.collection.id!));
@@ -956,7 +956,44 @@ export default function SearchComponent() {
             setPhotocards([...photocards, ...results.data!.cards]);
         }
 
+
         setIsLoading(false);
+    }
+
+    // Selection Mode Logic
+    const [isSelectionMode, setIsSelectionMode] = useState<boolean>(false);
+    const [selectedPhotocardIds, setSelectedPhotocardIds] = useState<Set<number>>(new Set());
+
+    function enterSelectionMode() {
+        setIsSelectionMode(true);
+        setSelectedPhotocardIds(new Set());
+    }
+
+    function exitSelectionMode() {
+        setIsSelectionMode(false);
+        setSelectedPhotocardIds(new Set());
+    }
+
+    function toggleSelection(id: number) {
+        const newSelected = new Set(selectedPhotocardIds);
+        if (newSelected.has(id)) {
+            newSelected.delete(id);
+        } else {
+            newSelected.add(id);
+        }
+        setSelectedPhotocardIds(newSelected);
+    }
+
+    function addToOwned() {
+        console.log("Add to owned:", Array.from(selectedPhotocardIds));
+        // Placeholder for future logic
+        exitSelectionMode();
+    }
+
+    function addToWishlist() {
+        console.log("Add to wishlist:", Array.from(selectedPhotocardIds));
+        // Placeholder for future logic
+        exitSelectionMode();
     }
 
     return (
@@ -988,6 +1025,7 @@ export default function SearchComponent() {
                                 <Label>Search</Label>
 
                                 <Input
+                                    disabled={isSelectionMode}
                                     type="text"
                                     placeholder="Love Yourself: Answer RM"
                                     value={searchInput}
@@ -998,7 +1036,7 @@ export default function SearchComponent() {
                                         }
                                     }}
                                 />
-                                <Button onClick={() => trySearch(filters)}>Search</Button>
+                                <Button disabled={isSelectionMode} onClick={() => trySearch(filters)}>Search</Button>
                             </SidebarMenuItem>
                         </SidebarMenu>
                     </SidebarHeader>
@@ -1174,8 +1212,9 @@ export default function SearchComponent() {
                                 Show {showFront ? "Back" : "Front"}
                             </button>
                             <button
+                                disabled={isSelectionMode}
                                 onClick={() => trySearch(filters)}
-                                className="px-4 py-1 text-sm rounded-base border-2 border-transparent hover:border-border hover:bg-main"
+                                className="px-4 py-1 text-sm rounded-base border-2 border-transparent hover:border-border hover:bg-main disabled:opacity-50"
                             >
                                Apply Filters
                             </button>
@@ -1194,10 +1233,39 @@ export default function SearchComponent() {
                             filters.sort === SortType.ReleaseDateAsc || filters.sort === SortType.ReleaseDateDesc
                         }
                         showFront={showFront}
+                        isSelectionMode={isSelectionMode}
+                        selectedIds={selectedPhotocardIds}
+                        onToggleSelection={toggleSelection}
                     />
                     <BottomSpinnerComponent dontLoad={dontLoad} loadMore={trySearchNext} isLoading={isLoading} />
                 </div>
             </SidebarProvider>
+
+            <div className="fixed bottom-8 right-8 flex gap-2 items-center z-50" hidden={session === null}>
+                {!isSelectionMode ? (
+                    <Button 
+                        onClick={enterSelectionMode}
+                        className="rounded-full w-12 h-12 shadow-lg"
+                    >
+                        <PlusIcon />
+                    </Button>
+                ) : (
+                    <>
+                        <div className="bg-background border rounded-md px-4 py-2 shadow-lg font-bold">
+                            Num selected: {selectedPhotocardIds.size}
+                        </div>
+                        <Button onClick={addToOwned} className="shadow-lg">
+                            Add to owned
+                        </Button>
+                        <Button onClick={addToWishlist} className="shadow-lg">
+                            Add to wishlist
+                        </Button>
+                        <Button onClick={exitSelectionMode} variant="neutral" className="shadow-lg">
+                            Exit selection mode
+                        </Button>
+                    </>
+                )}
+            </div>
         </div>
     );
 }
