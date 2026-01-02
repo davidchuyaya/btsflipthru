@@ -126,6 +126,16 @@ type Filters = {
     sort: SortType;
 };
 
+type VisibleOptions = {
+    collectionTypes: Set<number>;
+    topCollections: Set<number>;
+    subCollections: Set<number>;
+    members: Set<string>; // NameToMember values
+    cardTypes: Set<CardType>;
+    cardSizes: Set<CardSize>;
+    exclusiveCountries: Set<ExclusiveCountry>;
+};
+
 export default function SearchComponent() {
     const { collections, collectionTypes, cardTypes, cardSizes, setError } = useMetadata();
     const [topCollections, setTopCollections] = useState<Array<{ collection: ParsedCollection; hasSub: boolean }>>([]); // Purely for display & ease of selecting children, doesn't affect search query
@@ -150,6 +160,16 @@ export default function SearchComponent() {
     const [showFront, setShowFront] = useState<boolean>(true);
     const [isLoading, setIsLoading] = useState<boolean>(false);
     const [dontLoad, setDontLoad] = useState<boolean>(false);
+    const [searchInput, setSearchInput] = useState<string>("");
+    const [visibleOptions, setVisibleOptions] = useState<VisibleOptions>({
+        collectionTypes: new Set(),
+        topCollections: new Set(),
+        subCollections: new Set(),
+        members: new Set(Object.values(NameToMember)),
+        exclusiveCountries: new Set(Object.values(ExclusiveCountry)),
+        cardTypes: new Set(),
+        cardSizes: new Set(),
+    });
 
     // Run on launch
     useEffect(() => {
@@ -170,6 +190,221 @@ export default function SearchComponent() {
         // Provide parameters to trySearch since it may not see the updated parameters in time
         trySearch(newFilters);
     }, [collections, collectionTypes, cardTypes, cardSizes]);
+
+    useEffect(() => {
+        if (!searchInput.trim()) {
+            const topColsSet = new Set(topCollections.map((c) => c.collection.id!));
+            const subColsSet = new Set(subCollections.map((c) => c.id!));
+            setFilters((prev) => ({
+                ...prev,
+                collectionTypes: new Set(collectionTypes.map((type) => type.id!)),
+                topCollections: topColsSet,
+                subCollections: subColsSet,
+                members: new Set(Object.values(NameToMember)),
+                exclusiveCountries: new Set(Object.values(ExclusiveCountry)),
+                cardTypes: new Set(cardTypes),
+                cardSizes: new Set(cardSizes),
+            }));
+            setVisibleOptions({
+                collectionTypes: new Set(collectionTypes.map((type) => type.id!)),
+                topCollections: topColsSet,
+                subCollections: subColsSet,
+                members: new Set(Object.values(NameToMember)),
+                exclusiveCountries: new Set(Object.values(ExclusiveCountry)),
+                cardTypes: new Set(cardTypes),
+                cardSizes: new Set(cardSizes),
+            });
+            return;
+        }
+
+        const allTerms = searchInput
+            .toLowerCase()
+            .split(/\s+/)
+            .filter((t) => t.length > 0);
+
+        function getWinnersFromTerms<T>(
+            items: T[],
+            textFn: (item: T) => string,
+            availableTerms: string[],
+        ): { winners: Set<T>; maxScore: number; matchedTerms: Set<string> } {
+            let maxScore = 0;
+            const scores = new Map<T, { score: number; matched: Set<string> }>();
+
+            for (const item of items) {
+                const { matches, matchedTerms } = countMatches(textFn(item), availableTerms);
+                if (matches > 0) {
+                    scores.set(item, { score: matches, matched: matchedTerms });
+                    if (matches > maxScore) maxScore = matches;
+                }
+            }
+
+            const winners = new Set<T>();
+            const aggregatedMatchedTerms = new Set<string>();
+
+            if (maxScore > 0) {
+                for (const [item, data] of scores) {
+                    if (data.score === maxScore) {
+                        winners.add(item);
+                        data.matched.forEach((t) => aggregatedMatchedTerms.add(t));
+                    }
+                }
+            }
+            return { winners, maxScore, matchedTerms: aggregatedMatchedTerms };
+        }
+
+        function countMatches(
+            text: string,
+            searchTerms: string[],
+        ): { matches: number; matchedTerms: Set<string> } {
+            const lowerText = text.toLowerCase();
+            let matches = 0;
+            const matchedTerms = new Set<string>();
+            for (const term of searchTerms) {
+                if (lowerText.includes(term)) {
+                    matches++;
+                    matchedTerms.add(term);
+                }
+            }
+            return { matches, matchedTerms };
+        }
+
+        // Logic for each category with Term Consumption
+        // 1. Members (Priority 1)
+        const memberEntries = Object.entries(NameToMember);
+        const {
+            winners: winningMembers,
+            maxScore: memberScore,
+            matchedTerms: memberMatchedTerms,
+        } = getWinnersFromTerms(memberEntries, ([name, _]) => name, allTerms);
+
+        // Filter out terms used by Members
+        const termsAfterMembers = allTerms.filter((term) => !memberMatchedTerms.has(term));
+
+        // 2. Collections (Priority 2)
+        // Check Top Collections
+        const {
+            winners: winningTopCols,
+            maxScore: topColScore,
+            matchedTerms: topColMatchedTerms,
+        } = getWinnersFromTerms(topCollections, (c) => c.collection.name, termsAfterMembers);
+
+        // Check Sub Collections
+        const {
+            winners: winningSubCols,
+            maxScore: subColScore,
+            matchedTerms: subColMatchedTerms,
+        } = getWinnersFromTerms(
+            subCollections,
+            (c) => (c.version ? `${c.name} ${c.version}` : c.name),
+            termsAfterMembers,
+        );
+
+        // Filter out terms used by Collections
+        const termsAfterCollections = termsAfterMembers.filter(
+            (term) => !topColMatchedTerms.has(term) && !subColMatchedTerms.has(term),
+        );
+
+        // 3. Others (Priority 3)
+        // Card Types
+        const { winners: winningCardTypes, maxScore: cardTypeScore } = getWinnersFromTerms(
+            cardTypes,
+            (ct) => ct.name,
+            termsAfterCollections,
+        );
+
+        // Card Sizes
+        const { winners: winningCardSizes, maxScore: cardSizeScore } = getWinnersFromTerms(
+            cardSizes,
+            (cs) => cardSizeToString(cs),
+            termsAfterCollections,
+        );
+
+        // Exclusive Countries
+        const countryEntries = Object.entries(ExclusiveCountry);
+        const { winners: winningCountries, maxScore: countryScore } = getWinnersFromTerms(
+            countryEntries,
+            ([name, _]) => name,
+            termsAfterCollections,
+        );
+
+        let finalVisibleSubIds = new Set<number>();
+        let finalVisibleTopIds = new Set<number>();
+
+        if (topColScore > 0 || subColScore > 0) {
+            // Filter mode
+            if (topColScore > 0) {
+                winningTopCols.forEach((c) => finalVisibleTopIds.add(c.collection.id!));
+            }
+            if (subColScore > 0) {
+                winningSubCols.forEach((c) => finalVisibleSubIds.add(c.id!));
+            }
+
+            // Include parents of visible subs
+            finalVisibleSubIds.forEach((subId) => {
+                const sub = subCollections.find((c) => c.id === subId);
+                if (sub) {
+                    const parent = getTopCollectionForSub(sub);
+                    if (parent) finalVisibleTopIds.add(parent.id!);
+                }
+            });
+        } else {
+            // Show all
+            finalVisibleTopIds = new Set(topCollections.map((c) => c.collection.id!));
+            finalVisibleSubIds = new Set(subCollections.map((c) => c.id!));
+        }
+
+        // Collection Types visibility
+        const finalVisibleTypeIds = new Set<number>();
+        for (const type of collectionTypes) {
+            const topCols = getTopCollectionsForType(type.id!);
+            for (const topId of topCols) {
+                if (finalVisibleTopIds.has(topId)) {
+                    finalVisibleTypeIds.add(type.id!);
+                    break;
+                }
+            }
+        }
+
+        const nextVisibleMembers = memberScore > 0
+                ? new Set(Array.from(winningMembers).map(([_, v]) => v))
+                : new Set(Object.values(NameToMember));
+        const nextVisibleCardTypes =
+            cardTypeScore > 0 ? winningCardTypes : new Set(cardTypes);
+        const nextVisibleCardSizes =
+            cardSizeScore > 0 ? winningCardSizes : new Set(cardSizes);
+        const nextVisibleCountries = countryScore > 0
+                ? new Set(Array.from(winningCountries).map(([_, v]) => v))
+                : new Set(Object.values(ExclusiveCountry));
+
+        setVisibleOptions({
+            members: nextVisibleMembers,
+            cardTypes: nextVisibleCardTypes,
+            cardSizes: nextVisibleCardSizes,
+            exclusiveCountries: nextVisibleCountries,
+            subCollections: finalVisibleSubIds,
+            topCollections: finalVisibleTopIds,
+            collectionTypes: finalVisibleTypeIds,
+        });
+
+        setFilters((prev) => ({
+            ...prev,
+            members: nextVisibleMembers,
+            cardTypes: nextVisibleCardTypes,
+            cardSizes: nextVisibleCardSizes,
+            exclusiveCountries: nextVisibleCountries,
+            topCollections: finalVisibleTopIds,
+            subCollections: finalVisibleSubIds,
+            collectionTypes: finalVisibleTypeIds,
+        }));
+    }, [
+        searchInput,
+        collections,
+        collectionTypes,
+        cardTypes,
+        cardSizes,
+        topCollections,
+        subCollections,
+    ]);
 
     function calculateCollectionsHierarchy(): { topColsSet: Set<number>; subColsSet: Set<number> } {
         const topCols: Array<{ collection: ParsedCollection; hasSub: boolean }> = [];
@@ -233,7 +468,6 @@ export default function SearchComponent() {
             exclusiveCountries: new Set(Object.values(ExclusiveCountry)),
         };
         setFilters(newFilters);
-        trySearch(newFilters);
     }
 
     function onCheckedAllCollectionTypes(checked: boolean) {
@@ -245,7 +479,6 @@ export default function SearchComponent() {
                 subCollections: new Set(subCollections.map((col) => col.id!)),
             };
             setFilters(newFilters);
-            trySearch(newFilters);
         } else {
             setFilters({
                 ...filters,
@@ -263,7 +496,6 @@ export default function SearchComponent() {
                 members: new Set(Object.values(NameToMember)),
             };
             setFilters(newFilters);
-            trySearch(newFilters);
         } else {
             setFilters({ ...filters, members: new Set() });
         }
@@ -276,7 +508,6 @@ export default function SearchComponent() {
                 cardTypes: new Set(cardTypes),
             };
             setFilters(newFilters);
-            trySearch(newFilters);
         } else {
             setFilters({ ...filters, cardTypes: new Set() });
         }
@@ -289,7 +520,6 @@ export default function SearchComponent() {
                 cardSizes: new Set(cardSizes),
             };
             setFilters(newFilters);
-            trySearch(newFilters);
         } else {
             setFilters({ ...filters, cardSizes: new Set() });
         }
@@ -302,7 +532,6 @@ export default function SearchComponent() {
                 exclusiveCountries: new Set(Object.values(ExclusiveCountry)),
             };
             setFilters(newFilters);
-            trySearch(newFilters);
         } else {
             setFilters({ ...filters, exclusiveCountries: new Set() });
         }
@@ -375,7 +604,6 @@ export default function SearchComponent() {
             subCollections: newSelectedSubCollections,
         };
         setFilters(newFilters);
-        trySearch(newFilters);
     }
 
     function onSelectedTopCollection(collection: ParsedCollection, hasSub: boolean, checked: boolean) {
@@ -411,7 +639,6 @@ export default function SearchComponent() {
             subCollections: newSelectedSubCollections,
         };
         setFilters(newFilters);
-        trySearch(newFilters);
     }
 
     function onSelectedSubCollection(collection: ParsedCollection, checked: boolean) {
@@ -459,7 +686,6 @@ export default function SearchComponent() {
                 setFilters({ ...filters, subCollections: newSelectedSubCollections });
             }
         }
-        trySearch(filters);
     }
 
     function onSelectedMember(member: NameToMember, checked: boolean) {
@@ -471,7 +697,6 @@ export default function SearchComponent() {
         }
         const newFilters = { ...filters, members: newSelectedMembers };
         setFilters(newFilters);
-        trySearch(newFilters);
     }
 
     function onSelectedCardType(cardType: CardType, checked: boolean) {
@@ -483,7 +708,6 @@ export default function SearchComponent() {
         }
         const newFilters = { ...filters, cardTypes: newSelectedCardTypes };
         setFilters(newFilters);
-        trySearch(newFilters);
     }
 
     function onSelectedCardSize(cardSize: CardSize, checked: boolean) {
@@ -495,7 +719,6 @@ export default function SearchComponent() {
         }
         const newFilters = { ...filters, cardSizes: newSelectedCardSizes };
         setFilters(newFilters);
-        trySearch(newFilters);
     }
 
     function onSelectedExclusiveCountry(country: ExclusiveCountry, checked: boolean) {
@@ -507,7 +730,6 @@ export default function SearchComponent() {
         }
         const newFilters = { ...filters, exclusiveCountries: newSelectedExclusiveCountries };
         setFilters(newFilters);
-        trySearch(newFilters);
     }
 
     function canSearch(filters: Filters, selectedCollections: Set<number>): boolean {
@@ -764,19 +986,33 @@ export default function SearchComponent() {
                         <SidebarMenu className="ml-2 mr-2 w-auto">
                             <SidebarMenuItem className="flex flex-col gap-2">
                                 <Label>Search</Label>
-                                <Input type="text" placeholder="Love Yourself: Answer RM" />
-                                <Button>Search</Button>
+
+                                <Input
+                                    type="text"
+                                    placeholder="Love Yourself: Answer RM"
+                                    value={searchInput}
+                                    onChange={(e) => setSearchInput(e.target.value)}
+                                    onKeyDown={(e) => {
+                                        if (e.key === "Enter") {
+                                            trySearch(filters);
+                                        }
+                                    }}
+                                />
+                                <Button onClick={() => trySearch(filters)}>Search</Button>
                             </SidebarMenuItem>
                         </SidebarMenu>
                     </SidebarHeader>
                     <SidebarContent>
                         <CollapsibleGroup
+                            key={searchInput ? "col-search-active" : "col-search-inactive"}
                             label="Collections"
                             checked={filters.collectionTypes.size > 0}
                             onChecked={onCheckedAllCollectionTypes}
                         >
-                            {collectionTypes.map((type) => {
-                                return (
+                            {collectionTypes
+                                .filter((type) => visibleOptions.collectionTypes.has(type.id!))
+                                .map((type) => {
+                                    return (
                                     <CheckMenuButton
                                         key={type.id!}
                                         type={MenuType.Regular}
@@ -786,8 +1022,10 @@ export default function SearchComponent() {
                                     >
                                         <SidebarMenuSub>
                                             {topCollections
-                                                .filter(({ collection, hasSub }) =>
-                                                    collection.collectionTypes.includes(type.id!),
+                                                .filter(
+                                                    ({ collection, hasSub }) =>
+                                                        collection.collectionTypes.includes(type.id!) &&
+                                                        visibleOptions.topCollections.has(collection.id!),
                                                 )
                                                 .map(({ collection, hasSub }) => (
                                                     <CheckMenuButton
@@ -802,7 +1040,11 @@ export default function SearchComponent() {
                                                         {hasSub && (
                                                             <SidebarMenuSub>
                                                                 {subCollections
-                                                                    .filter((subCol) => subCol.name === collection.name)
+                                                                    .filter(
+                                                                        (subCol) =>
+                                                                            subCol.name === collection.name &&
+                                                                            visibleOptions.subCollections.has(subCol.id!),
+                                                                    )
                                                                     .map((subCol) => (
                                                                         <CheckMenuButton
                                                                             key={subCol.id!}
@@ -834,12 +1076,15 @@ export default function SearchComponent() {
                         </CollapsibleGroup>
 
                         <CollapsibleGroup
+                            key={searchInput ? "mem-search-active" : "mem-search-inactive"}
                             label="Members"
                             checked={filters.members.size > 0}
                             onChecked={onCheckedAllMembers}
                         >
-                            {Object.entries(NameToMember).map(([name, memberKey]) => (
-                                <CheckMenuButton
+                            {Object.entries(NameToMember)
+                                .filter(([_, memberKey]) => visibleOptions.members.has(memberKey))
+                                .map(([name, memberKey]) => (
+                                    <CheckMenuButton
                                     key={memberKey}
                                     type={MenuType.Regular}
                                     label={name}
@@ -851,13 +1096,16 @@ export default function SearchComponent() {
                             ))}
                         </CollapsibleGroup>
                         <CollapsibleGroup
+                            key={searchInput ? "ct-search-active" : "ct-search-inactive"}
                             label="Card Types"
-                            defaultOpen={false}
+                            defaultOpen={!!searchInput}
                             checked={filters.cardTypes.size > 0}
                             onChecked={onCheckedAllCardTypes}
                         >
-                            {cardTypes.map((cardType) => (
-                                <CheckMenuButton
+                            {cardTypes
+                                .filter((cardType) => visibleOptions.cardTypes.has(cardType))
+                                .map((cardType) => (
+                                    <CheckMenuButton
                                     key={cardType.id ?? 0}
                                     type={MenuType.Regular}
                                     label={cardType.name}
@@ -869,13 +1117,16 @@ export default function SearchComponent() {
                             ))}
                         </CollapsibleGroup>
                         <CollapsibleGroup
+                            key={searchInput ? "cs-search-active" : "cs-search-inactive"}
                             label="Card Sizes (mm)"
-                            defaultOpen={false}
+                            defaultOpen={!!searchInput}
                             checked={filters.cardSizes.size > 0}
                             onChecked={onCheckedAllCardSizes}
                         >
-                            {cardSizes.map((cardSize) => (
-                                <CheckMenuButton
+                            {cardSizes
+                                .filter((cardSize) => visibleOptions.cardSizes.has(cardSize))
+                                .map((cardSize) => (
+                                    <CheckMenuButton
                                     key={cardSize.id!}
                                     type={MenuType.Regular}
                                     label={cardSizeToString(cardSize)}
@@ -887,13 +1138,16 @@ export default function SearchComponent() {
                             ))}
                         </CollapsibleGroup>
                         <CollapsibleGroup
+                            key={searchInput ? "ec-search-active" : "ec-search-inactive"}
                             label="Exclusive Countries"
-                            defaultOpen={false}
+                            defaultOpen={!!searchInput}
                             checked={filters.exclusiveCountries.size > 0}
                             onChecked={onCheckedAllExclusiveCountries}
                         >
-                            {Object.entries(ExclusiveCountry).map(([country, id]) => (
-                                <CheckMenuButton
+                            {Object.entries(ExclusiveCountry)
+                                .filter(([_, id]) => visibleOptions.exclusiveCountries.has(id))
+                                .map(([country, id]) => (
+                                    <CheckMenuButton
                                     key={id}
                                     type={MenuType.Regular}
                                     label={country}
@@ -918,6 +1172,12 @@ export default function SearchComponent() {
                                 className="px-4 py-1 text-sm rounded-base border-2 border-transparent hover:border-border hover:bg-main"
                             >
                                 Show {showFront ? "Back" : "Front"}
+                            </button>
+                            <button
+                                onClick={() => trySearch(filters)}
+                                className="px-4 py-1 text-sm rounded-base border-2 border-transparent hover:border-border hover:bg-main"
+                            >
+                               Apply Filters
                             </button>
                         </div>
                     </SidebarFooter>

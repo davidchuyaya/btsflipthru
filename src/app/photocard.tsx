@@ -59,16 +59,31 @@ export enum PlaceholderType {
     ARMY = "/army logo.svg",
 }
 
-function PlaceholderComponent({ type, borderRadius, aspectRatio }: { type: PlaceholderType; borderRadius: number; aspectRatio: string }) {
+function PlaceholderComponent({
+    type,
+    borderRadius,
+    aspectRatio,
+    children,
+}: {
+    type: PlaceholderType;
+    borderRadius: number;
+    aspectRatio: string;
+    children?: React.ReactNode;
+}) {
     return (
         <div
-            className="bg-accent flex items-center justify-center"
+            className="bg-accent flex items-center justify-center relative p-4 text-center overflow-hidden"
             style={{
                 height: `${THUMBNAIL_DISPLAY_HEIGHT_PX}px`,
                 aspectRatio: aspectRatio,
                 borderRadius: `${borderRadius}px`,
             }}
         >
+            {children && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center z-10 text-xs font-bold text-primary">
+                    {children}
+                </div>
+            )}
             <img
                 src={type}
                 alt="Placeholder photocard"
@@ -87,6 +102,7 @@ export default function PhotocardComponent({
     effects,
     manualRadius = false,
     placeholderType = PlaceholderType.BTS,
+    children,
 }: {
     className?: string;
     src: string | null;
@@ -94,6 +110,7 @@ export default function PhotocardComponent({
     effects: Effects;
     manualRadius?: boolean;
     placeholderType?: PlaceholderType;
+    children?: React.ReactNode;
 }) {
     const [borderRadius, setBorderRadius] = useState<number>(16);
     const [aspectRatio, setAspectRatio] = useState<string>(DEFAULT_ASPECT_RATIO);
@@ -114,7 +131,7 @@ export default function PhotocardComponent({
 
     useEffect(() => {
         init();
-    }, [src, fallbackSrc, className, effects, borderRadius, aspectRatio]);
+    }, [src, fallbackSrc, className, effects, borderRadius, aspectRatio, children]);
 
     async function init() {
         await import("hover-tilt/web-component");
@@ -157,7 +174,11 @@ export default function PhotocardComponent({
 
             // 2. Mount the React component into that div
             const root = createRoot(placeholderContainer);
-            root.render(<PlaceholderComponent type={placeholderType} borderRadius={borderRadius} aspectRatio={aspectRatio} />);
+            root.render(
+                <PlaceholderComponent type={placeholderType} borderRadius={borderRadius} aspectRatio={aspectRatio}>
+                    {children}
+                </PlaceholderComponent>
+            );
         } else {
             const img = document.createElement("img");
             img.src = src;
