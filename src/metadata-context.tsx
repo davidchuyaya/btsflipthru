@@ -1,7 +1,15 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
-import { CardSize, CardType, CollectionType, ParsedCollection, Photocard, serializeCollection } from "@/db";
+import {
+    CardSize,
+    CardType,
+    CollectionType,
+    DEFAULT_CARD_TYPE,
+    ParsedCollection,
+    Photocard,
+    serializeCollection,
+} from "@/db";
 import {
     addCardSizeToDB,
     addCardTypeToDB,
@@ -99,8 +107,6 @@ function saveToStorage(
     setToStorage(STORAGE_KEYS.cardSizes, cardSizes);
     setToStorage(STORAGE_KEYS.lastUpdated, Date.now());
 }
-
-export const DEFAULT_CARD_TYPE: CardType = { id: undefined, name: "N/A" };
 
 export function MetadataProvider({ children }: { children: ReactNode }) {
     const [collections, setCollections] = useState<ParsedCollection[]>([]);

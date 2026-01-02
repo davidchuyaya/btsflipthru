@@ -2,9 +2,18 @@
 
 import { useState, useMemo, useEffect, useRef } from "react";
 import { NameToMember, PresignedUrl, ReportType, reportWindowURL, Result } from "@/constants";
-import { DEFAULT_CARD_TYPE, useMetadata } from "@/metadata-context";
+import { useMetadata } from "@/metadata-context";
 import { generateSignedUploadUrlForPhotocards } from "@/actions";
-import { BackImageType, CardSize, CardType, Effects, ExclusiveCountry, ParsedCollection, Photocard } from "@/db";
+import {
+    BackImageType,
+    CardSize,
+    CardType,
+    DEFAULT_CARD_TYPE,
+    Effects,
+    ExclusiveCountry,
+    ParsedCollection,
+    Photocard,
+} from "@/db";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import Combobox from "@/components/ui/combobox";
@@ -549,7 +558,7 @@ export default function CreateCollectionComponent() {
                 ? sizeToUrl.get(localPhotocard.backImage.size)!.params.public_id
                 : null,
             backImageType: localPhotocard.backImageType as BackImageType,
-            cardType: localPhotocard.cardType!.id!,
+            cardType: localPhotocard.cardType!.id! === DEFAULT_CARD_TYPE.id ? null : localPhotocard.cardType!.id!,
             sizeId: localPhotocard.cardSize!.id!,
             effects: localPhotocard.effects,
             modTemporary: localPhotocard.temporary, // Placeholder, server will pick correct one based on role

@@ -14,6 +14,7 @@ import {
     Role,
     UserData,
     PhotocardData,
+    DEFAULT_CARD_TYPE,
 } from "@/db";
 import {
     Result,
@@ -23,6 +24,9 @@ import {
     CLOUDINARY_CLOUD_NAME,
     SortType,
     SearchQuery,
+    NUM_HOME_PHOTOCARDS,
+    NUM_LOAD_PHOTOCARDS,
+    NUM_LOAD_COLLECTIONS,
 } from "@/constants";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { v2 as cloudinary } from "cloudinary";
@@ -436,11 +440,11 @@ export async function getRecentlyAddedPhotocardsInDB() {
         .selectAll()
         .where("imageId", "is not", null)
         .orderBy("updatedAt", "desc")
-        .limit(14)
+        .limit(NUM_HOME_PHOTOCARDS)
         .execute();
 }
 
-export async function getPhotocardsInDB(query: SearchQuery): Promise<Result<Photocard[]>> {
+export async function getPhotocardsInDB(query: SearchQuery): Promise<Result<{cards: Photocard[], query: string}>> {
     const database = getDb();
     let queryBuilder = database.selectFrom("photocards").selectAll();
 
@@ -457,16 +461,22 @@ export async function getPhotocardsInDB(query: SearchQuery): Promise<Result<Phot
         queryBuilder = queryBuilder.where(sql<SqlBool>`collectionId IN (${sql.raw(ids)})`);
     }
     // START: Special handling for default card type (NULL in DB), uses OR condition
+    const defaultCardTypeIndex = query.cardTypeIds.findIndex((id) => id === DEFAULT_CARD_TYPE.id);
+    // Cut out the default card type from the array to handle separately
+    if (defaultCardTypeIndex !== -1) {
+        query.cardTypeIds.splice(defaultCardTypeIndex, 1);
+    }
     const cardTypeIdsString = query.cardTypeIds.join(",");
-    if (query.cardTypeIds.length > 0 && query.defaultCardType) {
+    if (query.cardTypeIds.length > 0 && defaultCardTypeIndex !== -1) {
         queryBuilder = queryBuilder.where(
             sql<SqlBool>`(cardType IN (${sql.raw(cardTypeIdsString)}) OR cardType IS NULL)`,
         );
     } else if (query.cardTypeIds.length > 0) {
         queryBuilder = queryBuilder.where(sql<SqlBool>`cardType IN (${sql.raw(cardTypeIdsString)})`);
-    } else if (query.defaultCardType) {
+    } else if (defaultCardTypeIndex !== -1) {
         queryBuilder = queryBuilder.where(sql<SqlBool>`cardType IS NULL`);
     }
+    // Note: If no card types selected and defaultCardType = true, no filtering is applied
     // END: Special handling for default card type (NULL in DB)
     if (query.sizeIds.length > 0) {
         const ids = query.sizeIds.join(",");
@@ -476,26 +486,20 @@ export async function getPhotocardsInDB(query: SearchQuery): Promise<Result<Phot
         const ids = query.exclusiveCountryIds.join(",");
         queryBuilder = queryBuilder.where(sql<SqlBool>`exclusiveCountry IN (${sql.raw(ids)})`);
     }
-    if (query.rm) {
-        queryBuilder = queryBuilder.where(sql<SqlBool>`rm = 1`);
-    }
-    if (query.jin) {
-        queryBuilder = queryBuilder.where(sql<SqlBool>`jin = 1`);
-    }
-    if (query.suga) {
-        queryBuilder = queryBuilder.where(sql<SqlBool>`suga = 1`);
-    }
-    if (query.jhope) {
-        queryBuilder = queryBuilder.where(sql<SqlBool>`jhope = 1`);
-    }
-    if (query.jimin) {
-        queryBuilder = queryBuilder.where(sql<SqlBool>`jimin = 1`);
-    }
-    if (query.v) {
-        queryBuilder = queryBuilder.where(sql<SqlBool>`v = 1`);
-    }
-    if (query.jungkook) {
-        queryBuilder = queryBuilder.where(sql<SqlBool>`jungkook = 1`);
+
+    // Member filters - OR condition (match any selected member)
+    const memberConditions: string[] = [];
+    if (query.rm) memberConditions.push("rm = 1");
+    if (query.jin) memberConditions.push("jin = 1");
+    if (query.suga) memberConditions.push("suga = 1");
+    if (query.jhope) memberConditions.push("jhope = 1");
+    if (query.jimin) memberConditions.push("jimin = 1");
+    if (query.v) memberConditions.push("v = 1");
+    if (query.jungkook) memberConditions.push("jungkook = 1");
+
+    if (memberConditions.length > 0) {
+        const memberConditionString = memberConditions.join(" OR ");
+        queryBuilder = queryBuilder.where(sql<SqlBool>`(${sql.raw(memberConditionString)})`);
     }
 
     // Ordering
@@ -505,17 +509,28 @@ export async function getPhotocardsInDB(query: SearchQuery): Promise<Result<Phot
             // Nothing to do for these, handled on client side (with collection release dates)
             if (query.collectionIds.length === 0) {
                 return { error: "Release date sorting requires at least one collection filter." };
+            } else if (query.collectionIds.length > NUM_LOAD_COLLECTIONS) {
+                return {
+                    error: `Cannot load more than ${NUM_LOAD_COLLECTIONS} collections when sorting by release date.`,
+                };
             }
             break;
         case SortType.DateAddedAsc:
-            queryBuilder = queryBuilder.orderBy("updatedAt", "asc");
+            if (query.updateDate) {
+                queryBuilder = queryBuilder.where("updatedAt", ">", query.updateDate.getTime());
+            }
+            queryBuilder = queryBuilder.orderBy("updatedAt", "asc").limit(NUM_LOAD_PHOTOCARDS);
             break;
         case SortType.DateAddedDesc:
-            queryBuilder = queryBuilder.orderBy("updatedAt", "desc");
+            if (query.updateDate) {
+                queryBuilder = queryBuilder.where("updatedAt", "<", query.updateDate.getTime());
+            }
+            queryBuilder = queryBuilder.orderBy("updatedAt", "desc").limit(NUM_LOAD_PHOTOCARDS);
             break;
         default:
             return { error: "Invalid sort type." };
     }
 
-    return { data: await queryBuilder.limit(14).execute() };
+    const queryString = queryBuilder.compile().sql;
+    return { data: { cards: await queryBuilder.execute(), query: queryString } };
 }

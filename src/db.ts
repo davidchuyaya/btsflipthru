@@ -132,6 +132,8 @@ export interface CardType {
     name: string;
 }
 
+export const DEFAULT_CARD_TYPE: CardType = { id: -1, name: "Standard" };
+
 export interface CardSize {
     id?: number;
     name: string;

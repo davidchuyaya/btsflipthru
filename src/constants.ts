@@ -3,6 +3,9 @@ export const MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024; // 10MB. Enforced by Cloud
 export const CACHE_DURATION_MS = 5 * 60 * 1000; // 5 minutes before metadata is refetched
 export const THUMBNAIL_DISPLAY_HEIGHT_PX = 200;
 export const THUMBNAIL_COMPRESSION_HEIGHT_PX = THUMBNAIL_DISPLAY_HEIGHT_PX * 2; // To reduce compression artifacts
+export const NUM_HOME_PHOTOCARDS = 14;
+export const NUM_LOAD_PHOTOCARDS = 28;
+export const NUM_LOAD_COLLECTIONS = 5;
 export const CLOUDFLARE_TURNSTILE_SITE_KEY = "0x4AAAAAACJg4L7-eUjaAdjN";
 export const CLOUDINARY_CLOUD_NAME = "dddxuuyxu";
 export const CLOUDINARY_API_KEY = "688582694844734";
@@ -122,7 +125,6 @@ export type SortType = (typeof SortType)[keyof typeof SortType];
 export type SearchQuery = {
     collectionIds: number[];
     cardTypeIds: number[];
-    defaultCardType: boolean;
     sizeIds: number[];
     exclusiveCountryIds: number[];
     rm: boolean;
@@ -133,4 +135,5 @@ export type SearchQuery = {
     v: boolean;
     jungkook: boolean;
     sortBy: SortType;
+    updateDate: Date | null;
 };
