@@ -155,11 +155,13 @@ export default function AboutComponent() {
                 <div className="relative w-65 h-40 mt-2 mb-20">
                     <PhotocardComponent
                         src={null}
+                        fallbackSrc={null}
                         effects={Effects.Matte}
                         className="absolute top-0 left-0 -rotate-15"
                     />
                     <PhotocardComponent
                         src={null}
+                        fallbackSrc={null}
                         placeholderType={PlaceholderType.ARMY}
                         effects={Effects.Matte}
                         className="absolute top-6 right-0 rotate-13 z-10"
@@ -174,7 +176,7 @@ export default function AboutComponent() {
             <div className="page-section">
                 <h2>Kate</h2>
                 <div className="flex flex-row gap-8 items-start">
-                    <PhotocardComponent src="/aboutkate.png" effects={Effects.Glossy} manualRadius />
+                    <PhotocardComponent src="/aboutkate.png" fallbackSrc={null} effects={Effects.Glossy} manualRadius />
                     <div className="page-body text-start items-start!">
                         <p>
                             After pulling my first photocard in 2020, I became an avid collector, concert-goer, and
@@ -203,7 +205,7 @@ export default function AboutComponent() {
             <div className="page-section">
                 <h2>David</h2>
                 <div className="flex flex-row gap-8 items-start">
-                    <PhotocardComponent src="/aboutdavid.png" effects={Effects.Shiny} manualRadius />
+                    <PhotocardComponent src="/aboutdavid.png" fallbackSrc={null} effects={Effects.Shiny} manualRadius />
                     <div className="page-body text-start items-start!">
                         <p>
                             I've only pulled a few photocards in my time, but thanks to my marriage to Kate, together we

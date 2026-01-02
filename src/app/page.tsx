@@ -16,7 +16,6 @@ import BigProgressBar from "./big-progress-bar";
 import PhotocardComponent from "./photocard";
 import CountdownClock from "./countdown-clock";
 import { useMetadata } from "@/metadata-context";
-import { set } from "zod";
 import { Button } from "@/components/ui/button";
 
 function HomeButton({ text, href }: { text: string; href: string }) {
@@ -33,15 +32,17 @@ function HomeButton({ text, href }: { text: string; href: string }) {
 function PhotocardLeaderboard({
     title,
     photoSrc,
+    fallbackSrc,
     description,
 }: {
     title: string;
     photoSrc: string | null;
+    fallbackSrc: string | null;
     description: string;
 }) {
     return (
         <div className="flex flex-col items-center">
-            <PhotocardComponent src={photoSrc} effects={Effects.Matte} />
+            <PhotocardComponent src={photoSrc} fallbackSrc={fallbackSrc} effects={Effects.Matte} />
             <h3 className="mt-4">{title}</h3>
             <p>{description}</p>
         </div>
@@ -75,41 +76,6 @@ export default function Home() {
     const [totalPhotocards, setTotalPhotocards] = useState<number>(0);
     const [photocardsWithoutImages, setPhotocardsWithoutImages] = useState<number>(0);
     const { setError, collections, cardTypes } = useMetadata();
-
-    // Testing code
-    // function getTestPhotocards(): Photocard[] {
-    //     const photocard: Photocard = {
-    //         collectionId: 1,
-    //         imageId: null,
-    //         backImageId: null,
-    //         backImageType: BackImageType.Image,
-    //         cardType: 1,
-    //         sizeId: 1,
-    //         effects: Effects.Matte,
-    //         exclusiveCountry: ExclusiveCountry.Global,
-    //         modTemporary: false,
-    //         adminTemporary: false,
-    //         rm: false,
-    //         jimin: false,
-    //         jungkook: false,
-    //         v: false,
-    //         jin: false,
-    //         suga: false,
-    //         jhope: false,
-    //         imageContributorId: "test",
-    //         updatedAt: Date.now(),
-    //     };
-    //     const imageIds = ["801c7740-f720-4897-b810-d3b4b2efb8f0",
-    //         "360d3a45-d43f-45f9-817a-2ac6bf3682c4", "53fbde39-2797-40fb-a429-dca37ce276fe", "d7343d88-af69-4f8b-a0b4-b999899a8209", "fc859e3a-d173-46c5-8860-f3af8a6493c3", "ed6cd127-85c6-432a-96b5-789b4e9f0a18"
-    //     ];
-    //     const photocards: Photocard[] = [];
-    //     for (let i = 0; i < 50; i++) {
-    //         photocard.id = i + 1;
-    //         photocard.imageId = imageIds[i % imageIds.length];
-    //         photocards.push({ ...photocard });
-    //     }
-    //     return photocards;
-    // }
 
     useEffect(() => {
         getRecentlyAddedPhotocardsInDB().then((cards) => {
@@ -191,6 +157,7 @@ export default function Home() {
                     <PhotocardLeaderboard
                         title="Most Contributions"
                         photoSrc={mostContributionsUser?.imageId ?? null}
+                        fallbackSrc={mostContributionsUser?.imageId ?? null}
                         description={
                             mostContributionsUser?.username ? `@${mostContributionsUser.username}` : "Loading..."
                         }
@@ -198,6 +165,7 @@ export default function Home() {
                     <PhotocardLeaderboard
                         title="Most Owned"
                         photoSrc={mostOwnedPhotocard?.imageId ?? null}
+                        fallbackSrc={mostOwnedPhotocard?.backImageId ?? null}
                         description={
                             mostOwnedPhotocard
                                 ? photocardToName(mostOwnedPhotocard, collections, cardTypes)
@@ -208,6 +176,7 @@ export default function Home() {
                     <PhotocardLeaderboard
                         title="Most Wishlisted"
                         photoSrc={mostWishlistedPhotocard?.imageId ?? null}
+                        fallbackSrc={mostWishlistedPhotocard?.backImageId ?? null}
                         description={
                             mostWishlistedPhotocard
                                 ? photocardToName(mostWishlistedPhotocard, collections, cardTypes)

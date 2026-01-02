@@ -107,3 +107,30 @@ export function generateSignedParams(createThumbnail: boolean): CloudinarySigned
     }
     return params;
 }
+
+export const SortType = {
+    ReleaseDateAsc: "Release Date ↑",
+    ReleaseDateDesc: "Release Date ↓",
+    DateAddedAsc: "Date Added ↑",
+    DateAddedDesc: "Date Added ↓",
+};
+export type SortType = (typeof SortType)[keyof typeof SortType];
+
+/**
+ * Empty array parameters = don't filter by that parameter
+ */
+export type SearchQuery = {
+    collectionIds: number[];
+    cardTypeIds: number[];
+    defaultCardType: boolean;
+    sizeIds: number[];
+    exclusiveCountryIds: number[];
+    rm: boolean;
+    jin: boolean;
+    suga: boolean;
+    jhope: boolean;
+    jimin: boolean;
+    v: boolean;
+    jungkook: boolean;
+    sortBy: SortType;
+};

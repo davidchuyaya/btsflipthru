@@ -58,7 +58,9 @@ CREATE TABLE IF NOT EXISTS collections (
     id INTEGER PRIMARY KEY,
     name TEXT NOT NULL,
     releaseDate INTEGER NOT NULL,
-    collectionTypes TEXT NOT NULL
+    collectionTypes TEXT NOT NULL,
+    version TEXT,
+    versionOrder INTEGER
 );
 
 -- CardSize table

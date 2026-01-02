@@ -20,7 +20,7 @@ import { ImageDropzone, ImageDropzoneRef } from "../image-dropzone";
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import TooltipComponent from "@/components/ui/tooltip";
 import MultiCombobox from "@/components/ui/multi-combobox";
-import { uploadImage } from "@/actions-client";
+import { cardSizeToString, createCardSizeFromString, uploadImage } from "@/actions-client";
 
 interface LocalPhotocard {
     frontImage: File | null;
@@ -50,6 +50,8 @@ const formSchema = z.object({
             }),
         )
         .min(1, "At least one collection category must be selected"),
+    version: z.string(),
+    versionOrder: z.number().min(1, "Version order must be at least 1").optional(),
     photocards: z
         .array(
             z.object({
@@ -114,27 +116,14 @@ function CreatePhotocardRowComponent({
         }
     }
 
-    function createCardSizeFromString(sizeString: string) {
+    function createCardSizeFromInputs(sizeString: string) {
         // Match format: "Name WidthxHeight" (e.g., "Standard 55x85")
-        const match = sizeString.match(/^(.+?)\s+(\d+)\s*x\s*(\d+)$/i);
-        if (!match) {
-            setError('Please provide dimensions in the format "Name WidthxHeight" (e.g., "Standard 55x85")');
+        const result = createCardSizeFromString(sizeString);
+        if (result.error) {
+            setError(result.error);
             return;
         }
-
-        const name = match[1].trim();
-        if (name === "") {
-            setError("Name cannot be empty.");
-            return;
-        }
-
-        const width = Number(match[2]);
-        const height = Number(match[3]);
-        if (isNaN(width) || isNaN(height) || width <= 0 || height <= 0) {
-            setError("Width and height must be positive numbers.");
-            return;
-        }
-        onCreateCardSize({ name, width, height }, index);
+        onCreateCardSize(result.data!, index);
     }
 
     const frontImage = useWatch({ control, name: `photocards.${index}.frontImage` });
@@ -328,10 +317,10 @@ function CreatePhotocardRowComponent({
                         <Field data-invalid={fieldState.invalid}>
                             <div className="flex justify-center w-full">
                                 <Combobox
-                                    items={possibleCardSizes.map((cs) => [`${cs.name} ${cs.width}x${cs.height}`, cs])}
+                                    items={possibleCardSizes.map((cs) => [cardSizeToString(cs), cs])}
                                     value={field.value}
                                     onValueChange={field.onChange}
-                                    onCreate={createCardSizeFromString}
+                                    onCreate={createCardSizeFromInputs}
                                     isEqual={(a, b) => a?.id === b?.id && a?.name === b?.name}
                                 />
                             </div>
@@ -416,6 +405,8 @@ export default function CreateCollectionComponent() {
         defaultValues: {
             collectionName: "",
             releaseDate: "",
+            version: "",
+            versionOrder: undefined,
             collectionTypes: [{ name: "", id: undefined }],
             photocards: [getDefaultPhotocard()],
         },
@@ -521,6 +512,8 @@ export default function CreateCollectionComponent() {
             name: data.collectionName,
             releaseDate: new Date(data.releaseDate),
             collectionTypes: collectionTypesIds,
+            version: data.version === "" ? null : data.version,
+            versionOrder: data.versionOrder ?? null,
         };
 
         // Find the number of unique images we have to upload
@@ -666,6 +659,51 @@ export default function CreateCollectionComponent() {
 
                     <Controller
                         control={form.control}
+                        name="version"
+                        render={({ field }) => (
+                            <Field orientation="horizontal">
+                                <FieldContent>
+                                    <FieldLabel>Version Name (Optional)</FieldLabel>
+                                    <FieldDescription>
+                                        Is this release title one of multiple versions?{" "}
+                                        <i>(Ex: Love Yourself: Answer has 4 versions: S, E, L, and F.)</i>
+                                    </FieldDescription>
+                                </FieldContent>
+                                <Input {...field} id={field.name} className="max-w-50" placeholder="S" />
+                            </Field>
+                        )}
+                    />
+
+                    <Controller
+                        control={form.control}
+                        name="versionOrder"
+                        render={({ field, fieldState }) => (
+                            <Field data-invalid={fieldState.invalid} orientation="horizontal">
+                                <FieldContent>
+                                    <FieldLabel>Version Order (Optional)</FieldLabel>
+                                    <FieldDescription>
+                                        If there are multiple versions, what order should this be in?{" "}
+                                        <i>(Ex: S, E, L, F are ordered 1, 2, 3, 4 respectively.)</i>
+                                    </FieldDescription>
+                                    {fieldState.error && <FieldError errors={[fieldState.error]} />}
+                                </FieldContent>
+                                <Input
+                                    {...field}
+                                    id={field.name}
+                                    type="number"
+                                    value={field.value ?? ""}
+                                    onChange={(e) =>
+                                        field.onChange(e.target.value === "" ? undefined : Number(e.target.value))
+                                    }
+                                    className="max-w-20"
+                                    placeholder="1"
+                                />
+                            </Field>
+                        )}
+                    />
+
+                    <Controller
+                        control={form.control}
                         name="releaseDate"
                         render={({ field, fieldState }) => (
                             <Field data-invalid={fieldState.invalid} orientation="horizontal">
@@ -761,7 +799,7 @@ export default function CreateCollectionComponent() {
                             </TableHead>
                             <TableHead>
                                 <div className="table-head-horizontal">
-                                    Size
+                                    Size (mm)
                                     <TooltipComponent>
                                         What is the size category and exact dimensions, in millimeters, of the physical
                                         photocard? <i>(Ex: "Standard 55x85")</i>

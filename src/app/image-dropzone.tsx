@@ -137,7 +137,7 @@ export const ImageDropzone = forwardRef<
                 </div>
                 {expand ? ( // Don't show unless expanded
                     photocard ? ( // If photocard
-                        <PhotocardComponent src={image} className={imgClassName} effects={effects!} />
+                        <PhotocardComponent src={image} fallbackSrc={null} className={imgClassName} effects={effects!} />
                     ) : image ? ( // If not photocard, show normal image
                         <img
                             src={image}

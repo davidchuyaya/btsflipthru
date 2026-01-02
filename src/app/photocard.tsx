@@ -5,16 +5,20 @@ import { Effects } from "@/db";
 import { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 
-async function detectBorderRadius(imageUrl: string): Promise<number> {
+const DEFAULT_ASPECT_RATIO = "11 / 17"; // Standard photocard aspect ratio 55mm x 85mm
+
+async function detectBorderRadiusAndRatio(imageUrl: string): Promise<{ borderRadius: number; aspectRatio: string }> {
     return new Promise((resolve) => {
         const img = new Image();
         img.crossOrigin = "anonymous";
         img.src = imageUrl;
 
         img.onload = () => {
+            // Extract aspect ratio
+            const aspectRatio = `${img.naturalWidth} / ${img.naturalHeight}`;
             const canvas = document.createElement("canvas");
             const ctx = canvas.getContext("2d", { willReadFrequently: true });
-            if (!ctx) return resolve(0);
+            if (!ctx) return resolve({ borderRadius: 0, aspectRatio: aspectRatio });
 
             // We only need to sample a small corner for performance
             const sampleSize = Math.min(img.width, img.height) / 2;
@@ -38,27 +42,31 @@ async function detectBorderRadius(imageUrl: string): Promise<number> {
                     // In a circle, the distance from (0,0) to the curve at 45°
                     // is roughly r * (2 - √2)
                     const radius = i / (1 - Math.SQRT1_2);
-                    resolve(Math.ceil((radius * THUMBNAIL_DISPLAY_HEIGHT_PX) / img.naturalHeight));
+                    resolve({
+                        borderRadius: Math.ceil((radius * THUMBNAIL_DISPLAY_HEIGHT_PX) / img.naturalHeight),
+                        aspectRatio: aspectRatio,
+                    });
                     return;
                 }
             }
-            resolve(0);
+            resolve({ borderRadius: 0, aspectRatio: aspectRatio });
         };
     });
 }
 
 export enum PlaceholderType {
     BTS = "/bts logo.svg",
-    ARMY = "/army logo.svg"
+    ARMY = "/army logo.svg",
 }
 
-function PlaceholderComponent({ type }: { type: PlaceholderType }) {
+function PlaceholderComponent({ type, borderRadius, aspectRatio }: { type: PlaceholderType; borderRadius: number; aspectRatio: string }) {
     return (
         <div
-            className="bg-accent flex items-center justify-center rounded-[16]"
+            className="bg-accent flex items-center justify-center"
             style={{
                 height: `${THUMBNAIL_DISPLAY_HEIGHT_PX}px`,
-                aspectRatio: "11 / 17", // Standard photocard aspect ratio 55mm x 85mm
+                aspectRatio: aspectRatio,
+                borderRadius: `${borderRadius}px`,
             }}
         >
             <img
@@ -75,26 +83,38 @@ function PlaceholderComponent({ type }: { type: PlaceholderType }) {
 export default function PhotocardComponent({
     className,
     src,
+    fallbackSrc, // If the src is not available, use this as the basis for the placeholder aspect ratio and border radius
     effects,
     manualRadius = false,
     placeholderType = PlaceholderType.BTS,
 }: {
     className?: string;
     src: string | null;
+    fallbackSrc: string | null;
     effects: Effects;
     manualRadius?: boolean;
     placeholderType?: PlaceholderType;
 }) {
     const [borderRadius, setBorderRadius] = useState<number>(16);
+    const [aspectRatio, setAspectRatio] = useState<string>(DEFAULT_ASPECT_RATIO);
     const hostRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
-        if (src && !manualRadius) detectBorderRadius(src).then(setBorderRadius);
-    }, [src, manualRadius]);
+        if (src && !manualRadius)
+            detectBorderRadiusAndRatio(src).then(({ borderRadius, aspectRatio }) => {
+                setBorderRadius(borderRadius);
+                setAspectRatio(aspectRatio);
+            });
+        else if (fallbackSrc && !manualRadius)
+            detectBorderRadiusAndRatio(fallbackSrc).then(({ borderRadius, aspectRatio }) => {
+                setBorderRadius(borderRadius);
+                setAspectRatio(aspectRatio);
+            });
+    }, [src, fallbackSrc, manualRadius]);
 
     useEffect(() => {
         init();
-    }, [src, className, effects, borderRadius]);
+    }, [src, fallbackSrc, className, effects, borderRadius, aspectRatio]);
 
     async function init() {
         await import("hover-tilt/web-component");
@@ -132,12 +152,12 @@ export default function PhotocardComponent({
         if (!src) {
             // 1. Create a wrapper div to hold the React tree
             const placeholderContainer = document.createElement("div");
-            placeholderContainer.className = "rounded-[16px]";
+            placeholderContainer.style.borderRadius = `${borderRadius}px`;
             el.appendChild(placeholderContainer);
 
             // 2. Mount the React component into that div
             const root = createRoot(placeholderContainer);
-            root.render(<PlaceholderComponent type={placeholderType} />);
+            root.render(<PlaceholderComponent type={placeholderType} borderRadius={borderRadius} aspectRatio={aspectRatio} />);
         } else {
             const img = document.createElement("img");
             img.src = src;

@@ -143,6 +143,8 @@ export interface Collection {
     id?: number;
     name: string;
     releaseDate: number;
+    version: string | null;
+    versionOrder: number | null;
     collectionTypes: string; // Array of collection type IDs stored as a string
 }
 
@@ -152,6 +154,8 @@ export function parseCollection(collection: Collection): ParsedCollection {
         name: collection.name,
         releaseDate: new Date(collection.releaseDate),
         collectionTypes: collection.collectionTypes.split(SEPARATOR).map(Number),
+        version: collection.version,
+        versionOrder: collection.versionOrder,
     };
 }
 
@@ -160,6 +164,8 @@ export interface ParsedCollection {
     name: string;
     releaseDate: Date;
     collectionTypes: number[];
+    version: string | null;
+    versionOrder: number | null;
 }
 
 export function serializeCollection(collection: ParsedCollection): Collection {
@@ -168,6 +174,8 @@ export function serializeCollection(collection: ParsedCollection): Collection {
         name: collection.name,
         releaseDate: collection.releaseDate.getTime(),
         collectionTypes: collection.collectionTypes.join(SEPARATOR),
+        version: collection.version,
+        versionOrder: collection.versionOrder,
     };
 }
 

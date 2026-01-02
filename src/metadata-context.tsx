@@ -201,6 +201,7 @@ export function MetadataProvider({ children }: { children: ReactNode }) {
             setError(`Server error: ${result.error}`);
             return false;
         } else {
+            collection.id = Number(result.data);
             const newCollections = [...collections, collection];
             setCollections(newCollections);
             setToStorage(STORAGE_KEYS.collections, newCollections);

@@ -15,10 +15,18 @@ import {
     UserData,
     PhotocardData,
 } from "@/db";
-import { Result, generateSignedParams, PresignedUrl, CLOUDINARY_API_KEY, CLOUDINARY_CLOUD_NAME } from "@/constants";
+import {
+    Result,
+    generateSignedParams,
+    PresignedUrl,
+    CLOUDINARY_API_KEY,
+    CLOUDINARY_CLOUD_NAME,
+    SortType,
+    SearchQuery,
+} from "@/constants";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { v2 as cloudinary } from "cloudinary";
-import { User } from "better-auth";
+import { sql, type SqlBool } from "kysely";
 
 function getEnv() {
     const { env } = getCloudflareContext();
@@ -160,7 +168,7 @@ export async function generateSignedUploadUrlForPhotocards(numPhotocards: number
     return { data: signatures };
 }
 
-export async function addCollectionToDB(collection: Collection, photocards: Photocard[]): Promise<Result<boolean>> {
+export async function addCollectionToDB(collection: Collection, photocards: Photocard[]): Promise<Result<number>> {
     const session = await getSession();
     if (session.error) {
         return { error: session.error };
@@ -232,7 +240,7 @@ export async function addCollectionToDB(collection: Collection, photocards: Phot
         return { error: "Could not add photocards to database." };
     }
 
-    return { data: true };
+    return { data: collectionId.data! };
 }
 
 export async function getCollectionsFromDB(): Promise<ParsedCollection[]> {
@@ -430,4 +438,84 @@ export async function getRecentlyAddedPhotocardsInDB() {
         .orderBy("updatedAt", "desc")
         .limit(14)
         .execute();
+}
+
+export async function getPhotocardsInDB(query: SearchQuery): Promise<Result<Photocard[]>> {
+    const database = getDb();
+    let queryBuilder = database.selectFrom("photocards").selectAll();
+
+    // TODO: Don't hardcode once we migrate away from D1
+    // Filters - Hardcoded into SQL to avoid variables (for D1)
+    // Convert all array elements to numbers first to prevent SQL injection
+    query.collectionIds = query.collectionIds.map(Number);
+    query.cardTypeIds = query.cardTypeIds.map(Number);
+    query.sizeIds = query.sizeIds.map(Number);
+    query.exclusiveCountryIds = query.exclusiveCountryIds.map(Number);
+
+    if (query.collectionIds.length > 0) {
+        const ids = query.collectionIds.join(",");
+        queryBuilder = queryBuilder.where(sql<SqlBool>`collectionId IN (${sql.raw(ids)})`);
+    }
+    // START: Special handling for default card type (NULL in DB), uses OR condition
+    const cardTypeIdsString = query.cardTypeIds.join(",");
+    if (query.cardTypeIds.length > 0 && query.defaultCardType) {
+        queryBuilder = queryBuilder.where(
+            sql<SqlBool>`(cardType IN (${sql.raw(cardTypeIdsString)}) OR cardType IS NULL)`,
+        );
+    } else if (query.cardTypeIds.length > 0) {
+        queryBuilder = queryBuilder.where(sql<SqlBool>`cardType IN (${sql.raw(cardTypeIdsString)})`);
+    } else if (query.defaultCardType) {
+        queryBuilder = queryBuilder.where(sql<SqlBool>`cardType IS NULL`);
+    }
+    // END: Special handling for default card type (NULL in DB)
+    if (query.sizeIds.length > 0) {
+        const ids = query.sizeIds.join(",");
+        queryBuilder = queryBuilder.where(sql<SqlBool>`sizeId IN (${sql.raw(ids)})`);
+    }
+    if (query.exclusiveCountryIds.length > 0) {
+        const ids = query.exclusiveCountryIds.join(",");
+        queryBuilder = queryBuilder.where(sql<SqlBool>`exclusiveCountry IN (${sql.raw(ids)})`);
+    }
+    if (query.rm) {
+        queryBuilder = queryBuilder.where(sql<SqlBool>`rm = 1`);
+    }
+    if (query.jin) {
+        queryBuilder = queryBuilder.where(sql<SqlBool>`jin = 1`);
+    }
+    if (query.suga) {
+        queryBuilder = queryBuilder.where(sql<SqlBool>`suga = 1`);
+    }
+    if (query.jhope) {
+        queryBuilder = queryBuilder.where(sql<SqlBool>`jhope = 1`);
+    }
+    if (query.jimin) {
+        queryBuilder = queryBuilder.where(sql<SqlBool>`jimin = 1`);
+    }
+    if (query.v) {
+        queryBuilder = queryBuilder.where(sql<SqlBool>`v = 1`);
+    }
+    if (query.jungkook) {
+        queryBuilder = queryBuilder.where(sql<SqlBool>`jungkook = 1`);
+    }
+
+    // Ordering
+    switch (query.sortBy) {
+        case SortType.ReleaseDateAsc:
+        case SortType.ReleaseDateDesc:
+            // Nothing to do for these, handled on client side (with collection release dates)
+            if (query.collectionIds.length === 0) {
+                return { error: "Release date sorting requires at least one collection filter." };
+            }
+            break;
+        case SortType.DateAddedAsc:
+            queryBuilder = queryBuilder.orderBy("updatedAt", "asc");
+            break;
+        case SortType.DateAddedDesc:
+            queryBuilder = queryBuilder.orderBy("updatedAt", "desc");
+            break;
+        default:
+            return { error: "Invalid sort type." };
+    }
+
+    return { data: await queryBuilder.limit(14).execute() };
 }
