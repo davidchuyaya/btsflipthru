@@ -212,9 +212,6 @@ export default function NavigationComponent() {
                     )}
                 </NavigationMenuList>
             </NavigationMenu>
-            <Button hidden={!isAtLeastMod(session)} asChild>
-                <Link href="/createCollection">Add to Archive</Link>
-            </Button>
         </>
     );
 }

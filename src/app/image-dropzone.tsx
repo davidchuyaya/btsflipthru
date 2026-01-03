@@ -20,7 +20,7 @@ export const ImageDropzone = forwardRef<
         disableUpload?: boolean;
         className?: string;
         imgClassName?: string;
-        forceImage?: File | null;
+        image?: File | string | null;
         onImageChanged: (image: File) => void;
         onDelete: () => void;
         shortDescription?: boolean;
@@ -36,7 +36,7 @@ export const ImageDropzone = forwardRef<
             disableUpload,
             className,
             imgClassName,
-            forceImage,
+            image: imageProp,
             onImageChanged,
             onDelete,
             shortDescription = false,
@@ -47,28 +47,48 @@ export const ImageDropzone = forwardRef<
         ref,
     ) => {
         const [fileName, setFileName] = useState<string | null>(null);
-        // URL created with URL.createObjectURL. Should garbage collect when not used
-        const [image, setImage] = useState<string | null>(null);
+        // URL created with URL.createObjectURL or string URL.
+        const [displayUrl, setDisplayUrl] = useState<string | null>(null);
+        // Keep track if we created the object URL to revoke it
+        const objectUrlRef = useRef<string | null>(null);
 
         useEffect(() => {
-            if (forceImage) {
-                renderImage(forceImage);
+            if (imageProp instanceof File) {
+                if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
+                const url = URL.createObjectURL(imageProp);
+                objectUrlRef.current = url;
+                setDisplayUrl(url);
+                setFileName(imageProp.name);
+            } else if (typeof imageProp === "string") {
+                if (objectUrlRef.current) {
+                    URL.revokeObjectURL(objectUrlRef.current);
+                    objectUrlRef.current = null;
+                }
+                setDisplayUrl(imageProp);
+                setFileName("Existing Image");
+            } else {
+                if (objectUrlRef.current) {
+                    URL.revokeObjectURL(objectUrlRef.current);
+                    objectUrlRef.current = null;
+                }
+                setDisplayUrl(null);
+                setFileName(null);
             }
-        }, [forceImage]);
+        }, [imageProp]);
 
         // Cleanup on unmount
         useEffect(() => {
             return () => {
-                if (image) {
-                    URL.revokeObjectURL(image);
+                if (objectUrlRef.current) {
+                    URL.revokeObjectURL(objectUrlRef.current);
                 }
             };
-        }, [image]);
+        }, []);
 
         // Expose delete method
         useImperativeHandle(ref, () => ({
             delete() {
-                deleteImage();
+                onDeleteClicked();
             },
         }));
 
@@ -80,32 +100,11 @@ export const ImageDropzone = forwardRef<
             maxSize: MAX_IMAGE_SIZE_BYTES,
             onDropAccepted(files, event) {
                 const file = files[0];
-                renderImage(file);
                 onImageChanged(file);
             },
         });
 
-        function renderImage(file: File) {
-            if (image) {
-                // Garbage collect existing image
-                URL.revokeObjectURL(image);
-            }
-            const url = URL.createObjectURL(file);
-            setImage(url);
-            setFileName(file.name);
-        }
-
-        function deleteImage() {
-            if (image) {
-                URL.revokeObjectURL(image);
-            }
-            setImage(null);
-            setFileName(null);
-        }
-
         function onDeleteClicked() {
-            deleteImage();
-            // Tell the parent
             onDelete();
         }
 
@@ -129,7 +128,7 @@ export const ImageDropzone = forwardRef<
                             </>
                         )}
                     </div>
-                    {image && !disableUpload && (
+                    {displayUrl && !disableUpload && (
                         <Button type="button" onClick={onDeleteClicked} size="icon">
                             <Trash2Icon />
                         </Button>
@@ -137,10 +136,15 @@ export const ImageDropzone = forwardRef<
                 </div>
                 {expand ? ( // Don't show unless expanded
                     photocard ? ( // If photocard
-                        <PhotocardComponent src={image} fallbackSrc={null} className={imgClassName} effects={effects!} />
-                    ) : image ? ( // If not photocard, show normal image
+                        <PhotocardComponent
+                            src={displayUrl}
+                            fallbackSrc={null}
+                            className={imgClassName}
+                            effects={effects!}
+                        />
+                    ) : displayUrl ? ( // If not photocard, show normal image
                         <img
-                            src={image}
+                            src={displayUrl}
                             className={`${imgClassName} object-scale-down w-auto! max-w-none flex-auto`}
                             alt="Preview"
                             height={THUMBNAIL_DISPLAY_HEIGHT_PX}

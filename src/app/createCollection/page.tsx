@@ -1,9 +1,19 @@
 "use client";
 
-import { useState, useMemo, useEffect, useRef } from "react";
-import { membersToBooleans, NameToMember, PresignedUrl, ReportType, reportWindowURL, Result } from "@/constants";
+import { useState, useMemo, useEffect, useRef, Suspense } from "react";
+import {
+    membersToBooleans,
+    booleansToMembers,
+    NameToMember,
+    PresignedUrl,
+    ReportType,
+    reportWindowURL,
+    Result,
+    fullSizeUrl,
+    thumbnailUrl,
+} from "@/constants";
 import { useMetadata } from "@/metadata-context";
-import { generateSignedUploadUrlForPhotocards } from "@/actions";
+import { generateSignedUploadUrlForPhotocards, getCollectionForEdit, updateCollectionInDB } from "@/actions";
 import {
     BackImageType,
     CardSize,
@@ -13,6 +23,7 @@ import {
     ExclusiveCountry,
     ParsedCollection,
     Photocard,
+    Role,
 } from "@/db";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -23,6 +34,7 @@ import { Controller, FormProvider, useFieldArray, useForm, useFormContext, useWa
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { toast } from "sonner";
+import { useSearchParams, useRouter } from "next/navigation";
 import { Field, FieldLabel, FieldError, FieldGroup, FieldDescription, FieldContent } from "@/components/ui/field";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { ImageDropzone, ImageDropzoneRef } from "../image-dropzone";
@@ -30,11 +42,15 @@ import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, Table
 import TooltipComponent from "@/components/ui/tooltip";
 import MultiCombobox from "@/components/ui/multi-combobox";
 import { cardSizeToString, createCardSizeFromString, uploadImage } from "@/actions-client";
+import { isAtLeastMod } from "@/auth-client";
 
 interface LocalPhotocard {
+    id?: number;
     frontImage: File | null;
+    frontImageId?: string | null;
     effects: Effects;
     backImage: File | null;
+    backImageId?: string | null;
     backImageType: BackImageType;
     members: NameToMember[];
     cardSize?: CardSize;
@@ -64,9 +80,12 @@ const formSchema = z.object({
     photocards: z
         .array(
             z.object({
+                id: z.number().optional(),
                 frontImage: z.instanceof(File).nullable(),
+                frontImageId: z.string().optional().nullable(),
                 effects: z.enum(Effects),
                 backImage: z.instanceof(File).nullable(),
+                backImageId: z.string().optional().nullable(),
                 backImageType: z.enum(BackImageType),
                 members: z.array(z.enum(NameToMember)).min(1, "At least one member must be selected"),
                 cardSize: z
@@ -99,6 +118,7 @@ function CreatePhotocardRowComponent({
     onCreateCardSize,
     onRemovePhotocard,
     expandImages,
+    isLocked,
 }: {
     index: number;
     cardSizes: Array<CardSize>;
@@ -109,6 +129,7 @@ function CreatePhotocardRowComponent({
     onCreateCardSize: (cardSize: CardSize, index: number) => void;
     onRemovePhotocard: () => void;
     expandImages: boolean;
+    isLocked: boolean;
 }) {
     const { setError } = useMetadata();
     const { control, getValues, setValue } = useFormContext<z.infer<typeof formSchema>>();
@@ -136,27 +157,30 @@ function CreatePhotocardRowComponent({
     }
 
     const frontImage = useWatch({ control, name: `photocards.${index}.frontImage` });
+    const frontImageId = useWatch({ control, name: `photocards.${index}.frontImageId` });
     const backImage = useWatch({ control, name: `photocards.${index}.backImage` });
+    const backImageId = useWatch({ control, name: `photocards.${index}.backImageId` });
     const backImageType = useWatch({ control, name: `photocards.${index}.backImageType` });
 
     const bothFrontAndBackUploaded = useMemo(() => {
-        const frontSelected = frontImage != null;
-        const backSelected = backImage != null || forceBackImage != null;
+        const frontSelected = frontImage != null || !!frontImageId;
+        const backSelected = backImage != null || !!backImageId || forceBackImage != null;
         const backTypeAcceptable = backImageType === BackImageType.White || backImageType === BackImageType.Transparent;
 
         return frontSelected && (backSelected || backTypeAcceptable);
-    }, [frontImage, backImage, forceBackImage, backImageType]);
+    }, [frontImage, frontImageId, backImage, backImageId, forceBackImage, backImageType]);
 
     const prevBothRef = useRef<boolean>(bothFrontAndBackUploaded);
 
     useEffect(() => {
+        if (isLocked) return; // Don't auto-update if locked
         if (bothFrontAndBackUploaded && !prevBothRef.current) {
             setValue(`photocards.${index}.temporary`, false);
         } else if (!bothFrontAndBackUploaded && prevBothRef.current) {
             setValue(`photocards.${index}.temporary`, true);
         }
         prevBothRef.current = bothFrontAndBackUploaded;
-    }, [bothFrontAndBackUploaded, index, setValue]);
+    }, [bothFrontAndBackUploaded, index, setValue, isLocked]);
 
     return (
         <TableRow key={index}>
@@ -178,6 +202,7 @@ function CreatePhotocardRowComponent({
                                         className="w-auto!"
                                         type="single"
                                         variant="outline"
+                                        disabled={isLocked}
                                         value={effectsField.value.toString()}
                                         onValueChange={(v) => effectsField.onChange(Number(v))}
                                     >
@@ -204,10 +229,18 @@ function CreatePhotocardRowComponent({
                                                     backImageRef.current?.delete();
                                                 }
                                                 frontField.onChange(null);
+                                                // If we had a cloud ID, clear it too
+                                                if (frontImageId) {
+                                                    setValue(`photocards.${index}.frontImageId`, null);
+                                                }
                                             }}
                                             expand={expandImages}
                                             effects={effectsField.value}
                                             shortDescription
+                                            disableUpload={isLocked}
+                                            image={
+                                                frontField.value ?? (frontImageId ? fullSizeUrl(frontImageId) : null)
+                                            }
                                         />
                                     </div>
                                     {frontFieldState.error && <FieldError errors={[frontFieldState.error]} />}
@@ -235,6 +268,7 @@ function CreatePhotocardRowComponent({
                                                 className="w-auto!"
                                                 type="single"
                                                 variant="outline"
+                                                disabled={isLocked}
                                                 value={typeField.value.toString()}
                                                 onValueChange={(value) => {
                                                     if (value) {
@@ -247,6 +281,7 @@ function CreatePhotocardRowComponent({
                                                                 typeField.value !== BackImageType.Image)
                                                         ) {
                                                             backField.onChange(null);
+                                                            setValue(`photocards.${index}.backImageId`, null);
                                                             backImageRef.current?.delete();
                                                         }
                                                         typeField.onChange(selectedType);
@@ -266,13 +301,20 @@ function CreatePhotocardRowComponent({
 
                                             <ImageDropzone
                                                 ref={backImageRef}
-                                                disableUpload={typeField.value !== BackImageType.Image}
+                                                disableUpload={typeField.value !== BackImageType.Image || isLocked}
                                                 onImageChanged={backField.onChange}
-                                                onDelete={() => backField.onChange(null)}
-                                                forceImage={
+                                                onDelete={() => {
+                                                    backField.onChange(null);
+                                                    if (backImageId) {
+                                                        setValue(`photocards.${index}.backImageId`, null);
+                                                    }
+                                                }}
+                                                image={
                                                     typeField.value === BackImageType.Image
-                                                        ? forceBackImage
-                                                        : frontField.value
+                                                        ? (backField.value ??
+                                                          (backImageId ? thumbnailUrl(backImageId) : null))
+                                                        : (frontField.value ??
+                                                          (frontImageId ? thumbnailUrl(frontImageId) : null))
                                                 }
                                                 imgClassName={backImageClassName(typeField.value)}
                                                 expand={expandImages}
@@ -287,7 +329,8 @@ function CreatePhotocardRowComponent({
                                                     }
                                                 }}
                                                 className="max-w-35 mt-0.5"
-                                                hidden={backField.value === null || index !== 0}
+                                                hidden={backField.value === null || index !== 0 || isLocked}
+                                                disabled={isLocked}
                                             >
                                                 Apply to all
                                             </Button>
@@ -311,6 +354,7 @@ function CreatePhotocardRowComponent({
                                     allItem="OT7"
                                     selectedItems={field.value}
                                     onSelect={(items) => field.onChange([...items])}
+                                    disabled={isLocked}
                                 />
                             </div>
                             {fieldState.error && <FieldError errors={[fieldState.error]} />}
@@ -331,6 +375,7 @@ function CreatePhotocardRowComponent({
                                     onValueChange={field.onChange}
                                     onCreate={createCardSizeFromInputs}
                                     isEqual={(a, b) => a?.id === b?.id && a?.name === b?.name}
+                                    disabled={isLocked}
                                 />
                             </div>
                             {fieldState.error && <FieldError errors={[fieldState.error]} />}
@@ -352,6 +397,7 @@ function CreatePhotocardRowComponent({
                                     onCreate={(name) => onCreateCardType(name, index)}
                                     isEqual={(a, b) => a?.id === b?.id && a?.name === b?.name}
                                     className="min-w-30"
+                                    disabled={isLocked}
                                 />
                             </div>
                         </Field>
@@ -367,7 +413,7 @@ function CreatePhotocardRowComponent({
                             <Switch
                                 checked={field.value}
                                 onCheckedChange={field.onChange}
-                                disabled={!bothFrontAndBackUploaded}
+                                disabled={!bothFrontAndBackUploaded || isLocked}
                             />
                         </div>
                     )}
@@ -383,13 +429,14 @@ function CreatePhotocardRowComponent({
                                 items={Object.entries(ExclusiveCountry)}
                                 value={field.value}
                                 onValueChange={field.onChange}
+                                disabled={isLocked}
                             />
                         </div>
                     )}
                 />
             </TableCell>
             <TableCell>
-                <Button type="button" size="icon" onClick={onRemovePhotocard} hidden={index === 0}>
+                <Button type="button" size="icon" onClick={onRemovePhotocard} hidden={index === 0} disabled={isLocked}>
                     <Trash2Icon />
                 </Button>
             </TableCell>
@@ -397,7 +444,7 @@ function CreatePhotocardRowComponent({
     );
 }
 
-export default function CreateCollectionComponent() {
+function CreateCollectionInner() {
     const {
         collectionTypes,
         cardTypes,
@@ -407,7 +454,13 @@ export default function CreateCollectionComponent() {
         addCardType,
         addCardSize,
         setError,
+        session,
     } = useMetadata();
+
+    const searchParams = useSearchParams();
+    const router = useRouter();
+    const collectionId = searchParams.get("collectionId");
+    const isAdmin = session?.user?.role === Role.ADMIN;
 
     const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
@@ -428,6 +481,76 @@ export default function CreateCollectionComponent() {
 
     const [sameBackImage, setSameBackImage] = useState<File | null>(null);
     const [expandImages, setExpandImages] = useState<boolean>(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isLoading, setIsLoading] = useState(false);
+    const [photocardLocked, setPhotocardLocked] = useState<boolean[]>([]);
+
+    useEffect(() => {
+        const fetchCollection = async () => {
+            if (!collectionId) return;
+
+            setIsLoading(true);
+            const result = await getCollectionForEdit(Number(collectionId));
+            if (result.error) {
+                setError(result.error);
+                setIsLoading(false);
+                return;
+            }
+
+            if (!result.data) {
+                setError("Collection not found");
+                setIsLoading(false);
+                return;
+            }
+
+            const { collection, photocards } = result.data;
+            setPhotocardLocked(
+                photocards.map((p) => {
+                    switch (session?.user.role) {
+                        case Role.ADMIN:
+                            return false;
+                        case Role.MOD:
+                            return !p.adminTemporary;
+                        default:
+                            return !p.modTemporary;
+                    }
+                }),
+            );
+            const formPhotocards: LocalPhotocard[] = photocards.map((p, index) => ({
+                id: p.id,
+                frontImage: null,
+                frontImageId: p.imageId,
+                effects: p.effects as Effects,
+                backImage: null,
+                backImageId: p.backImageId,
+                backImageType: p.backImageType as BackImageType,
+                members: booleansToMembers(p),
+                cardSize: cardSizes.find((s) => s.id === p.sizeId)!,
+                temporary: isAdmin ? p.adminTemporary : p.modTemporary,
+                cardType: cardTypes.find((t) => t.id === p.cardType)!,
+                exclusiveCountry: p.exclusiveCountry as ExclusiveCountry,
+            }));
+
+            const formCollectionTypes = collection.collectionTypes.map((id) => {
+                const ct = collectionTypes.find((t) => t.id === id);
+                return ct ? { name: ct.name, id: ct.id } : { name: "", id };
+            });
+
+            form.reset({
+                collectionName: collection.name,
+                releaseDate: collection.releaseDate.toISOString().split("T")[0],
+                version: collection.version || "",
+                versionOrder: collection.versionOrder ?? undefined,
+                collectionTypes: formCollectionTypes.length > 0 ? formCollectionTypes : [{ name: "", id: undefined }],
+                photocards: formPhotocards,
+            });
+            setIsLoading(false);
+        };
+
+        if (collectionId && cardSizes.length > 0 && collectionTypes.length > 0 && cardTypes.length > 0) {
+            fetchCollection();
+        }
+    }, [collectionId, cardSizes, collectionTypes, cardTypes, form, setError, isAdmin]);
 
     function onAddCollectionType() {
         const currentTypes = form.getValues("collectionTypes");
@@ -512,7 +635,74 @@ export default function CreateCollectionComponent() {
      * Converts `LocalPhotocard` to `Photocard` and call `createCollectionInDB`.
      */
     async function onSubmit(data: z.infer<typeof formSchema>) {
-        console.log("Submitting collection", data);
+        if (isSubmitting) return;
+        setIsSubmitting(true);
+
+        // Separate photocards into those with new images and those without
+        const photocardsWithFiles = data.photocards.filter((p) => p.frontImage != null || p.backImage != null);
+
+        // Identify unique files to upload based on file size
+        const uniqueFilesToUpload = new Map<number, File>();
+        for (const p of photocardsWithFiles) {
+            if (p.frontImage) uniqueFilesToUpload.set(p.frontImage.size, p.frontImage);
+            if (p.backImage) uniqueFilesToUpload.set(p.backImage.size, p.backImage);
+        }
+
+        let signedUrls: PresignedUrl[] = [];
+        const fileToPresignedUrl = new Map<number, PresignedUrl>();
+
+        if (uniqueFilesToUpload.size > 0) {
+            const uploadResult = await generateSignedUploadUrlForPhotocards(uniqueFilesToUpload.size);
+            if (uploadResult.error) {
+                setError(uploadResult.error);
+                setIsSubmitting(false);
+                return;
+            }
+            signedUrls = uploadResult.data!;
+
+            // Map each unique file to a signed URL
+            let urlIndex = 0;
+            for (const [size, _] of uniqueFilesToUpload) {
+                fileToPresignedUrl.set(size, signedUrls[urlIndex]);
+                urlIndex++;
+            }
+        }
+
+        const uploadedPhotocards: Photocard[] = [];
+
+        for (const p of data.photocards) {
+            let frontImageId = p.frontImageId || null;
+            let backImageId = p.backImageId || null;
+
+            // Assign IDs for new images
+            if (p.frontImage) {
+                frontImageId = fileToPresignedUrl.get(p.frontImage.size)?.params.public_id || null;
+            }
+
+            if (p.backImage) {
+                backImageId = fileToPresignedUrl.get(p.backImage.size)?.params.public_id || null;
+            }
+
+            const members = membersToBooleans(new Set(p.members));
+            const photocard: Photocard = {
+                ...(p.id ? { id: p.id } : {}),
+                collectionId: Number(collectionId) || 0, // Will be ignored if creating new
+                imageId: frontImageId,
+                backImageId: backImageId,
+                backImageType: p.backImageType,
+                cardType: p.cardType.id || null,
+                sizeId: p.cardSize!.id!, // Must exist
+                effects: p.effects,
+                exclusiveCountry: Number(p.exclusiveCountry),
+                modTemporary: p.temporary, // Backend sets this
+                adminTemporary: p.temporary, // Backend sets this
+                ...members,
+                imageContributorId: "", // Backend sets this
+                updatedAt: Date.now(), // Backend sets this
+            };
+            uploadedPhotocards.push(photocard);
+        }
+
         const collectionTypesIds = data.collectionTypes
             .filter((collectionType) => collectionType.id !== undefined)
             .map((collectionType) => collectionType.id!);
@@ -525,104 +715,69 @@ export default function CreateCollectionComponent() {
             versionOrder: data.versionOrder ?? null,
         };
 
-        // Find the number of unique images we have to upload
-        // Use the fullSize byteLength as a proxy, since we don't want to compare ArrayBuffers
-        // No 2 converted images should have the exact size
-        const uniqueImageSizes = new Set<number>();
-        for (const photocard of data.photocards) {
-            if (photocard.frontImage) {
-                uniqueImageSizes.add(photocard.frontImage.size);
+        if (collectionId) {
+            const result = await updateCollectionInDB(Number(collectionId), collection, uploadedPhotocards);
+            if (result.error) {
+                setError(result.error);
+                setIsSubmitting(false);
+                return;
             }
-            if (photocard.backImage) {
-                uniqueImageSizes.add(photocard.backImage.size);
+        } else {
+            const success = await addCollection(collection, uploadedPhotocards);
+            if (!success) {
+                setError("Failed to add collection");
+                setIsSubmitting(false);
+                return;
             }
-        }
-
-        // Get pre-signed upload URLs
-        const uniqueImageSizesArray = Array.from(uniqueImageSizes);
-        const signedUrlToIds = await generateSignedUploadUrlForPhotocards(uniqueImageSizes.size);
-        if (signedUrlToIds.error) {
-            setError(`Error generating URLs for images: ${signedUrlToIds.error}`);
-            return;
-        }
-        const sizeToUrl = new Map<number, PresignedUrl>();
-        for (let i = 0; i < signedUrlToIds.data!.length; i++) {
-            sizeToUrl.set(uniqueImageSizesArray[i], signedUrlToIds.data![i]);
-        }
-
-        // Create Photocard objects
-        const photocardsToCreate: Photocard[] = data.photocards.map((localPhotocard) => ({
-            collectionId: 0, // Placeholder, will be set in `createCollectionInDB`
-            imageId: localPhotocard.frontImage ? sizeToUrl.get(localPhotocard.frontImage.size)!.params.public_id : null,
-            backImageId: localPhotocard.backImage
-                ? sizeToUrl.get(localPhotocard.backImage.size)!.params.public_id
-                : null,
-            backImageType: localPhotocard.backImageType as BackImageType,
-            cardType: localPhotocard.cardType!.id! === DEFAULT_CARD_TYPE.id ? null : localPhotocard.cardType!.id!,
-            sizeId: localPhotocard.cardSize!.id!,
-            effects: localPhotocard.effects,
-            modTemporary: localPhotocard.temporary, // Placeholder, server will pick correct one based on role
-            adminTemporary: localPhotocard.temporary, // Placeholder, server will pick correct one based on role
-            exclusiveCountry: localPhotocard.exclusiveCountry as ExclusiveCountry,
-            ...membersToBooleans(new Set(localPhotocard.members)),
-            imageContributorId: "", // Placeholder, will be set on server
-            updatedAt: Date.now(), // Placeholder, will be set on server
-        }));
-
-        // Call the server and create DB entries
-        const result = await addCollection(collection, photocardsToCreate);
-        if (!result) {
-            // Don't need to display toast here, `addCollection` already does
-            return;
         }
 
         // Upload each unique image in parallel
         const uploadPromises: Promise<Result<boolean>>[] = [];
-        const uploadedSizes = new Set<number>();
+        for (const file of uniqueFilesToUpload.values()) {
+            uploadPromises.push(uploadImage(fileToPresignedUrl.get(file.size)!, file));
+        }
 
-        for (const photocard of data.photocards) {
-            for (const image of [photocard.frontImage, photocard.backImage]) {
-                if (image && !uploadedSizes.has(image.size)) {
-                    uploadPromises.push(uploadImage(sizeToUrl.get(image.size)!, image));
-                    uploadedSizes.add(image.size);
-                }
+        if (uploadPromises.length > 0) {
+            toast.promise(
+                Promise.all(uploadPromises).then((results) => {
+                    const error = results.find((res) => res.error);
+                    if (error) {
+                        throw new Error(error.error);
+                    }
+                }),
+                {
+                    loading: "Uploading images...",
+                    success: (data) => {
+                        if (!collectionId) {
+                            form.reset();
+                            setSameBackImage(null);
+                        }
+                        setIsSubmitting(false);
+                        return "All images uploaded successfully!";
+                    },
+                    error: (error) => {
+                        setIsSubmitting(false);
+                        return {
+                            message: "Error uploading images: " + error.message,
+                            action: {
+                                label: "Report",
+                                onClick: () => {
+                                    const url = reportWindowURL(ReportType.Error, "/createCollection", error.message);
+                                    window.open(url, "_blank");
+                                },
+                            },
+                        };
+                    },
+                },
+            );
+            return; // Let toast handle completion
+        } else {
+            if (!collectionId) {
+                form.reset();
+                setSameBackImage(null);
             }
         }
-
-        // Early exit if no images to upload
-        if (uploadPromises.length === 0) {
-            toast.success("Collection created successfully!");
-            form.reset();
-            setSameBackImage(null);
-            return;
-        }
-
-        toast.promise(
-            Promise.all(uploadPromises).then((results) => {
-                const error = results.find((res) => res.error);
-                if (error) {
-                    throw new Error(error.error);
-                }
-            }),
-            {
-                loading: "Uploading images...",
-                success: (data) => {
-                    form.reset();
-                    setSameBackImage(null);
-                    return "All images uploaded successfully!";
-                },
-                error: (error) => ({
-                    message: "Error uploading images: " + error.message,
-                    action: {
-                        label: "Report",
-                        onClick: () => {
-                            const url = reportWindowURL(ReportType.Error, "/createCollection", error.message);
-                            window.open(url, "_blank");
-                        },
-                    },
-                }),
-            },
-        );
+        setIsSubmitting(false);
     }
 
     return (
@@ -632,6 +787,7 @@ export default function CreateCollectionComponent() {
                     console.error("Form validation errors:", errors);
                 })}
                 className="flex flex-col gap-4 m-4 items-center"
+                hidden={!isAtLeastMod(session)}
             >
                 <FieldGroup className="max-w-200">
                     <Controller
@@ -850,6 +1006,7 @@ export default function CreateCollectionComponent() {
                                 onCreateCardType={onCreateCardType}
                                 onRemovePhotocard={() => onRemovePhotocard(index)}
                                 expandImages={expandImages}
+                                isLocked={photocardLocked[index] ?? false}
                             />
                         ))}
                     </TableBody>
@@ -885,5 +1042,13 @@ export default function CreateCollectionComponent() {
                 )}
             </Button>
         </FormProvider>
+    );
+}
+
+export default function CreateCollectionPage() {
+    return (
+        <Suspense fallback={<div>Loading...</div>}>
+            <CreateCollectionInner />
+        </Suspense>
     );
 }

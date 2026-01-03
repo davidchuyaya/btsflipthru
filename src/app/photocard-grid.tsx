@@ -2,6 +2,8 @@ import { ParsedCollection, Photocard } from "@/db";
 import PhotocardComponent from "./photocard";
 import { NameToMember, thumbnailUrl } from "@/constants";
 import React, { useMemo } from "react";
+import { Button } from "@/components/ui/button";
+import Link from "next/link";
 
 function PhotocardGridWithoutCollections({
     photocards,
@@ -51,9 +53,7 @@ function PhotocardGridWithoutCollections({
                     {(() => {
                         const albumName = collections?.[photocard.collectionId];
                         const memberEntries = Object.entries(NameToMember);
-                        const presentMembers = memberEntries.filter(
-                            ([_, key]) => photocard[key as keyof Photocard]
-                        );
+                        const presentMembers = memberEntries.filter(([_, key]) => photocard[key as keyof Photocard]);
 
                         let memberName: string | null = null;
                         if (presentMembers.length === memberEntries.length) {
@@ -84,6 +84,7 @@ export default function PhotocardGrid({
     isSelectionMode = false,
     selectedIds,
     onToggleSelection,
+    showEditButton = false,
 }: {
     photocards: Photocard[]; // Will be displayed in order provided
     collections?: ParsedCollection[]; // Will be displayed in order provided
@@ -93,6 +94,7 @@ export default function PhotocardGrid({
     isSelectionMode?: boolean;
     selectedIds?: Set<number>;
     onToggleSelection?: (id: number) => void;
+    showEditButton?: boolean;
 }) {
     return displayCollections ? (
         <div className={`flex flex-col gap-4 justify-center items-center ${className}`}>
@@ -103,7 +105,12 @@ export default function PhotocardGrid({
 
                 return (
                     <React.Fragment key={collection.id!}>
-                        <h2 hidden={hidden} className="mt-4">{collection.version ? `${collection.name} (${collection.version})` : collection.name}</h2>
+                        <h2 hidden={hidden} className="mt-4">
+                            {collection.version ? `${collection.name} (${collection.version})` : collection.name}
+                        </h2>
+                        <Button hidden={!showEditButton} className="self-center" asChild>
+                            <Link href={`/createCollection?collectionId=${collection.id}`}>Edit Collection</Link>
+                        </Button>
                         <PhotocardGridWithoutCollections
                             photocards={children}
                             showFront={showFront}
@@ -122,13 +129,17 @@ export default function PhotocardGrid({
             photocards={photocards}
             className={className}
             showFront={showFront}
-            collections={useMemo(() => collections?.reduce(
-                    (acc, c) => {
-                        acc[c.id!] = c.name;
-                        return acc;
-                    },
-                    {} as Record<number, string>
-                ), [collections])}
+            collections={useMemo(
+                () =>
+                    collections?.reduce(
+                        (acc, c) => {
+                            acc[c.id!] = c.name;
+                            return acc;
+                        },
+                        {} as Record<number, string>,
+                    ),
+                [collections],
+            )}
             isSelectionMode={isSelectionMode}
             selectedIds={selectedIds}
             onToggleSelection={onToggleSelection}

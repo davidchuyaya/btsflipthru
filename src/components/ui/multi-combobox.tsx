@@ -14,12 +14,14 @@ export default function MultiCombobox<E>({
     selectedItems,
     onSelect,
     className,
+    disabled,
 }: {
     items: [string, E][];
     allItem: string;
     selectedItems: E[];
     onSelect: (items: E[]) => void;
     className?: string;
+    disabled?: boolean;
 }) {
     const [open, setOpen] = React.useState(false);
     const [inputValue, setInputValue] = React.useState<string>("");
@@ -35,6 +37,7 @@ export default function MultiCombobox<E>({
                 <Button
                     variant="noShadow"
                     role="combobox"
+                    disabled={disabled}
                     aria-expanded={open}
                     className="w-fit justify-between md:max-w-70 bg-accent-light"
                 >

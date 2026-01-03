@@ -213,6 +213,7 @@ export async function addCollectionToDB(collection: Collection, photocards: Phot
         photocard.collectionId = collectionId.data!;
         photocard.imageContributorId = session.data!.user.id;
         photocard.updatedAt = date;
+        delete photocard.id;
 
         // Only Admins can set adminTemporary = false; only Mods and above can set modTemporary = false
         switch (session.data!.user.role) {
@@ -246,6 +247,188 @@ export async function addCollectionToDB(collection: Collection, photocards: Phot
     }
 
     return { data: collectionId.data! };
+}
+
+export async function getCollectionForEdit(
+    collectionId: number,
+): Promise<Result<{ collection: ParsedCollection; photocards: Photocard[] }>> {
+    const result = await isAtLeastMod<boolean>();
+    if (result.error) {
+        return result;
+    }
+
+    const database = getDb();
+    const collection = await database
+        .selectFrom("collections")
+        .selectAll()
+        .where("id", "=", collectionId)
+        .executeTakeFirst();
+
+    if (!collection) {
+        return { error: "Collection not found." };
+    }
+
+    const photocards = await database
+        .selectFrom("photocards")
+        .selectAll()
+        .where("collectionId", "=", collectionId)
+        .execute();
+
+    return { data: { collection: parseCollection(collection), photocards } };
+}
+
+export async function updateCollectionInDB(
+    collectionId: number,
+    collection: ParsedCollection,
+    photocards: Photocard[],
+): Promise<Result<boolean>> {
+    const session = await getSession();
+    if (session.error) {
+        return { error: session.error };
+    }
+    const result = await isAtLeastMod<boolean>(session);
+    if (result.error) {
+        return result;
+    }
+
+    const isAdmin = session.data!.user.role === Role.ADMIN;
+    const database = getDb();
+
+    // 1. Update Collection
+    const updateResult = await database
+        .updateTable("collections")
+        .set({
+            name: collection.name,
+            releaseDate: collection.releaseDate.getTime(),
+            version: collection.version,
+            versionOrder: collection.versionOrder,
+            collectionTypes: collection.collectionTypes.join(","),
+        })
+        .where("id", "=", collectionId)
+        .executeTakeFirst();
+
+    if (updateResult.numUpdatedRows === BigInt(0)) {
+        return { error: "Could not update collection or collection not found." };
+    }
+
+    // 2. Process Photocards
+    const existingPhotocards = await database
+        .selectFrom("photocards")
+        .selectAll()
+        .where("collectionId", "=", collectionId)
+        .execute();
+
+    const existingMap = new Map(existingPhotocards.map((p) => [p.id!, p]));
+    const newMap = new Map(photocards.filter((p) => p.id !== undefined).map((p) => [p.id!, p]));
+
+    const promises: Promise<Result<boolean>>[] = [];
+
+    // Deletions
+    for (const [id, existing] of existingMap) {
+        if (!newMap.has(id)) {
+            // Check permission
+            if (!existing.adminTemporary && !isAdmin) {
+                return { error: `One or more photocards are locked by admins and cannot be deleted.` };
+            }
+            promises.push(
+                database
+                    .deleteFrom("photocards")
+                    .where("id", "=", id)
+                    .execute()
+                    .then(
+                        () => ({ data: true }),
+                        (e) => ({ error: `Could not delete photocard: ${e}` }),
+                    ),
+            );
+        }
+    }
+
+    // Updates & Insertions
+    for (const photocard of photocards) {
+        if (photocard.id !== undefined && existingMap.has(photocard.id)) {
+            // Update
+            const existing = existingMap.get(photocard.id)!;
+            if (!existing.adminTemporary && !isAdmin) {
+                return { error: `One or more photocards are locked by admins and cannot be updated.` };
+            }
+            promises.push(
+                database
+                    .updateTable("photocards")
+                    // Only update fields that can be changed in the form
+                    .set({
+                        imageId: photocard.imageId,
+                        backImageId: photocard.backImageId,
+                        backImageType: photocard.backImageType,
+                        cardType: photocard.cardType,
+                        sizeId: photocard.sizeId,
+                        effects: photocard.effects,
+                        exclusiveCountry: photocard.exclusiveCountry,
+                        // Member booleans
+                        rm: photocard.rm,
+                        jin: photocard.jin,
+                        suga: photocard.suga,
+                        jhope: photocard.jhope,
+                        jimin: photocard.jimin,
+                        v: photocard.v,
+                        jungkook: photocard.jungkook,
+                        // Overwrite imageContributorId if imageId changed
+                        imageContributorId:
+                            photocard.imageId === existing.imageId
+                                ? existing.imageContributorId
+                                : session.data!.user.id,
+                        updatedAt: Date.now(),
+                        adminTemporary: isAdmin ? photocard.adminTemporary : existing.adminTemporary,
+                        modTemporary: !isAdmin ? photocard.modTemporary : existing.modTemporary,
+                    })
+                    .where("id", "=", photocard.id)
+                    .execute()
+                    .then(
+                        () => ({ data: true }),
+                        (e) => ({ error: `Could not update photocard: ${e}` }),
+                    ),
+            );
+        } else {
+            // Insert
+            // Enforce modTemporary/adminTemporary defaults
+            const newCard = { ...photocard };
+            newCard.collectionId = collectionId;
+            newCard.imageContributorId = session.data!.user.id;
+            newCard.updatedAt = Date.now();
+            delete newCard.id; // Ensure no ID is passed for insert
+
+            switch (session.data!.user.role) {
+                case Role.ADMIN:
+                    break;
+                case Role.MOD:
+                    newCard.adminTemporary = true;
+                    break;
+                case Role.USER:
+                default:
+                    newCard.adminTemporary = true;
+                    newCard.modTemporary = true;
+                    break;
+            }
+
+            promises.push(
+                database
+                    .insertInto("photocards")
+                    .values(newCard)
+                    .executeTakeFirstOrThrow()
+                    .then(
+                        () => ({ data: true }),
+                        (e) => ({ error: `Could not insert photocard: ${e}` }),
+                    ),
+            );
+        }
+    }
+
+    const results = await Promise.all(promises);
+    const firstError = results.find((r) => r.error);
+    if (firstError && firstError.error) {
+        return firstError;
+    }
+
+    return { data: true };
 }
 
 export async function getCollectionsFromDB(): Promise<ParsedCollection[]> {
@@ -445,7 +628,7 @@ export async function getRecentlyAddedPhotocardsInDB() {
         .execute();
 }
 
-export async function getPhotocardsInDB(query: SearchQuery): Promise<Result<{cards: Photocard[], query: string}>> {
+export async function getPhotocardsInDB(query: SearchQuery): Promise<Result<{ cards: Photocard[]; query: string }>> {
     const database = getDb();
     let queryBuilder = database.selectFrom("photocards").selectAll();
 

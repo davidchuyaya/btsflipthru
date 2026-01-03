@@ -31,6 +31,8 @@ import { useMetadata } from "@/metadata-context";
 import React from "react";
 import { Button } from "@/components/ui/button";
 import BottomSpinnerComponent from "../bottom-spinner";
+import Link from "next/link";
+import { isAtLeastMod } from "@/auth-client";
 
 function CollapsibleGroup({
     defaultOpen = true,
@@ -252,10 +254,7 @@ export default function SearchComponent() {
             return { winners, maxScore, matchedTerms: aggregatedMatchedTerms };
         }
 
-        function countMatches(
-            text: string,
-            searchTerms: string[],
-        ): { matches: number; matchedTerms: Set<string> } {
+        function countMatches(text: string, searchTerms: string[]): { matches: number; matchedTerms: Set<string> } {
             const lowerText = text.toLowerCase();
             let matches = 0;
             const matchedTerms = new Set<string>();
@@ -365,14 +364,14 @@ export default function SearchComponent() {
             }
         }
 
-        const nextVisibleMembers = memberScore > 0
+        const nextVisibleMembers =
+            memberScore > 0
                 ? new Set(Array.from(winningMembers).map(([_, v]) => v))
                 : new Set(Object.values(NameToMember));
-        const nextVisibleCardTypes =
-            cardTypeScore > 0 ? winningCardTypes : new Set(cardTypes);
-        const nextVisibleCardSizes =
-            cardSizeScore > 0 ? winningCardSizes : new Set(cardSizes);
-        const nextVisibleCountries = countryScore > 0
+        const nextVisibleCardTypes = cardTypeScore > 0 ? winningCardTypes : new Set(cardTypes);
+        const nextVisibleCardSizes = cardSizeScore > 0 ? winningCardSizes : new Set(cardSizes);
+        const nextVisibleCountries =
+            countryScore > 0
                 ? new Set(Array.from(winningCountries).map(([_, v]) => v))
                 : new Set(Object.values(ExclusiveCountry));
 
@@ -396,15 +395,7 @@ export default function SearchComponent() {
             subCollections: finalVisibleSubIds,
             collectionTypes: finalVisibleTypeIds,
         }));
-    }, [
-        searchInput,
-        collections,
-        collectionTypes,
-        cardTypes,
-        cardSizes,
-        topCollections,
-        subCollections,
-    ]);
+    }, [searchInput, collections, collectionTypes, cardTypes, cardSizes, topCollections, subCollections]);
 
     function calculateCollectionsHierarchy(): { topColsSet: Set<number>; subColsSet: Set<number> } {
         const topCols: Array<{ collection: ParsedCollection; hasSub: boolean }> = [];
@@ -950,7 +941,6 @@ export default function SearchComponent() {
             setPhotocards([...photocards, ...results.data!.cards]);
         }
 
-
         setIsLoading(false);
     }
 
@@ -1030,7 +1020,9 @@ export default function SearchComponent() {
                                         }
                                     }}
                                 />
-                                <Button disabled={isSelectionMode} onClick={() => trySearch(filters)}>Search</Button>
+                                <Button disabled={isSelectionMode} onClick={() => trySearch(filters)}>
+                                    Search
+                                </Button>
                             </SidebarMenuItem>
                         </SidebarMenu>
                     </SidebarHeader>
@@ -1045,66 +1037,68 @@ export default function SearchComponent() {
                                 .filter((type) => visibleOptions.collectionTypes.has(type.id!))
                                 .map((type) => {
                                     return (
-                                    <CheckMenuButton
-                                        key={type.id!}
-                                        type={MenuType.Regular}
-                                        label={type.name}
-                                        checked={filters.collectionTypes.has(type.id!)}
-                                        onClick={(checked) => onSelectedCollectionType(type.id!, checked)}
-                                    >
-                                        <SidebarMenuSub>
-                                            {topCollections
-                                                .filter(
-                                                    ({ collection, hasSub }) =>
-                                                        collection.collectionTypes.includes(type.id!) &&
-                                                        visibleOptions.topCollections.has(collection.id!),
-                                                )
-                                                .map(({ collection, hasSub }) => (
-                                                    <CheckMenuButton
-                                                        key={collection.id!}
-                                                        type={MenuType.Sub}
-                                                        label={collection.name}
-                                                        checked={filters.topCollections.has(collection.id!)}
-                                                        onClick={(checked) => {
-                                                            onSelectedTopCollection(collection, hasSub, checked);
-                                                        }}
-                                                    >
-                                                        {hasSub && (
-                                                            <SidebarMenuSub>
-                                                                {subCollections
-                                                                    .filter(
-                                                                        (subCol) =>
-                                                                            subCol.name === collection.name &&
-                                                                            visibleOptions.subCollections.has(subCol.id!),
-                                                                    )
-                                                                    .map((subCol) => (
-                                                                        <CheckMenuButton
-                                                                            key={subCol.id!}
-                                                                            type={MenuType.Sub}
-                                                                            label={
-                                                                                subCol.version
-                                                                                    ? `${subCol.name} (${subCol.version})`
-                                                                                    : subCol.name
-                                                                            }
-                                                                            checked={filters.subCollections.has(
-                                                                                subCol.id!,
-                                                                            )}
-                                                                            onClick={(checked) => {
-                                                                                onSelectedSubCollection(
-                                                                                    subCol,
-                                                                                    checked,
-                                                                                );
-                                                                            }}
-                                                                        />
-                                                                    ))}
-                                                            </SidebarMenuSub>
-                                                        )}
-                                                    </CheckMenuButton>
-                                                ))}
-                                        </SidebarMenuSub>
-                                    </CheckMenuButton>
-                                );
-                            })}
+                                        <CheckMenuButton
+                                            key={type.id!}
+                                            type={MenuType.Regular}
+                                            label={type.name}
+                                            checked={filters.collectionTypes.has(type.id!)}
+                                            onClick={(checked) => onSelectedCollectionType(type.id!, checked)}
+                                        >
+                                            <SidebarMenuSub>
+                                                {topCollections
+                                                    .filter(
+                                                        ({ collection, hasSub }) =>
+                                                            collection.collectionTypes.includes(type.id!) &&
+                                                            visibleOptions.topCollections.has(collection.id!),
+                                                    )
+                                                    .map(({ collection, hasSub }) => (
+                                                        <CheckMenuButton
+                                                            key={collection.id!}
+                                                            type={MenuType.Sub}
+                                                            label={collection.name}
+                                                            checked={filters.topCollections.has(collection.id!)}
+                                                            onClick={(checked) => {
+                                                                onSelectedTopCollection(collection, hasSub, checked);
+                                                            }}
+                                                        >
+                                                            {hasSub && (
+                                                                <SidebarMenuSub>
+                                                                    {subCollections
+                                                                        .filter(
+                                                                            (subCol) =>
+                                                                                subCol.name === collection.name &&
+                                                                                visibleOptions.subCollections.has(
+                                                                                    subCol.id!,
+                                                                                ),
+                                                                        )
+                                                                        .map((subCol) => (
+                                                                            <CheckMenuButton
+                                                                                key={subCol.id!}
+                                                                                type={MenuType.Sub}
+                                                                                label={
+                                                                                    subCol.version
+                                                                                        ? `${subCol.name} (${subCol.version})`
+                                                                                        : subCol.name
+                                                                                }
+                                                                                checked={filters.subCollections.has(
+                                                                                    subCol.id!,
+                                                                                )}
+                                                                                onClick={(checked) => {
+                                                                                    onSelectedSubCollection(
+                                                                                        subCol,
+                                                                                        checked,
+                                                                                    );
+                                                                                }}
+                                                                            />
+                                                                        ))}
+                                                                </SidebarMenuSub>
+                                                            )}
+                                                        </CheckMenuButton>
+                                                    ))}
+                                            </SidebarMenuSub>
+                                        </CheckMenuButton>
+                                    );
+                                })}
                         </CollapsibleGroup>
 
                         <CollapsibleGroup
@@ -1117,15 +1111,15 @@ export default function SearchComponent() {
                                 .filter(([_, memberKey]) => visibleOptions.members.has(memberKey))
                                 .map(([name, memberKey]) => (
                                     <CheckMenuButton
-                                    key={memberKey}
-                                    type={MenuType.Regular}
-                                    label={name}
-                                    checked={filters.members.has(memberKey)}
-                                    onClick={(checked) => {
-                                        onSelectedMember(memberKey, checked);
-                                    }}
-                                />
-                            ))}
+                                        key={memberKey}
+                                        type={MenuType.Regular}
+                                        label={name}
+                                        checked={filters.members.has(memberKey)}
+                                        onClick={(checked) => {
+                                            onSelectedMember(memberKey, checked);
+                                        }}
+                                    />
+                                ))}
                         </CollapsibleGroup>
                         <CollapsibleGroup
                             key={searchInput ? "ct-search-active" : "ct-search-inactive"}
@@ -1138,15 +1132,15 @@ export default function SearchComponent() {
                                 .filter((cardType) => visibleOptions.cardTypes.has(cardType))
                                 .map((cardType) => (
                                     <CheckMenuButton
-                                    key={cardType.id ?? 0}
-                                    type={MenuType.Regular}
-                                    label={cardType.name}
-                                    checked={filters.cardTypes.has(cardType)}
-                                    onClick={(checked) => {
-                                        onSelectedCardType(cardType, checked);
-                                    }}
-                                />
-                            ))}
+                                        key={cardType.id ?? 0}
+                                        type={MenuType.Regular}
+                                        label={cardType.name}
+                                        checked={filters.cardTypes.has(cardType)}
+                                        onClick={(checked) => {
+                                            onSelectedCardType(cardType, checked);
+                                        }}
+                                    />
+                                ))}
                         </CollapsibleGroup>
                         <CollapsibleGroup
                             key={searchInput ? "cs-search-active" : "cs-search-inactive"}
@@ -1159,15 +1153,15 @@ export default function SearchComponent() {
                                 .filter((cardSize) => visibleOptions.cardSizes.has(cardSize))
                                 .map((cardSize) => (
                                     <CheckMenuButton
-                                    key={cardSize.id!}
-                                    type={MenuType.Regular}
-                                    label={cardSizeToString(cardSize)}
-                                    checked={filters.cardSizes.has(cardSize)}
-                                    onClick={(checked) => {
-                                        onSelectedCardSize(cardSize, checked);
-                                    }}
-                                />
-                            ))}
+                                        key={cardSize.id!}
+                                        type={MenuType.Regular}
+                                        label={cardSizeToString(cardSize)}
+                                        checked={filters.cardSizes.has(cardSize)}
+                                        onClick={(checked) => {
+                                            onSelectedCardSize(cardSize, checked);
+                                        }}
+                                    />
+                                ))}
                         </CollapsibleGroup>
                         <CollapsibleGroup
                             key={searchInput ? "ec-search-active" : "ec-search-inactive"}
@@ -1180,15 +1174,15 @@ export default function SearchComponent() {
                                 .filter(([_, id]) => visibleOptions.exclusiveCountries.has(id))
                                 .map(([country, id]) => (
                                     <CheckMenuButton
-                                    key={id}
-                                    type={MenuType.Regular}
-                                    label={country}
-                                    checked={filters.exclusiveCountries.has(id)}
-                                    onClick={(checked) => {
-                                        onSelectedExclusiveCountry(id, checked);
-                                    }}
-                                />
-                            ))}
+                                        key={id}
+                                        type={MenuType.Regular}
+                                        label={country}
+                                        checked={filters.exclusiveCountries.has(id)}
+                                        onClick={(checked) => {
+                                            onSelectedExclusiveCountry(id, checked);
+                                        }}
+                                    />
+                                ))}
                         </CollapsibleGroup>
                     </SidebarContent>
                     <SidebarFooter>
@@ -1210,12 +1204,15 @@ export default function SearchComponent() {
                                 onClick={() => trySearch(filters)}
                                 className="px-4 py-1 text-sm rounded-base border-2 border-transparent hover:border-border hover:bg-main disabled:opacity-50"
                             >
-                               Apply Filters
+                                Apply Filters
                             </button>
                         </div>
                     </SidebarFooter>
                 </Sidebar>
                 <div className="flex flex-col mt-4 mb-4 gap-4 grow">
+                    <Button hidden={!isAtLeastMod(session)} className="w-[30%] self-center" asChild>
+                        <Link href="/createCollection">Add a Missing Collection</Link>
+                    </Button>
                     <PhotocardGrid
                         photocards={photocards}
                         collections={collections.sort((a, b) =>
@@ -1230,6 +1227,7 @@ export default function SearchComponent() {
                         isSelectionMode={isSelectionMode}
                         selectedIds={selectedPhotocardIds}
                         onToggleSelection={toggleSelection}
+                        showEditButton={isAtLeastMod(session)}
                     />
                     <BottomSpinnerComponent dontLoad={dontLoad} loadMore={trySearchNext} isLoading={isLoading} />
                 </div>
@@ -1237,10 +1235,7 @@ export default function SearchComponent() {
 
             <div className="fixed bottom-8 right-8 flex gap-2 items-center z-50" hidden={session === null}>
                 {!isSelectionMode ? (
-                    <Button 
-                        onClick={enterSelectionMode}
-                        className="rounded-full w-12 h-12 shadow-lg"
-                    >
+                    <Button onClick={enterSelectionMode} className="rounded-full w-12 h-12 shadow-lg">
                         <PlusIcon />
                     </Button>
                 ) : (

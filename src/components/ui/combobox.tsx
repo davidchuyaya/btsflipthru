@@ -27,6 +27,7 @@ export default function Combobox<E>({
     onCreate,
     className,
     isEqual = (a, b) => a === b,
+    disabled,
 }: {
     items: [string, E][];
     value?: E;
@@ -35,6 +36,7 @@ export default function Combobox<E>({
     onCreate?: (inputValue: string) => void;
     className?: string;
     isEqual?: (a: E, b: E) => boolean;
+    disabled?: boolean;
 }) {
     const [open, setOpen] = React.useState(false);
     const [inputValue, setInputValue] = React.useState<string>("");
@@ -69,6 +71,7 @@ export default function Combobox<E>({
                     <Button
                         type="button"
                         variant="noShadow"
+                        disabled={disabled}
                         className={cn("w-full justify-between md:max-w-70 bg-accent-light", className)}
                     >
                         {selectedItem ? selectedItem[0] : "Select..."}
