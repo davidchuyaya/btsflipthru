@@ -27,6 +27,7 @@ import {
     NUM_HOME_PHOTOCARDS,
     NUM_LOAD_PHOTOCARDS,
     NUM_LOAD_COLLECTIONS,
+    booleansToMembers,
 } from "@/constants";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { v2 as cloudinary } from "cloudinary";
@@ -489,13 +490,8 @@ export async function getPhotocardsInDB(query: SearchQuery): Promise<Result<{car
 
     // Member filters - OR condition (match any selected member)
     const memberConditions: string[] = [];
-    if (query.rm) memberConditions.push("rm = 1");
-    if (query.jin) memberConditions.push("jin = 1");
-    if (query.suga) memberConditions.push("suga = 1");
-    if (query.jhope) memberConditions.push("jhope = 1");
-    if (query.jimin) memberConditions.push("jimin = 1");
-    if (query.v) memberConditions.push("v = 1");
-    if (query.jungkook) memberConditions.push("jungkook = 1");
+    const activeMembers = booleansToMembers(query);
+    activeMembers.forEach((member) => memberConditions.push(`${member} = 1`));
 
     if (memberConditions.length > 0) {
         const memberConditionString = memberConditions.join(" OR ");

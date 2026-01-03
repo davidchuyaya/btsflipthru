@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect, useRef } from "react";
-import { NameToMember, PresignedUrl, ReportType, reportWindowURL, Result } from "@/constants";
+import { membersToBooleans, NameToMember, PresignedUrl, ReportType, reportWindowURL, Result } from "@/constants";
 import { useMetadata } from "@/metadata-context";
 import { generateSignedUploadUrlForPhotocards } from "@/actions";
 import {
@@ -564,15 +564,7 @@ export default function CreateCollectionComponent() {
             modTemporary: localPhotocard.temporary, // Placeholder, server will pick correct one based on role
             adminTemporary: localPhotocard.temporary, // Placeholder, server will pick correct one based on role
             exclusiveCountry: localPhotocard.exclusiveCountry as ExclusiveCountry,
-
-            rm: localPhotocard.members.includes(NameToMember.RM),
-            jimin: localPhotocard.members.includes(NameToMember.Jimin),
-            jungkook: localPhotocard.members.includes(NameToMember["Jung Kook"]),
-            v: localPhotocard.members.includes(NameToMember.V),
-            jin: localPhotocard.members.includes(NameToMember.Jin),
-            suga: localPhotocard.members.includes(NameToMember.Suga),
-            jhope: localPhotocard.members.includes(NameToMember["j-hope"]),
-
+            ...membersToBooleans(new Set(localPhotocard.members)),
             imageContributorId: "", // Placeholder, will be set on server
             updatedAt: Date.now(), // Placeholder, will be set on server
         }));

@@ -17,6 +17,7 @@ import PhotocardComponent from "./photocard";
 import CountdownClock from "./countdown-clock";
 import { useMetadata } from "@/metadata-context";
 import { Button } from "@/components/ui/button";
+import { booleansToMembers, MEMBER_CODE_TO_DISPLAY } from "@/constants";
 
 function HomeButton({ text, href }: { text: string; href: string }) {
     return (
@@ -50,14 +51,8 @@ function PhotocardLeaderboard({
 }
 
 function photocardToName(photocard: Photocard, collections: ParsedCollection[], cardTypes: CardType[]): string {
-    const members: string[] = [];
-    if (photocard.rm) members.push("RM");
-    if (photocard.jin) members.push("Jin");
-    if (photocard.suga) members.push("Suga");
-    if (photocard.jhope) members.push("j-hope");
-    if (photocard.jimin) members.push("Jimin");
-    if (photocard.v) members.push("V");
-    if (photocard.jungkook) members.push("Jung Kook");
+    const activeMembers = booleansToMembers(photocard);
+    const members = activeMembers.map((m) => MEMBER_CODE_TO_DISPLAY[m]);
     const name = members.length === 7 ? "Group" : members.join(", ");
 
     const collection = collections.find((col) => col.id === photocard.collectionId);

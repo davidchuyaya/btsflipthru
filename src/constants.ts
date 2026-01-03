@@ -28,8 +28,31 @@ export const NameToMember = {
     Jimin: "jimin",
     V: "v",
     "Jung Kook": "jungkook",
-};
+} as const;
 export type NameToMember = (typeof NameToMember)[keyof typeof NameToMember];
+
+export const MEMBERS: NameToMember[] = Object.values(NameToMember);
+
+export function membersToBooleans(activeMembers: ReadonlySet<string>): Record<NameToMember, boolean> {
+    return MEMBERS.reduce((acc, member) => {
+        acc[member] = activeMembers.has(member);
+        return acc;
+    }, {} as Record<NameToMember, boolean>);
+}
+
+export const MEMBER_CODE_TO_DISPLAY: Record<NameToMember, string> = Object.entries(NameToMember).reduce(
+    (acc, [displayName, code]) => {
+        acc[code] = displayName;
+        return acc;
+    },
+    {} as Record<NameToMember, string>,
+);
+
+export type MemberBooleans = Record<NameToMember, boolean>;
+
+export function booleansToMembers(source: MemberBooleans): NameToMember[] {
+    return MEMBERS.filter((member) => source[member]);
+}
 
 export const MEMBER_TO_EMOJI = {
     rm: "🐨",

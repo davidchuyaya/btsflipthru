@@ -24,7 +24,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Trash2Icon } from "lucide-react";
 import { useFormContext, Controller } from "react-hook-form";
 import z from "zod";
-import { NameToMember } from "@/constants";
+import { NameToMember, MEMBERS } from "@/constants";
 
 const formSchema = z.object({
     collectionName: z.string().min(1, "Collection name is required"),
@@ -263,26 +263,13 @@ function CreatePhotocardComponent({
                         ))}
                         {(() => {
                             const photocard = watch(`photocards.${index}`);
-                            const isOT7 =
-                                photocard?.rm &&
-                                photocard?.jimin &&
-                                photocard?.jungkook &&
-                                photocard?.v &&
-                                photocard?.jin &&
-                                photocard?.suga &&
-                                photocard?.jhope;
+                            const isOT7 = MEMBERS.every((m) => (photocard as any)?.[m]);
                             return (
                                 <Checkbox
                                     checked={isOT7}
                                     onCheckedChange={() => {
                                         const newValue = !isOT7;
-                                        setValue(`photocards.${index}.rm`, newValue);
-                                        setValue(`photocards.${index}.jimin`, newValue);
-                                        setValue(`photocards.${index}.jungkook`, newValue);
-                                        setValue(`photocards.${index}.v`, newValue);
-                                        setValue(`photocards.${index}.jin`, newValue);
-                                        setValue(`photocards.${index}.suga`, newValue);
-                                        setValue(`photocards.${index}.jhope`, newValue);
+                                        MEMBERS.forEach((m) => setValue(`photocards.${index}.${m}` as any, newValue));
                                     }}
                                     text="OT7"
                                 />

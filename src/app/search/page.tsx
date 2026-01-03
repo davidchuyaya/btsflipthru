@@ -3,7 +3,7 @@
 import { getPhotocardsInDB } from "@/actions";
 import { CardSize, CardType, ExclusiveCountry, ParsedCollection, Photocard } from "@/db";
 import { useEffect, useState } from "react";
-import { NameToMember, NUM_LOAD_COLLECTIONS, SearchQuery, SortType } from "@/constants";
+import { membersToBooleans, NameToMember, NUM_LOAD_COLLECTIONS, SearchQuery, SortType } from "@/constants";
 import PhotocardGrid from "../photocard-grid";
 import {
     Sidebar,
@@ -864,16 +864,10 @@ export default function SearchComponent() {
                 currentFilters.exclusiveCountries,
                 Object.values(ExclusiveCountry),
             ),
-            rm: currentFilters.members.has(NameToMember.RM),
-            jin: currentFilters.members.has(NameToMember.Jin),
-            suga: currentFilters.members.has(NameToMember.Suga),
-            jhope: currentFilters.members.has(NameToMember["j-hope"]),
-            jimin: currentFilters.members.has(NameToMember.Jimin),
-            v: currentFilters.members.has(NameToMember.V),
-            jungkook: currentFilters.members.has(NameToMember["Jung Kook"]),
+            ...membersToBooleans(currentFilters.members),
             sortBy: currentFilters.sort,
             updateDate: null,
-        };
+        } as SearchQuery;
         console.log("Search Query:", searchQuery);
 
         // Avoid duplicate searches
