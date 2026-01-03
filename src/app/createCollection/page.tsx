@@ -2,8 +2,6 @@
 
 import { useState, useMemo, useEffect, useRef, Suspense } from "react";
 import {
-    membersToBooleans,
-    booleansToMembers,
     NameToMember,
     PresignedUrl,
     ReportType,
@@ -11,6 +9,8 @@ import {
     Result,
     fullSizeUrl,
     thumbnailUrl,
+    numbersToMembers,
+    membersToBooleanNumbers,
 } from "@/constants";
 import { useMetadata } from "@/metadata-context";
 import { generateSignedUploadUrlForPhotocards, getCollectionForEdit, updateCollectionInDB } from "@/actions";
@@ -412,7 +412,10 @@ function CreatePhotocardRowComponent({
                         <div className="flex justify-center w-full">
                             <Switch
                                 checked={field.value}
-                                onCheckedChange={field.onChange}
+                                onCheckedChange={(checked) => {
+                                    console.log("Set temporary for index ", index, ":", checked);
+                                    field.onChange(checked);
+                                }}
                                 disabled={!bothFrontAndBackUploaded || isLocked}
                             />
                         </div>
@@ -510,9 +513,9 @@ function CreateCollectionInner() {
                         case Role.ADMIN:
                             return false;
                         case Role.MOD:
-                            return !p.adminTemporary;
+                            return p.adminTemporary === 0;
                         default:
-                            return !p.modTemporary;
+                            return p.modTemporary === 0;
                     }
                 }),
             );
@@ -524,12 +527,13 @@ function CreateCollectionInner() {
                 backImage: null,
                 backImageId: p.backImageId,
                 backImageType: p.backImageType as BackImageType,
-                members: booleansToMembers(p),
+                members: numbersToMembers(p),
                 cardSize: cardSizes.find((s) => s.id === p.sizeId)!,
-                temporary: isAdmin ? p.adminTemporary : p.modTemporary,
-                cardType: cardTypes.find((t) => t.id === p.cardType)!,
+                temporary: isAdmin ? p.adminTemporary === 0 : p.modTemporary === 0,
+                cardType: p.cardType === null ? DEFAULT_CARD_TYPE : cardTypes.find((t) => t.id === p.cardType)!,
                 exclusiveCountry: p.exclusiveCountry as ExclusiveCountry,
             }));
+            console.log("Local photocards:", formPhotocards);
 
             const formCollectionTypes = collection.collectionTypes.map((id) => {
                 const ct = collectionTypes.find((t) => t.id === id);
@@ -549,6 +553,8 @@ function CreateCollectionInner() {
 
         if (collectionId && cardSizes.length > 0 && collectionTypes.length > 0 && cardTypes.length > 0) {
             fetchCollection();
+            // If we're editing an existing collection, expand the images by default
+            setExpandImages(true);
         }
     }, [collectionId, cardSizes, collectionTypes, cardTypes, form, setError, isAdmin]);
 
@@ -683,7 +689,7 @@ function CreateCollectionInner() {
                 backImageId = fileToPresignedUrl.get(p.backImage.size)?.params.public_id || null;
             }
 
-            const members = membersToBooleans(new Set(p.members));
+            const members = membersToBooleanNumbers(new Set(p.members));
             const photocard: Photocard = {
                 ...(p.id ? { id: p.id } : {}),
                 collectionId: Number(collectionId) || 0, // Will be ignored if creating new
@@ -694,8 +700,8 @@ function CreateCollectionInner() {
                 sizeId: p.cardSize!.id!, // Must exist
                 effects: p.effects,
                 exclusiveCountry: Number(p.exclusiveCountry),
-                modTemporary: p.temporary, // Backend sets this
-                adminTemporary: p.temporary, // Backend sets this
+                modTemporary: p.temporary ? 0 : 1, // Backend sets this
+                adminTemporary: p.temporary ? 0 : 1, // Backend sets this
                 ...members,
                 imageContributorId: "", // Backend sets this
                 updatedAt: Date.now(), // Backend sets this
@@ -715,69 +721,66 @@ function CreateCollectionInner() {
             versionOrder: data.versionOrder ?? null,
         };
 
-        if (collectionId) {
-            const result = await updateCollectionInDB(Number(collectionId), collection, uploadedPhotocards);
-            if (result.error) {
-                setError(result.error);
-                setIsSubmitting(false);
-                return;
-            }
-        } else {
-            const success = await addCollection(collection, uploadedPhotocards);
-            if (!success) {
-                setError("Failed to add collection");
-                setIsSubmitting(false);
-                return;
-            }
-        }
-
-        // Upload each unique image in parallel
-        const uploadPromises: Promise<Result<boolean>>[] = [];
-        for (const file of uniqueFilesToUpload.values()) {
-            uploadPromises.push(uploadImage(fileToPresignedUrl.get(file.size)!, file));
-        }
-
-        if (uploadPromises.length > 0) {
-            toast.promise(
-                Promise.all(uploadPromises).then((results) => {
-                    const error = results.find((res) => res.error);
-                    if (error) {
-                        throw new Error(error.error);
+        toast.promise(
+            async () => {
+                if (collectionId) {
+                    const result = await updateCollectionInDB(Number(collectionId), collection, uploadedPhotocards);
+                    if (result.error) {
+                        throw new Error(result.error);
                     }
-                }),
-                {
-                    loading: "Uploading images...",
-                    success: (data) => {
-                        if (!collectionId) {
-                            form.reset();
-                            setSameBackImage(null);
+                } else {
+                    const success = await addCollection(collection, uploadedPhotocards);
+                    if (!success) {
+                        throw new Error("Failed to add collection");
+                    }
+                }
+
+                // Upload each unique image in parallel
+                const uploadPromises: Promise<Result<boolean>>[] = [];
+                for (const file of uniqueFilesToUpload.values()) {
+                    uploadPromises.push(uploadImage(fileToPresignedUrl.get(file.size)!, file));
+                }
+
+                if (uploadPromises.length > 0) {
+                    await Promise.all(uploadPromises).then((results) => {
+                        const error = results.find((res) => res.error);
+                        if (error) {
+                            throw new Error(error.error);
                         }
-                        setIsSubmitting(false);
-                        return "All images uploaded successfully!";
-                    },
-                    error: (error) => {
-                        setIsSubmitting(false);
-                        return {
-                            message: "Error uploading images: " + error.message,
-                            action: {
-                                label: "Report",
-                                onClick: () => {
-                                    const url = reportWindowURL(ReportType.Error, "/createCollection", error.message);
-                                    window.open(url, "_blank");
-                                },
-                            },
-                        };
-                    },
+                    });
+                } else {
+                    if (!collectionId) {
+                        form.reset();
+                        setSameBackImage(null);
+                    }
+                }
+            },
+            {
+                loading: "Uploading...",
+                success: (data) => {
+                    if (!collectionId) {
+                        form.reset();
+                        setSameBackImage(null);
+                    }
+                    return "Uploaded successfully!";
                 },
-            );
-            return; // Let toast handle completion
-        } else {
-            if (!collectionId) {
-                form.reset();
-                setSameBackImage(null);
-            }
-        }
-        setIsSubmitting(false);
+                error: (error) => {
+                    return {
+                        message: "Error uploading: " + error.message,
+                        action: {
+                            label: "Report",
+                            onClick: () => {
+                                const url = reportWindowURL(ReportType.Error, window.location.href, error.message);
+                                window.open(url, "_blank");
+                            },
+                        },
+                    };
+                },
+                finally: () => {
+                    setIsSubmitting(false);
+                },
+            },
+        );
     }
 
     return (

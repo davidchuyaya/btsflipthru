@@ -42,6 +42,22 @@ function getDb() {
     return db(getEnv());
 }
 
+export async function getUsernameFromDB(userId: string): Promise<Result<string>> {
+    return await getDb()
+        .selectFrom("user_data")
+        .where("userId", "=", userId)
+        .select("username")
+        .executeTakeFirstOrThrow()
+        .then(
+            (result) => {
+                return { data: result.username };
+            },
+            (reason) => ({
+                error: `Could not get user name: ${reason}`,
+            }),
+        );
+}
+
 /**
  *
  * @param collectionType Only the name field is used
@@ -218,11 +234,11 @@ export async function addCollectionToDB(collection: Collection, photocards: Phot
         // Only Admins can set adminTemporary = false; only Mods and above can set modTemporary = false
         switch (session.data!.user.role) {
             case Role.MOD:
-                photocard.adminTemporary = true;
+                photocard.adminTemporary = 1;
                 break;
             case Role.USER: // Never reached for now, but just in case
-                photocard.adminTemporary = true;
-                photocard.modTemporary = true;
+                photocard.adminTemporary = 1;
+                photocard.modTemporary = 1;
                 break;
         }
     }
@@ -400,12 +416,12 @@ export async function updateCollectionInDB(
                 case Role.ADMIN:
                     break;
                 case Role.MOD:
-                    newCard.adminTemporary = true;
+                    newCard.adminTemporary = 1;
                     break;
                 case Role.USER:
                 default:
-                    newCard.adminTemporary = true;
-                    newCard.modTemporary = true;
+                    newCard.adminTemporary = 1;
+                    newCard.modTemporary = 1;
                     break;
             }
 
@@ -432,9 +448,23 @@ export async function updateCollectionInDB(
 }
 
 export async function getCollectionsFromDB(): Promise<ParsedCollection[]> {
-    const database = getDb();
-    const collections = await database.selectFrom("collections").selectAll().execute();
-    return collections.map((collection) => parseCollection(collection));
+    return (await getDb().selectFrom("collections").selectAll().execute()).map((collection) =>
+        parseCollection(collection),
+    );
+}
+
+export async function getPhotocardFromDB(id: number): Promise<Result<Photocard>> {
+    return await getDb()
+        .selectFrom("photocards")
+        .where("id", "=", id)
+        .selectAll()
+        .executeTakeFirstOrThrow()
+        .then(
+            (pc) => ({ data: pc }),
+            (reason) => ({
+                error: "Could not fetch photocard: " + reason,
+            }),
+        );
 }
 
 async function verifyTurnstile(token: string): Promise<Result<boolean>> {
@@ -626,6 +656,12 @@ export async function getRecentlyAddedPhotocardsInDB() {
         .orderBy("updatedAt", "desc")
         .limit(NUM_HOME_PHOTOCARDS)
         .execute();
+}
+
+export async function getPhotocardsInCollection(collectionId: number): Promise<Result<Photocard[]>> {
+    return {
+        data: await getDb().selectFrom("photocards").selectAll().where("collectionId", "=", collectionId).execute(),
+    };
 }
 
 export async function getPhotocardsInDB(query: SearchQuery): Promise<Result<{ cards: Photocard[]; query: string }>> {

@@ -37,10 +37,11 @@ export function isAdmin(session: ClientSession) {
     return false;
 }
 
-export async function signInGoogle(callbackURL: string | null = null) {
+export async function signInGoogle(callbackURL?: string | null | unknown) {
+    const finalCallbackURL = typeof callbackURL === "string" ? callbackURL : "/";
     await authClient.signIn.social({
         provider: "google",
-        callbackURL: callbackURL || "/",
+        callbackURL: finalCallbackURL,
         errorCallbackURL: "/error",
         newUserCallbackURL: "/",
         disableRedirect: false,

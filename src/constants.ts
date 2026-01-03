@@ -40,6 +40,13 @@ export function membersToBooleans(activeMembers: ReadonlySet<string>): Record<Na
     }, {} as Record<NameToMember, boolean>);
 }
 
+export function membersToBooleanNumbers(activeMembers: ReadonlySet<string>): Record<NameToMember, number> {
+    return MEMBERS.reduce((acc, member) => {
+        acc[member] = activeMembers.has(member) ? 1 : 0;
+        return acc;
+    }, {} as Record<NameToMember, number>);
+}
+
 export const MEMBER_CODE_TO_DISPLAY: Record<NameToMember, string> = Object.entries(NameToMember).reduce(
     (acc, [displayName, code]) => {
         acc[code] = displayName;
@@ -49,9 +56,30 @@ export const MEMBER_CODE_TO_DISPLAY: Record<NameToMember, string> = Object.entri
 );
 
 export type MemberBooleans = Record<NameToMember, boolean>;
+export type MemberBooleanNumbers = Record<NameToMember, number>;
 
 export function booleansToMembers(source: MemberBooleans): NameToMember[] {
     return MEMBERS.filter((member) => source[member]);
+}
+
+export function numbersToMembers(source: MemberBooleanNumbers): NameToMember[] {
+    return MEMBERS.filter((member) => source[member] === 1);
+}
+
+export function memberBooleansToName(source: MemberBooleans): string {
+    const members = booleansToMembers(source);
+    if (members.length === 7) {
+        return "OT7";
+    }
+    return members.map((member) => MEMBER_CODE_TO_DISPLAY[member]).join(", ");
+}
+
+export function memberBooleanNumbersToName(source: MemberBooleanNumbers): string {
+    const members = numbersToMembers(source);
+    if (members.length === 7) {
+        return "OT7";
+    }
+    return members.map((member) => MEMBER_CODE_TO_DISPLAY[member]).join(", ");
 }
 
 export const MEMBER_TO_EMOJI = {

@@ -1,7 +1,7 @@
 import { ParsedCollection, Photocard } from "@/db";
 import PhotocardComponent from "./photocard";
-import { NameToMember, thumbnailUrl } from "@/constants";
-import React, { useMemo } from "react";
+import { memberBooleanNumbersToName, thumbnailUrl } from "@/constants";
+import React from "react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 
@@ -17,7 +17,7 @@ function PhotocardGridWithoutCollections({
     photocards: Photocard[];
     className?: string;
     showFront?: boolean;
-    collections?: Record<number, string>;
+    collections?: ParsedCollection[];
     isSelectionMode?: boolean;
     selectedIds?: Set<number>;
     onToggleSelection?: (id: number) => void;
@@ -49,26 +49,14 @@ function PhotocardGridWithoutCollections({
                     selectable={isSelectionMode}
                     isSelected={selectedIds?.has(photocard.id!)}
                     onToggle={() => onToggleSelection?.(photocard.id!)}
+                    onClick={() => window.open(`/photocard/${photocard.id}`, "_blank")}
                 >
-                    {(() => {
-                        const albumName = collections?.[photocard.collectionId];
-                        const memberEntries = Object.entries(NameToMember);
-                        const presentMembers = memberEntries.filter(([_, key]) => photocard[key as keyof Photocard]);
-
-                        let memberName: string | null = null;
-                        if (presentMembers.length === memberEntries.length) {
-                            memberName = "OT7";
-                        } else if (presentMembers.length > 0) {
-                            memberName = presentMembers.map(([name]) => name).join(", ");
-                        }
-
-                        return (
-                            <>
-                                {albumName && <p>{albumName}</p>}
-                                {memberName && <p>{memberName}</p>}
-                            </>
-                        );
-                    })()}
+                    {collections && (
+                        <>
+                            <p>{collections?.find((c) => c.id === photocard.collectionId)?.name}</p>
+                            <p>{memberBooleanNumbersToName(photocard)}</p>
+                        </>
+                    )}
                 </PhotocardComponent>
             ))}
         </div>
@@ -80,7 +68,7 @@ export default function PhotocardGrid({
     collections,
     displayCollections = false,
     className,
-    showFront,
+    showFront = true,
     isSelectionMode = false,
     selectedIds,
     onToggleSelection,
@@ -101,7 +89,6 @@ export default function PhotocardGrid({
             {collections!.map((collection) => {
                 const children = photocards.filter((pc) => pc.collectionId === collection.id);
                 const hidden = children.length === 0;
-                const collectionMap = { [collection.id!]: collection.name };
 
                 return (
                     <React.Fragment key={collection.id!}>
@@ -115,7 +102,7 @@ export default function PhotocardGrid({
                             photocards={children}
                             showFront={showFront}
                             className={hidden ? "hidden" : ""}
-                            collections={collectionMap}
+                            collections={collections}
                             isSelectionMode={isSelectionMode}
                             selectedIds={selectedIds}
                             onToggleSelection={onToggleSelection}
@@ -129,17 +116,7 @@ export default function PhotocardGrid({
             photocards={photocards}
             className={className}
             showFront={showFront}
-            collections={useMemo(
-                () =>
-                    collections?.reduce(
-                        (acc, c) => {
-                            acc[c.id!] = c.name;
-                            return acc;
-                        },
-                        {} as Record<number, string>,
-                    ),
-                [collections],
-            )}
+            collections={collections}
             isSelectionMode={isSelectionMode}
             selectedIds={selectedIds}
             onToggleSelection={onToggleSelection}

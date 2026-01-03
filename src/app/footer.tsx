@@ -3,6 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { ReportType, reportWindowURL } from "@/constants";
 import Link from "next/link";
+import Image from "next/image";
 import { useEffect, useState } from "react";
 import SocialButtonsComponent from "./social-buttons";
 
@@ -33,7 +34,14 @@ export default function FooterComponent() {
                 <FooterButton text="Resources & How-To Guides" href="/" />
             </div>
             <Link href="/" className="grow-10">
-                <img src="logo_border.svg" alt="Logo" className="h-26 w-auto m-auto" />
+                <Image
+                    src="/logo_border.svg"
+                    alt="Logo"
+                    className="h-26 w-auto m-auto"
+                    width={618}
+                    height={538}
+                    priority
+                />
             </Link>
 
             <div className="flex flex-col justify-start items-end grow">

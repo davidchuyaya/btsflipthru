@@ -21,6 +21,7 @@ const buttonVariants = cva(
                     "text-main-foreground bg-main border-2 border-border hover:translate-x-reverseBoxShadowX hover:translate-y-reverseBoxShadowY hover:shadow-shadow",
                 underline:
                     "text-main-foreground bg-transparent border-0 shadow-none underline hover:no-underline hover:bg-main/10",
+                big: "font-heading! text-accent-light text-5xl! pt-4! pb-4! px-6! w-50! h-auto! whitespace-normal text-center bg-main-light border-2 border-border shadow-shadow hover:translate-x-boxShadowX hover:translate-y-boxShadowY hover:shadow-none",
             },
             size: {
                 default: "h-10 px-4 py-2",

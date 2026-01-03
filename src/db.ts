@@ -112,16 +112,16 @@ export interface Photocard {
     sizeId: number;
     effects: number; // Should be one of Effects enum values
     exclusiveCountry: number; // Should be one of ExclusiveCountry enum key types
-    modTemporary: boolean; // True for all user uploads. Can be marked false by mod (no more user overwrites)
-    adminTemporary: boolean; // True for all user/mod uploads. Can be marked false by admin (no more user/mod overwrites)
+    modTemporary: number; // True for all user uploads. Can be marked false by mod (no more user overwrites)
+    adminTemporary: number; // True for all user/mod uploads. Can be marked false by admin (no more user/mod overwrites)
 
-    rm: boolean;
-    jimin: boolean;
-    jungkook: boolean;
-    v: boolean;
-    jin: boolean;
-    suga: boolean;
-    jhope: boolean;
+    rm: number;
+    jimin: number;
+    jungkook: number;
+    v: number;
+    jin: number;
+    suga: number;
+    jhope: number;
 
     imageContributorId: string;
     updatedAt: number;
@@ -223,8 +223,8 @@ export interface UserData {
     imageId: string | null;
     profilePhotocardId: number | null;
     bias: number | null;
-    disableCursor: boolean;
-    disableEffects: boolean;
+    disableCursor: number;
+    disableEffects: number;
     spotifyPlaylist: string | null;
     contributions: number;
     uploadedCreations: number;

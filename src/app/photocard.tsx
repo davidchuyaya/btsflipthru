@@ -65,19 +65,28 @@ function PlaceholderComponent({
     borderRadius,
     aspectRatio,
     children,
+    large,
 }: {
     type: PlaceholderType;
     borderRadius: number;
     aspectRatio: string;
     children?: React.ReactNode;
+    large: boolean;
 }) {
+    const [w, h] = aspectRatio.split(" / ").map(Number);
+    const ratio = w / h;
+    const verticalPercent = (borderRadius / THUMBNAIL_DISPLAY_HEIGHT_PX) * 100;
+    const horizontalPercent = verticalPercent / ratio;
+    const radiusString = `${horizontalPercent.toFixed(2)}% / ${verticalPercent.toFixed(2)}%`;
+
     return (
         <div
             className="bg-accent flex items-center justify-center relative p-4 text-center overflow-hidden"
             style={{
-                height: `${THUMBNAIL_DISPLAY_HEIGHT_PX}px`,
+                height: large ? "auto" : `${THUMBNAIL_DISPLAY_HEIGHT_PX}px`,
+                width: large ? "100%" : "auto",
                 aspectRatio: aspectRatio,
-                borderRadius: `${borderRadius}px`,
+                borderRadius: radiusString,
             }}
         >
             {children && (
@@ -89,7 +98,7 @@ function PlaceholderComponent({
                 src={type}
                 alt="Placeholder photocard"
                 style={{
-                    height: `${THUMBNAIL_DISPLAY_HEIGHT_PX / 2}px`,
+                    height: "50%",
                 }}
             />
         </div>
@@ -107,6 +116,8 @@ export default function PhotocardComponent({
     selectable = false,
     isSelected = false,
     onToggle,
+    onClick,
+    large = false,
 }: {
     className?: string;
     src: string | null;
@@ -118,6 +129,8 @@ export default function PhotocardComponent({
     selectable?: boolean;
     isSelected?: boolean;
     onToggle?: () => void;
+    onClick?: () => void;
+    large?: boolean;
 }) {
     const [borderRadius, setBorderRadius] = useState<number>(16);
     const [aspectRatio, setAspectRatio] = useState<string>(DEFAULT_ASPECT_RATIO);
@@ -146,6 +159,9 @@ export default function PhotocardComponent({
 
         // 1. Create and configure
         const el = document.createElement("hover-tilt");
+        if (large) {
+            el.setAttribute("style", "display: block; width: 100%;");
+        }
         let glareIntensity = "";
         switch (effects) {
             case Effects.Matte:
@@ -170,27 +186,43 @@ export default function PhotocardComponent({
         hostRef.current.appendChild(el);
 
         // 3. Now set styles safely
-        hostRef.current.style.setProperty("--detected-radius", `${borderRadius}px`);
+        const [w, h] = aspectRatio.split(" / ").map(Number);
+        const ratio = w / h;
+        const verticalPercent = (borderRadius / THUMBNAIL_DISPLAY_HEIGHT_PX) * 100;
+        const horizontalPercent = verticalPercent / ratio;
+        const radiusString = `${horizontalPercent.toFixed(2)}% / ${verticalPercent.toFixed(2)}%`;
+
+        hostRef.current.style.setProperty("--detected-radius", radiusString);
 
         // 4. Inject Image
         if (!src) {
             // 1. Create a wrapper div to hold the React tree
             const placeholderContainer = document.createElement("div");
-            placeholderContainer.style.borderRadius = `${borderRadius}px`;
+            placeholderContainer.style.borderRadius = radiusString;
             el.appendChild(placeholderContainer);
 
             // 2. Mount the React component into that div
             const root = createRoot(placeholderContainer);
             root.render(
-                <PlaceholderComponent type={placeholderType} borderRadius={borderRadius} aspectRatio={aspectRatio}>
+                <PlaceholderComponent
+                    type={placeholderType}
+                    borderRadius={borderRadius}
+                    aspectRatio={aspectRatio}
+                    large={large}
+                >
                     {children}
-                </PlaceholderComponent>
+                </PlaceholderComponent>,
             );
         } else {
             const img = document.createElement("img");
             img.src = src;
-            img.style.height = `${THUMBNAIL_DISPLAY_HEIGHT_PX}px`;
-            img.style.maxWidth = "none";
+            if (!large) {
+                img.style.height = `${THUMBNAIL_DISPLAY_HEIGHT_PX}px`;
+                img.style.maxWidth = "none";
+            } else {
+                img.style.height = "auto";
+                img.style.width = "100%";
+            }
             if (manualRadius) {
                 // Crop image
                 img.style.borderRadius = "16px";
@@ -200,17 +232,17 @@ export default function PhotocardComponent({
     }
 
     return (
-        <div 
-            className={`${className} flex justify-center relative`}
-            onClick={() => selectable && onToggle?.()}
+        <div
+            className={`${className} ${large ? "w-full" : ""} flex justify-center relative`}
+            onClick={() => (selectable ? onToggle?.() : onClick?.())}
         >
-            <div ref={hostRef} className={`inline-block transition-opacity ${selectable ? (isSelected ? "opacity-100" : "opacity-50") : ""}`} />
+            <div
+                ref={hostRef}
+                className={`${large ? "w-full" : "inline-block"} transition-opacity ${selectable ? (isSelected ? "opacity-100" : "opacity-50") : ""}`}
+            />
             {selectable && (
                 <div className="absolute inset-0 flex items-center justify-center z-20 cursor-pointer">
-                    <CheckboxWithoutLabel
-                        checked={isSelected}
-                        className="w-8 h-8 border-2 pointer-events-none"
-                    />
+                    <CheckboxWithoutLabel checked={isSelected} className="w-8 h-8 border-2 pointer-events-none" />
                 </div>
             )}
         </div>

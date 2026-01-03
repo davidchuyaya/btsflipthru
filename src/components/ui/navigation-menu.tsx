@@ -206,7 +206,7 @@ export default function NavigationComponent() {
                         <MenuItemComponent key={index} title={item.title} href={item.href} middle={item.middle} />
                     ))}
                     {session === null ? (
-                        <MenuItemComponent title="Sign In" onClick={signInGoogle} middle={false} />
+                        <MenuItemComponent title="Sign In" onClick={() => signInGoogle(window.location.href)} middle={false} />
                     ) : (
                         <MenuItemComponent title="Profile" href="/profile" middle={false} />
                     )}

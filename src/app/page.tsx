@@ -17,14 +17,11 @@ import PhotocardComponent from "./photocard";
 import CountdownClock from "./countdown-clock";
 import { useMetadata } from "@/metadata-context";
 import { Button } from "@/components/ui/button";
-import { booleansToMembers, MEMBER_CODE_TO_DISPLAY } from "@/constants";
+import { booleansToMembers, MEMBER_CODE_TO_DISPLAY, numbersToMembers } from "@/constants";
 
 function HomeButton({ text, href }: { text: string; href: string }) {
     return (
-        <Button
-            className="font-heading text-accent-light text-5xl! pt-4 pb-4 px-6 w-50 h-auto whitespace-normal text-center bg-main-light"
-            asChild
-        >
+        <Button variant="big" asChild>
             <Link href={href}>{text}</Link>
         </Button>
     );
@@ -51,7 +48,7 @@ function PhotocardLeaderboard({
 }
 
 function photocardToName(photocard: Photocard, collections: ParsedCollection[], cardTypes: CardType[]): string {
-    const activeMembers = booleansToMembers(photocard);
+    const activeMembers = numbersToMembers(photocard);
     const members = activeMembers.map((m) => MEMBER_CODE_TO_DISPLAY[m]);
     const name = members.length === 7 ? "Group" : members.join(", ");
 
