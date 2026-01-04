@@ -141,7 +141,7 @@ CREATE TABLE IF NOT EXISTS user_data (
     bcdId TEXT,
     blueskyId TEXT,
     twitterId TEXT,
-    intagramId TEXT,
+    instagramId TEXT,
     discordId TEXT,
     imageId TEXT,
     profilePhotocardId INTEGER,

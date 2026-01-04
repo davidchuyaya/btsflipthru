@@ -777,66 +777,72 @@ export default function SearchComponent() {
         selectedCollections: Set<number>,
         ignorePrevSearch: boolean,
     ): number[] {
-        const prevCollections =
-            prevSearch && !ignorePrevSearch
-                ? collections.filter((col) => prevSearch.coveredCollectionIds.includes(col.id!))
-                : [];
-        let sortedAndFilteredCollections: ParsedCollection[] = [];
-        switch (currentFilters.sort) {
-            case SortType.ReleaseDateAsc:
-                const maxReleaseDate =
-                    prevCollections.length === 0
-                        ? null
-                        : prevCollections.reduce((prev, curr) => {
-                              return new Date(curr.releaseDate) > new Date(prev.releaseDate) ? curr : prev;
-                          });
-                sortedAndFilteredCollections = collections
-                    .filter(
-                        (col) =>
-                            prevCollections.length === 0 ||
-                            new Date(col.releaseDate) > new Date(maxReleaseDate!.releaseDate),
-                    )
-                    .sort((a, b) => new Date(a.releaseDate).getTime() - new Date(b.releaseDate).getTime());
-                break;
-            case SortType.ReleaseDateDesc:
-                const minReleaseDate =
-                    prevCollections.length === 0
-                        ? null
-                        : prevCollections.reduce((prev, curr) => {
-                              return new Date(curr.releaseDate) < new Date(prev.releaseDate) ? curr : prev;
-                          });
-                sortedAndFilteredCollections = collections
-                    .filter(
-                        (col) =>
-                            prevCollections.length === 0 ||
-                            new Date(col.releaseDate) < new Date(minReleaseDate!.releaseDate),
-                    )
-                    .sort((a, b) => new Date(b.releaseDate).getTime() - new Date(a.releaseDate).getTime());
-                break;
-            default:
-                return dontFilterIfAllSelected(selectedCollections, collections);
-        }
+        // TODO: Add limit once we migrate away from D1; D1 scans the entire table anyway
+        return Array.from(selectedCollections);
 
-        // Return the NUM_LOAD_COLLECTIONS first collections that were selected
-        return sortedAndFilteredCollections
-            .filter((col) => selectedCollections.has(col.id!))
-            .map((col) => col.id!)
-            .slice(0, NUM_LOAD_COLLECTIONS);
+        // const prevCollections =
+        //     prevSearch && !ignorePrevSearch
+        //         ? collections.filter((col) => prevSearch.coveredCollectionIds.includes(col.id!))
+        //         : [];
+        // let sortedAndFilteredCollections: ParsedCollection[] = [];
+        // switch (currentFilters.sort) {
+        //     case SortType.ReleaseDateAsc:
+        //         const maxReleaseDate =
+        //             prevCollections.length === 0
+        //                 ? null
+        //                 : prevCollections.reduce((prev, curr) => {
+        //                       return new Date(curr.releaseDate) > new Date(prev.releaseDate) ? curr : prev;
+        //                   });
+        //         sortedAndFilteredCollections = collections
+        //             .filter(
+        //                 (col) =>
+        //                     prevCollections.length === 0 ||
+        //                     new Date(col.releaseDate) > new Date(maxReleaseDate!.releaseDate),
+        //             )
+        //             .sort((a, b) => new Date(a.releaseDate).getTime() - new Date(b.releaseDate).getTime());
+        //         break;
+        //     case SortType.ReleaseDateDesc:
+        //         const minReleaseDate =
+        //             prevCollections.length === 0
+        //                 ? null
+        //                 : prevCollections.reduce((prev, curr) => {
+        //                       return new Date(curr.releaseDate) < new Date(prev.releaseDate) ? curr : prev;
+        //                   });
+        //         sortedAndFilteredCollections = collections
+        //             .filter(
+        //                 (col) =>
+        //                     prevCollections.length === 0 ||
+        //                     new Date(col.releaseDate) < new Date(minReleaseDate!.releaseDate),
+        //             )
+        //             .sort((a, b) => new Date(b.releaseDate).getTime() - new Date(a.releaseDate).getTime());
+        //         break;
+        //     default:
+        //         return dontFilterIfAllSelected(selectedCollections, collections);
+        // }
+
+        // // Return the NUM_LOAD_COLLECTIONS first collections that were selected
+        // return sortedAndFilteredCollections
+        //     .filter((col) => selectedCollections.has(col.id!))
+        //     .map((col) => col.id!)
+        //     .slice(0, NUM_LOAD_COLLECTIONS);
     }
 
     function limitSearchDate(): Date | null {
-        if (!prevSearch) {
-            return null;
-        }
+        // TODO: Add limit once we migrate away from D1; D1 scans the entire table anyway
+        return null;
 
-        switch (filters.sort) {
-            case SortType.DateAddedAsc:
-            case SortType.DateAddedDesc:
-                const lastPhotocard = photocards[photocards.length - 1];
-                return lastPhotocard ? new Date(lastPhotocard.updatedAt) : null;
-            default:
-                return null;
-        }
+        // if (!prevSearch) {
+        //     return null;
+        // }
+
+        // switch (filters.sort) {
+        //     case SortType.DateAddedAsc:
+        //     case SortType.DateAddedDesc:
+        //         const lastPhotocard = photocards[photocards.length - 1];
+        //         return lastPhotocard ? new Date(lastPhotocard.updatedAt) : null;
+        //     default:
+        //         return null;
+        // }
     }
 
     function filtersToQuery(currentFilters: Filters): SearchQuery {

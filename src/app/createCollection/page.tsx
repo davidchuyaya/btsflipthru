@@ -131,7 +131,7 @@ function CreatePhotocardRowComponent({
     expandImages: boolean;
     isLocked: boolean;
 }) {
-    const { setError } = useMetadata();
+    const { session, setError } = useMetadata();
     const { control, getValues, setValue } = useFormContext<z.infer<typeof formSchema>>();
     const backImageRef = useRef<ImageDropzoneRef>(null);
 
@@ -202,7 +202,7 @@ function CreatePhotocardRowComponent({
                                         className="w-auto!"
                                         type="single"
                                         variant="outline"
-                                        disabled={isLocked}
+                                        disabled={isLocked || session?.user.role === Role.USER}
                                         value={effectsField.value.toString()}
                                         onValueChange={(v) => effectsField.onChange(Number(v))}
                                     >

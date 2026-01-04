@@ -15,6 +15,7 @@ import {
     UserData,
     PhotocardData,
     DEFAULT_CARD_TYPE,
+    UserBinder,
 } from "@/db";
 import {
     Result,
@@ -28,6 +29,7 @@ import {
     NUM_LOAD_PHOTOCARDS,
     NUM_LOAD_COLLECTIONS,
     booleansToMembers,
+    UserProfileData,
 } from "@/constants";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { v2 as cloudinary } from "cloudinary";
@@ -664,7 +666,10 @@ export async function getPhotocardsInCollection(collectionId: number): Promise<R
     };
 }
 
-export async function getPhotocardsInDB(query: SearchQuery, updateDate: Date | null): Promise<Result<{ cards: Photocard[]; query: string }>> {
+export async function getPhotocardsInDB(
+    query: SearchQuery,
+    updateDate: Date | null,
+): Promise<Result<{ cards: Photocard[]; query: string }>> {
     const database = getDb();
     let queryBuilder = database.selectFrom("photocards").selectAll();
 
@@ -725,22 +730,27 @@ export async function getPhotocardsInDB(query: SearchQuery, updateDate: Date | n
             if (query.collectionIds.length === 0) {
                 return { error: "Release date sorting requires at least one collection filter." };
             } else if (query.collectionIds.length > NUM_LOAD_COLLECTIONS) {
-                return {
-                    error: `Cannot load more than ${NUM_LOAD_COLLECTIONS} collections when sorting by release date.`,
-                };
+                // TODO: Add limit once we migrate away from D1; D1 scans the entire table anyway
+                // return {
+                //     error: `Cannot load more than ${NUM_LOAD_COLLECTIONS} collections when sorting by release date.`,
+                // };
             }
             break;
         case SortType.DateAddedAsc:
             if (updateDate !== null) {
                 queryBuilder = queryBuilder.where("updatedAt", ">", updateDate.getTime());
             }
-            queryBuilder = queryBuilder.orderBy("updatedAt", "asc").limit(NUM_LOAD_PHOTOCARDS);
+            queryBuilder = queryBuilder.orderBy("updatedAt", "asc");
+            // TODO: Add limit once we migrate away from D1; D1 scans the entire table anyway
+            // .limit(NUM_LOAD_PHOTOCARDS);
             break;
         case SortType.DateAddedDesc:
             if (updateDate !== null) {
                 queryBuilder = queryBuilder.where("updatedAt", "<", updateDate.getTime());
             }
-            queryBuilder = queryBuilder.orderBy("updatedAt", "desc").limit(NUM_LOAD_PHOTOCARDS);
+            queryBuilder = queryBuilder.orderBy("updatedAt", "desc");
+            // TODO: Add limit once we migrate away from D1; D1 scans the entire table anyway
+            // .limit(NUM_LOAD_PHOTOCARDS);
             break;
         default:
             return { error: "Invalid sort type." };
@@ -748,4 +758,96 @@ export async function getPhotocardsInDB(query: SearchQuery, updateDate: Date | n
 
     const queryString = queryBuilder.compile().sql;
     return { data: { cards: await queryBuilder.execute(), query: queryString } };
+}
+
+export async function getUserProfileDataFromDB(id: string): Promise<Result<UserProfileData>> {
+    const database = getDb();
+
+    // TODO: Change implementation once migrated to D1; will need to scan photocard/wishlist tables
+
+    const [userDataResult, createdAtResult, userPhotocardsResult, userWishlistResult, userBindersResult] =
+        await Promise.all([
+            database
+                .selectFrom("user_data")
+                .selectAll()
+                .where("userId", "=", id)
+                .executeTakeFirstOrThrow()
+                .then(
+                    (data): Result<UserData> => ({ data }),
+                    (reason): Result<UserData> => ({ error: "Could not fetch user data: " + reason }),
+                ),
+            database
+                .selectFrom("user")
+                .select("createdAt")
+                .where("id", "=", id)
+                .executeTakeFirstOrThrow()
+                .then(
+                    (data): Result<Date> => ({ data: data.createdAt }),
+                    (reason): Result<Date> => ({ error: "Could not fetch user creation date: " + reason }),
+                ),
+            database
+                .selectFrom("user_photocards")
+                .select("photocards")
+                .where("userId", "=", id)
+                .executeTakeFirst()
+                .then(
+                    (data): Result<string | undefined> => ({ data: data?.photocards }),
+                    (reason): Result<string | undefined> => ({ error: "Could not fetch user photocards: " + reason }),
+                ),
+            database
+                .selectFrom("user_wishlist")
+                .select("wishlist")
+                .where("userId", "=", id)
+                .executeTakeFirst()
+                .then(
+                    (data): Result<string | undefined> => ({ data: data?.wishlist }),
+                    (reason): Result<string | undefined> => ({ error: "Could not fetch user wishlist: " + reason }),
+                ),
+            database
+                .selectFrom("user_binders")
+                .selectAll()
+                .where("userId", "=", id)
+                .orderBy("lastUpdatedAt", "desc")
+                .execute()
+                .then(
+                    (data): Result<UserBinder[]> => ({ data }),
+                    (reason): Result<UserBinder[]> => ({ error: "Could not fetch user binders: " + reason }),
+                ),
+        ]);
+
+    if (userDataResult.error) return { error: userDataResult.error };
+    if (createdAtResult.error) return { error: createdAtResult.error };
+    if (userPhotocardsResult.error) return { error: userPhotocardsResult.error };
+    if (userWishlistResult.error) return { error: userWishlistResult.error };
+    if (userBindersResult.error) return { error: userBindersResult.error };
+
+    return {
+        data: {
+            userData: userDataResult.data!,
+            createdAt: createdAtResult.data!,
+            photocards: userPhotocardsResult.data,
+            wishlist: userWishlistResult.data,
+            binders: userBindersResult.data,
+        },
+    };
+}
+
+export async function updateUserDataInDB(userData: UserData): Promise<Result<boolean>> {
+    const session = await getSession();
+    if (session.error) {
+        return { error: session.error };
+    }
+    if (session.data!.user.id !== userData.userId) {
+        return { error: "You do not have permission to update this user's data." };
+    }
+
+    return await getDb()
+        .updateTable("user_data")
+        .set(userData)
+        .where("userId", "=", userData.userId)
+        .executeTakeFirstOrThrow()
+        .then(
+            (data) => ({ data: true }),
+            (reason) => ({ error: "Could not update user data: " + reason }),
+        );
 }

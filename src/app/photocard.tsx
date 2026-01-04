@@ -121,7 +121,7 @@ export default function PhotocardComponent({
 }: {
     className?: string;
     src: string | null;
-    fallbackSrc: string | null;
+    fallbackSrc?: string | null;
     effects: Effects;
     manualRadius?: boolean;
     placeholderType?: PlaceholderType;

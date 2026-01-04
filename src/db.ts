@@ -218,7 +218,7 @@ export interface UserData {
     bcdId: string | null;
     blueskyId: string | null;
     twitterId: string | null;
-    intagramId: string | null;
+    instagramId: string | null;
     discordId: string | null;
     imageId: string | null;
     profilePhotocardId: number | null;

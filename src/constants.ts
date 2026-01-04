@@ -1,3 +1,5 @@
+import { UserBinder, UserData } from "./db";
+
 export const SEPARATOR = ","; // Used when arrays are stored as strings in the database
 export const MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024; // 10MB. Enforced by Cloudinary's free tier
 export const CACHE_DURATION_MS = 5 * 60 * 1000; // 5 minutes before metadata is refetched
@@ -187,3 +189,11 @@ export type SearchQuery = {
     jungkook: boolean;
     sortBy: SortType;
 };
+
+export type UserProfileData = {
+    userData: UserData;
+    createdAt: Date;
+    photocards?: string;
+    wishlist?: string;
+    binders?: UserBinder[];
+}

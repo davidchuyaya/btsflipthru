@@ -157,14 +157,14 @@ export default function AboutComponent() {
                         src={null}
                         fallbackSrc={null}
                         effects={Effects.Matte}
-                        className="absolute top-0 left-0 -rotate-15"
+                        className="absolute! top-0 left-0 -rotate-15"
                     />
                     <PhotocardComponent
                         src={null}
                         fallbackSrc={null}
                         placeholderType={PlaceholderType.ARMY}
                         effects={Effects.Matte}
-                        className="absolute top-6 right-0 rotate-13 z-10"
+                        className="absolute! top-6 right-0 rotate-13 z-10"
                     />
                 </div>
                 <p>
