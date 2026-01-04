@@ -186,5 +186,4 @@ export type SearchQuery = {
     v: boolean;
     jungkook: boolean;
     sortBy: SortType;
-    updateDate: Date | null;
 };

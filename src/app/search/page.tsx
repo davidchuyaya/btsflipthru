@@ -187,6 +187,10 @@ export default function SearchComponent() {
             exclusiveCountries: new Set(Object.values(ExclusiveCountry)),
         };
         setFilters(newFilters);
+        setPrevSearch({
+            fullQuery: filtersToQuery(newFilters),
+            coveredCollectionIds: [],
+        });
         console.log("Collections: ", collections);
 
         // Provide parameters to trySearch since it may not see the updated parameters in time
@@ -560,7 +564,7 @@ export default function SearchComponent() {
         );
     }
 
-    function refreshCollectionTypes(newSelectedTopCollections: Set<number>) {
+    function getNewCollectionTypes(newSelectedTopCollections: Set<number>): Set<number> {
         const newSelectedTypes = new Set<number>();
         for (const type of collectionTypes) {
             const topColsForType = getTopCollectionsForType(type.id!);
@@ -569,7 +573,7 @@ export default function SearchComponent() {
                 newSelectedTypes.add(type.id!);
             }
         }
-        setFilters({ ...filters, collectionTypes: newSelectedTypes });
+        return newSelectedTypes;
     }
 
     function onSelectedCollectionType(typeId: number, checked: boolean) {
@@ -601,6 +605,7 @@ export default function SearchComponent() {
         const newSelectedTopCollections = new Set(filters.topCollections);
         let newSelectedSubCollections = new Set(filters.subCollections);
         const subColsForTop = hasSub ? getSubCollectionsForTop(collection.name) : new Set<number>();
+        let newSelectedCollectionTypes = filters.collectionTypes;
 
         if (checked) {
             newSelectedTopCollections.add(collection.id!);
@@ -610,7 +615,7 @@ export default function SearchComponent() {
             }
 
             // Check collection types if not already checked
-            refreshCollectionTypes(newSelectedTopCollections);
+            newSelectedCollectionTypes = getNewCollectionTypes(newSelectedTopCollections);
         } else {
             newSelectedTopCollections.delete(collection.id!);
 
@@ -621,13 +626,14 @@ export default function SearchComponent() {
             }
 
             // Uncheck collection types if no more top collections are checked
-            refreshCollectionTypes(newSelectedTopCollections);
+            newSelectedCollectionTypes = getNewCollectionTypes(newSelectedTopCollections);
         }
 
         const newFilters = {
             ...filters,
             topCollections: newSelectedTopCollections,
             subCollections: newSelectedSubCollections,
+            collectionTypes: newSelectedCollectionTypes,
         };
         setFilters(newFilters);
     }
@@ -642,12 +648,13 @@ export default function SearchComponent() {
             // Check the top collection
             if (topCollection) {
                 const newSelectedTopCollections = new Set([...filters.topCollections, topCollection.id!]);
+                const newSelectedCollectionTypes = getNewCollectionTypes(newSelectedTopCollections);
                 setFilters({
                     ...filters,
                     topCollections: newSelectedTopCollections,
                     subCollections: newSelectedSubCollections,
+                    collectionTypes: newSelectedCollectionTypes,
                 });
-                refreshCollectionTypes(newSelectedTopCollections);
             } else {
                 setFilters({ ...filters, subCollections: newSelectedSubCollections });
             }
@@ -664,12 +671,13 @@ export default function SearchComponent() {
                 if (!hasOtherChecked) {
                     const newSelectedTopCollections = new Set(filters.topCollections);
                     newSelectedTopCollections.delete(topCollection.id!);
+                    const newSelectedCollectionTypes = getNewCollectionTypes(newSelectedTopCollections);
                     setFilters({
                         ...filters,
                         topCollections: newSelectedTopCollections,
                         subCollections: newSelectedSubCollections,
+                        collectionTypes: newSelectedCollectionTypes,
                     });
-                    refreshCollectionTypes(newSelectedTopCollections);
                 } else {
                     setFilters({ ...filters, subCollections: newSelectedSubCollections });
                 }
@@ -831,22 +839,11 @@ export default function SearchComponent() {
         }
     }
 
-    /**
-     * Attempt a brand new search query
-     */
-    async function trySearch(currentFilters: Filters) {
-        console.log(
-            `Trying search...\nselectedTopCollections: ${Array.from(currentFilters.topCollections).join(", ")}\nselectedSubCollections: ${Array.from(currentFilters.subCollections).join(", ")}\nselectedCollections: ${Array.from(topAndSubToSelectedCollections(currentFilters.topCollections, currentFilters.subCollections)).join(", ")}\nselectedCardTypes: ${Array.from(currentFilters.cardTypes).join(", ")}\nselectedCardSizes: ${Array.from(currentFilters.cardSizes).join(", ")}\nselectedMembers: ${Array.from(currentFilters.members).join(", ")}\nselectedExclusiveCountries: ${Array.from(currentFilters.exclusiveCountries).join(", ")}`,
-        );
+    function filtersToQuery(currentFilters: Filters): SearchQuery {
         const selectedCollections = topAndSubToSelectedCollections(
             currentFilters.topCollections,
             currentFilters.subCollections,
         );
-        if (!canSearch(currentFilters, selectedCollections)) {
-            console.log("Cannot search yet, missing parameters.");
-            return;
-        }
-
         const searchQuery: SearchQuery = {
             collectionIds: dontFilterIfAllSelected(selectedCollections, collections),
             cardTypeIds: dontFilterIfAllSelected(currentFilters.cardTypes, cardTypes).map((ct) => ct.id!),
@@ -857,12 +854,34 @@ export default function SearchComponent() {
             ),
             ...membersToBooleans(currentFilters.members),
             sortBy: currentFilters.sort,
-            updateDate: null,
-        } as SearchQuery;
-        console.log("Search Query:", searchQuery);
+        };
+        return searchQuery;
+    }
 
+    function hasFiltersChanged(searchQuery: SearchQuery, prevQuery?: SearchQuery) {
+        if (prevQuery === undefined) {
+            // If there was no previous search, then we should always allow the search to proceed
+            return true;
+        }
+        return JSON.stringify(searchQuery) !== JSON.stringify(prevQuery);
+    }
+
+    /**
+     * Attempt a brand new search query
+     */
+    async function trySearch(currentFilters: Filters) {
+        const selectedCollections = topAndSubToSelectedCollections(
+            currentFilters.topCollections,
+            currentFilters.subCollections,
+        );
+        if (!canSearch(currentFilters, selectedCollections)) {
+            console.log("Cannot search yet, missing parameters.");
+            return;
+        }
+
+        const searchQuery = filtersToQuery(currentFilters);
         // Avoid duplicate searches
-        if (JSON.stringify(searchQuery) === JSON.stringify(prevSearch?.fullQuery)) {
+        if (!hasFiltersChanged(searchQuery)) {
             console.log("Duplicate search query, aborting.");
             return;
         }
@@ -882,9 +901,13 @@ export default function SearchComponent() {
 
         // Insert the unmodified search (so we can compare)
         setPrevSearch({ fullQuery: searchQuery, coveredCollectionIds: newCollectionIds });
-        searchQuery.collectionIds = newCollectionIds;
 
-        await sendQuery(searchQuery, false);
+        const queryToSend = {
+            ...searchQuery,
+            collectionIds: newCollectionIds,
+        };
+
+        await sendQuery(queryToSend, null, false);
     }
 
     /**
@@ -900,9 +923,9 @@ export default function SearchComponent() {
         // Tell the database how much more we want to search
         const searchQuery = prevSearch.fullQuery;
         searchQuery.collectionIds = limitSearchCollections(filters, selectedCollections, false);
-        searchQuery.updateDate = limitSearchDate();
+        const updateDate = limitSearchDate();
         console.log("Limit collection IDs for next search:", searchQuery.collectionIds);
-        console.log("Limit update date for next search:", searchQuery.updateDate);
+        console.log("Limit update date for next search:", updateDate);
 
         // Stop when there is nothing left to search
         switch (filters.sort) {
@@ -919,13 +942,13 @@ export default function SearchComponent() {
             coveredCollectionIds: prevSearch.coveredCollectionIds.concat(searchQuery.collectionIds),
         });
 
-        await sendQuery(searchQuery, true);
+        await sendQuery(searchQuery, updateDate, true);
     }
 
-    async function sendQuery(searchQuery: SearchQuery, append: boolean) {
+    async function sendQuery(searchQuery: SearchQuery, updateDate: Date | null, append: boolean) {
         setIsLoading(true);
 
-        const results = await getPhotocardsInDB(searchQuery);
+        const results = await getPhotocardsInDB(searchQuery, updateDate);
         if (results.error) {
             setError(results.error);
             return;
@@ -1200,9 +1223,13 @@ export default function SearchComponent() {
                                 Show {showFront ? "Back" : "Front"}
                             </button>
                             <button
-                                disabled={isSelectionMode}
+                                disabled={
+                                    isSelectionMode ||
+                                    (prevSearch?.fullQuery !== undefined &&
+                                        !hasFiltersChanged(filtersToQuery(filters), prevSearch.fullQuery))
+                                }
                                 onClick={() => trySearch(filters)}
-                                className="px-4 py-1 text-sm rounded-base border-2 border-transparent hover:border-border hover:bg-main disabled:opacity-50"
+                                className="px-4 py-1 text-sm rounded-base border-2 bg-third-light border-transparent hover:border-border hover:bg-third disabled:opacity-50"
                             >
                                 Apply Filters
                             </button>

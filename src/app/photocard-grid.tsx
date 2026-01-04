@@ -95,7 +95,7 @@ export default function PhotocardGrid({
                         <h2 hidden={hidden} className="mt-4">
                             {collection.version ? `${collection.name} (${collection.version})` : collection.name}
                         </h2>
-                        <Button hidden={!showEditButton} className="self-center" asChild>
+                        <Button hidden={!showEditButton || hidden} className="self-center" asChild>
                             <Link href={`/createCollection?collectionId=${collection.id}`}>Edit Collection</Link>
                         </Button>
                         <PhotocardGridWithoutCollections

@@ -664,7 +664,7 @@ export async function getPhotocardsInCollection(collectionId: number): Promise<R
     };
 }
 
-export async function getPhotocardsInDB(query: SearchQuery): Promise<Result<{ cards: Photocard[]; query: string }>> {
+export async function getPhotocardsInDB(query: SearchQuery, updateDate: Date | null): Promise<Result<{ cards: Photocard[]; query: string }>> {
     const database = getDb();
     let queryBuilder = database.selectFrom("photocards").selectAll();
 
@@ -731,14 +731,14 @@ export async function getPhotocardsInDB(query: SearchQuery): Promise<Result<{ ca
             }
             break;
         case SortType.DateAddedAsc:
-            if (query.updateDate) {
-                queryBuilder = queryBuilder.where("updatedAt", ">", query.updateDate.getTime());
+            if (updateDate !== null) {
+                queryBuilder = queryBuilder.where("updatedAt", ">", updateDate.getTime());
             }
             queryBuilder = queryBuilder.orderBy("updatedAt", "asc").limit(NUM_LOAD_PHOTOCARDS);
             break;
         case SortType.DateAddedDesc:
-            if (query.updateDate) {
-                queryBuilder = queryBuilder.where("updatedAt", "<", query.updateDate.getTime());
+            if (updateDate !== null) {
+                queryBuilder = queryBuilder.where("updatedAt", "<", updateDate.getTime());
             }
             queryBuilder = queryBuilder.orderBy("updatedAt", "desc").limit(NUM_LOAD_PHOTOCARDS);
             break;

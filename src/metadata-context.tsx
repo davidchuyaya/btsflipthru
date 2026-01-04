@@ -19,6 +19,7 @@ import {
     getCardTypesFromDB,
     getCollectionsFromDB,
     getCollectionTypesFromDB,
+    updateCollectionInDB,
 } from "@/actions";
 import { ReportType, reportWindowURL, CACHE_DURATION_MS } from "@/constants";
 import { authClient, ClientSession, isAtLeastMod } from "@/auth-client";
@@ -41,6 +42,7 @@ interface MetadataContextType {
     cardSizes: CardSize[];
     isLoading: boolean;
     addCollection: (collection: ParsedCollection, photocards: Photocard[]) => Promise<boolean>;
+    updateCollection: (collectionId: number, collection: ParsedCollection, photocards: Photocard[]) => Promise<boolean>;
     addCollectionType: (collectionType: CollectionType) => Promise<number | undefined>;
     addCardType: (cardType: CardType) => Promise<number | undefined>;
     addCardSize: (cardSize: CardSize) => Promise<number | undefined>;
@@ -280,6 +282,29 @@ export function MetadataProvider({ children }: { children: ReactNode }) {
         }
     }
 
+    async function updateCollection(collectionId: number, collection: ParsedCollection, photocards: Photocard[]) {
+        const allowed = isAtLeastMod(session);
+        if (!allowed) {
+            // TODO: Allow users to upload photos
+            setError("Not authorized to update collection");
+            return false;
+        }
+
+        const result = await updateCollectionInDB(collectionId, collection, photocards);
+        if (result.error) {
+            setError(`Server error: ${result.error}`);
+            return false;
+        } else {
+            // Update local state
+            const updatedCollection = { ...collection, id: collectionId };
+            const newCollections = collections.map((c) => (c.id === collectionId ? updatedCollection : c));
+            setCollections(newCollections);
+            setToStorage(STORAGE_KEYS.collections, newCollections);
+            setToStorage(STORAGE_KEYS.lastUpdated, Date.now());
+            return true;
+        }
+    }
+
     return (
         <MetadataContext.Provider
             value={{
@@ -297,6 +322,7 @@ export function MetadataProvider({ children }: { children: ReactNode }) {
                 cardSizes,
                 isLoading,
                 addCollection,
+                updateCollection,
                 addCollectionType,
                 addCardType,
                 addCardSize,

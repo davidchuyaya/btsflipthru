@@ -13,7 +13,7 @@ import {
     membersToBooleanNumbers,
 } from "@/constants";
 import { useMetadata } from "@/metadata-context";
-import { generateSignedUploadUrlForPhotocards, getCollectionForEdit, updateCollectionInDB } from "@/actions";
+import { generateSignedUploadUrlForPhotocards, getCollectionForEdit } from "@/actions";
 import {
     BackImageType,
     CardSize,
@@ -453,6 +453,7 @@ function CreateCollectionInner() {
         cardTypes,
         cardSizes,
         addCollection,
+        updateCollection,
         addCollectionType,
         addCardType,
         addCardSize,
@@ -723,16 +724,14 @@ function CreateCollectionInner() {
 
         toast.promise(
             async () => {
+                let success = false;
                 if (collectionId) {
-                    const result = await updateCollectionInDB(Number(collectionId), collection, uploadedPhotocards);
-                    if (result.error) {
-                        throw new Error(result.error);
-                    }
+                    success = await updateCollection(Number(collectionId), collection, uploadedPhotocards);
                 } else {
-                    const success = await addCollection(collection, uploadedPhotocards);
-                    if (!success) {
-                        throw new Error("Failed to add collection");
-                    }
+                    success = await addCollection(collection, uploadedPhotocards);
+                }
+                if (!success) {
+                    throw new Error("Failed to upload collection");
                 }
 
                 // Upload each unique image in parallel
