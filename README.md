@@ -20,17 +20,19 @@ We use the following technologies:
 
 ### Setting up the Server
 1. Set up firewalls with `ufw`, only allow SSH, HTTP, and HTTPS
-2. Install postgres: `sudo apt install postgres` and import old data. Immediately execute `refresh.sql` to refresh materialized views.
+2. Install postgres: `sudo apt install postgres` and import old data.
 3. Install [pnpm](https://pnpm.io/installation#on-posix-systems), then use it to install Node.js
 4. Clone this repo
 5. Install dependencies: `pnpm i`
-6. Copy the environment file to the remote server: `scp .env root@server-ip:~/bts-flip-thru/.env`
-7. Load the database: `npm run load-local-db`
-8. Generate types: `npm run kysely-codegen`
-9. Build the app: `npm run build`
-10. Start the app and keep it running: `pm2 start npm -- start`
-11. Point DNS records to the server and set up [caddy](https://caddyserver.com/docs/quick-starts/https) with HTTPS
-12. Add a cron job to refresh materialized views: `sudo crontab -e`
+6. Copy the environment file to the remote server: `scp .env root@server-ip:~/bts-flip-thru/.env`. Modify `BETTER_AUTH_URL` to use `https://btsflipthru.com`
+7. Set the postgres password by following instructions [here](https://serverfault.com/a/325596/1048565).
+8. Load the database: `psql -U postgres -d postgres -h 127.0.0.1 -f schema.sql`
+9. Import old database data: `psql -U postgres -d postgres -h 127.0.0.1 -f exported.sql`. Note: This file is not in the repo.
+10. Refresh materialized views: `psql -U postgres -d postgres -h 127.0.0.1 -f refresh.sql`
+11. Build the app: `npm run build`
+12. Start the app and keep it running: `npx pm2 start "pnpm start" --name "Flipthru"`
+13. Point DNS records to the server and set up [caddy](https://caddyserver.com/docs/quick-starts/https) with HTTPS, run `caddy start`
+14. Add a cron job to refresh materialized views: `sudo crontab -e`
 
 ### Deploying
 1. Pull changes: `git pull`
