@@ -1,7 +1,8 @@
 "use client";
 
+import { Insertable } from "kysely";
 import { CLOUDINARY_API_KEY, CLOUDINARY_CLOUD_NAME, PresignedUrl, Result } from "./constants";
-import { BackImageType, CardSize, Effects, ExclusiveCountry, Photocard } from "./db";
+import { CardSizes } from "./db";
 
 export function formatBytes(bytes: number): string {
     if (bytes < 1024) return bytes + " B";
@@ -34,46 +35,7 @@ export async function uploadImage(presignedUrl: PresignedUrl, image: File): Prom
         }));
 }
 
-export function getTestPhotocards(num: number): Photocard[] {
-    const photocard: Photocard = {
-        collectionId: 1,
-        imageId: null,
-        backImageId: null,
-        backImageType: BackImageType.Image,
-        cardType: 1,
-        sizeId: 1,
-        effects: Effects.Matte,
-        exclusiveCountry: ExclusiveCountry.Global,
-        modTemporary: 0,
-        adminTemporary: 0,
-        rm: 0,
-        jimin: 0,
-        jungkook: 0,
-        v: 0,
-        jin: 0,
-        suga: 0,
-        jhope: 0,
-        imageContributorId: "test",
-        updatedAt: Date.now(),
-    };
-    const imageIds = [
-        "801c7740-f720-4897-b810-d3b4b2efb8f0",
-        "360d3a45-d43f-45f9-817a-2ac6bf3682c4",
-        "53fbde39-2797-40fb-a429-dca37ce276fe",
-        "d7343d88-af69-4f8b-a0b4-b999899a8209",
-        "fc859e3a-d173-46c5-8860-f3af8a6493c3",
-        "ed6cd127-85c6-432a-96b5-789b4e9f0a18",
-    ];
-    const photocards: Photocard[] = [];
-    for (let i = 0; i < num; i++) {
-        photocard.id = i + 1;
-        photocard.imageId = imageIds[i % imageIds.length];
-        photocards.push({ ...photocard });
-    }
-    return photocards;
-}
-
-export function createCardSizeFromString(sizeString: string): Result<CardSize> {
+export function createCardSizeFromString(sizeString: string): Result<Insertable<CardSizes>> {
     // Match format: "Name WidthxHeight" (e.g., "Standard 55x85")
     const match = sizeString.match(/^(.+?)\s+(\d+)\s*x\s*(\d+)$/i);
     if (!match) {
@@ -93,6 +55,6 @@ export function createCardSizeFromString(sizeString: string): Result<CardSize> {
     return { data: { name, width, height } };
 }
 
-export function cardSizeToString(cardSize: CardSize): string {
+export function cardSizeToString(cardSize: Insertable<CardSizes>): string {
     return `${cardSize.name} ${cardSize.width}x${cardSize.height}`;
 }

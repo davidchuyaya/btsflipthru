@@ -1,10 +1,9 @@
 "use client";
 
-import { Effects } from "@/db";
+import { Effects } from "@/constants";
 import PhotocardComponent, { PlaceholderType } from "../photocard";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Card, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ReportType, reportWindowURL } from "@/constants";
 
@@ -101,8 +100,8 @@ export default function AboutComponent() {
                                 <TableCell className="text-right">$0.87</TableCell>
                             </TableRow>
                             <TableRow>
-                                <TableCell className="text-left">Database (Cloudflare D1 Free Tier)</TableCell>
-                                <TableCell className="text-right">$0</TableCell>
+                                <TableCell className="text-left">Server (Contabo)</TableCell>
+                                <TableCell className="text-right">$5.57</TableCell>
                             </TableRow>
                             <TableRow>
                                 <TableCell className="text-left">
@@ -114,7 +113,7 @@ export default function AboutComponent() {
                         <TableFooter>
                             <TableRow>
                                 <TableCell className="text-left">Total</TableCell>
-                                <TableCell className="text-right">$0.87</TableCell>
+                                <TableCell className="text-right">$6.44</TableCell>
                             </TableRow>
                         </TableFooter>
                     </Table>

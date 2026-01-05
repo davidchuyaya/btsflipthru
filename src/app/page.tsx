@@ -1,15 +1,7 @@
 "use client";
 
-import {
-    getMostContributionsUser,
-    getMostOwnedPhotocard,
-    getMostWishlistedPhotocard,
-    getRecentlyAddedPhotocardsInDB,
-    getTotalPhotocards,
-    getTotalPhotocardsWithoutImages,
-} from "@/actions";
 import PhotocardGrid from "./photocard-grid";
-import { CardType, Effects, ParsedCollection, Photocard, UserData } from "@/db";
+import { CardTypes, Collections, Photocards, UserData } from "@/db";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import BigProgressBar from "./big-progress-bar";
@@ -17,7 +9,9 @@ import PhotocardComponent from "./photocard";
 import CountdownClock from "./countdown-clock";
 import { useMetadata } from "@/metadata-context";
 import { Button } from "@/components/ui/button";
-import { booleansToMembers, MEMBER_CODE_TO_DISPLAY, numbersToMembers } from "@/constants";
+import { Effects, memberIntsToName } from "@/constants";
+import { Selectable } from "kysely";
+import { getHomeStats } from "@/actions";
 
 function HomeButton({ text, href }: { text: string; href: string }) {
     return (
@@ -47,67 +41,33 @@ function PhotocardLeaderboard({
     );
 }
 
-function photocardToName(photocard: Photocard, collections: ParsedCollection[], cardTypes: CardType[]): string {
-    const activeMembers = numbersToMembers(photocard);
-    const members = activeMembers.map((m) => MEMBER_CODE_TO_DISPLAY[m]);
-    const name = members.length === 7 ? "Group" : members.join(", ");
-
-    const collection = collections.find((col) => col.id === photocard.collectionId);
-    const collectionName = collection ? collection.name : "Unknown Collection";
-
-    const cardType = photocard.cardType ? cardTypes.find((ct) => ct.id === photocard.cardType) : "Unknown Type";
-
+function photocardToName(photocard: Selectable<Photocards>, collections: Selectable<Collections>[], cardTypes: Selectable<CardTypes>[]): string {
+    const name = memberIntsToName(photocard.members!);
+    const collectionName = collections.find((col) => col.id === photocard.collection_id)?.name ?? "Unknown Collection";
+    const cardType = cardTypes.find((ct) => ct.id === photocard.card_type) ?? "Unknown Type";
     return `(${name}) ${collectionName} ${cardType}`;
 }
 
 export default function Home() {
-    const [photocards, setPhotocards] = useState<Array<Photocard>>([]);
-    const [mostContributionsUser, setMostContributionsUser] = useState<UserData | null>(null);
-    const [mostOwnedPhotocard, setMostOwnedPhotocard] = useState<Photocard | null>(null);
-    const [mostWishlistedPhotocard, setMostWishlistedPhotocard] = useState<Photocard | null>(null);
+    const [photocards, setPhotocards] = useState<Array<Selectable<Photocards>>>([]);
+    const [mostContributionsUser, setMostContributionsUser] = useState<Selectable<UserData> | null>(null);
+    const [mostOwnedPhotocard, setMostOwnedPhotocard] = useState<Selectable<Photocards> | null>(null);
+    const [mostWishlistedPhotocard, setMostWishlistedPhotocard] = useState<Selectable<Photocards> | null>(null);
     const [totalPhotocards, setTotalPhotocards] = useState<number>(0);
     const [photocardsWithoutImages, setPhotocardsWithoutImages] = useState<number>(0);
     const { setError, collections, cardTypes } = useMetadata();
 
     useEffect(() => {
-        getRecentlyAddedPhotocardsInDB().then((cards) => {
-            setPhotocards(cards);
-        });
-        getMostContributionsUser().then((user) => {
-            if (user.error) {
-                setError(user.error);
+        getHomeStats().then((stats) => {
+            if (stats.error) {
+                setError(stats.error);
                 return;
             }
-            setMostContributionsUser(user.data!);
-        });
-        // TODO: Uncomment once feature implemented
-        // getMostOwnedPhotocard().then((photocard) => {
-        //     if (photocard.error) {
-        //         setError(photocard.error);
-        //         return;
-        //     }
-        //     setMostOwnedPhotocard(photocard.data!);
-        // });
-        // getMostWishlistedPhotocard().then((photocard) => {
-        //     if (photocard.error) {
-        //         setError(photocard.error);
-        //         return;
-        //     }
-        //     setMostWishlistedPhotocard(photocard.data!);
-        // });
-        getTotalPhotocards().then((total) => {
-            if (total.error) {
-                setError(total.error);
-                return;
-            }
-            setTotalPhotocards(total.data!);
-        });
-        getTotalPhotocardsWithoutImages().then((withoutImages) => {
-            if (withoutImages.error) {
-                setError(withoutImages.error);
-                return;
-            }
-            setPhotocardsWithoutImages(withoutImages.data!);
+
+            setPhotocards(stats.data!.recentlyAddedPhotocards);
+            setMostContributionsUser(stats.data!.mostContributionsUser);
+            setTotalPhotocards(stats.data!.totalPhotocards!);
+            setPhotocardsWithoutImages(stats.data!.totalPhotocardsWithoutImages!);
         });
     }, []);
 
@@ -148,16 +108,16 @@ export default function Home() {
                 <div className="flex flex-row gap-16 justify-center mt-2">
                     <PhotocardLeaderboard
                         title="Most Contributions"
-                        photoSrc={mostContributionsUser?.imageId ?? null}
-                        fallbackSrc={mostContributionsUser?.imageId ?? null}
+                        photoSrc={mostContributionsUser?.image_id ?? null}
+                        fallbackSrc={mostContributionsUser?.image_id ?? null}
                         description={
                             mostContributionsUser?.username ? `@${mostContributionsUser.username}` : "Loading..."
                         }
                     />
                     <PhotocardLeaderboard
                         title="Most Owned"
-                        photoSrc={mostOwnedPhotocard?.imageId ?? null}
-                        fallbackSrc={mostOwnedPhotocard?.backImageId ?? null}
+                        photoSrc={mostOwnedPhotocard?.image_id ?? null}
+                        fallbackSrc={mostOwnedPhotocard?.back_image_id ?? null}
                         description={
                             mostOwnedPhotocard
                                 ? photocardToName(mostOwnedPhotocard, collections, cardTypes)
@@ -167,8 +127,8 @@ export default function Home() {
                     />
                     <PhotocardLeaderboard
                         title="Most Wishlisted"
-                        photoSrc={mostWishlistedPhotocard?.imageId ?? null}
-                        fallbackSrc={mostWishlistedPhotocard?.backImageId ?? null}
+                        photoSrc={mostWishlistedPhotocard?.image_id ?? null}
+                        fallbackSrc={mostWishlistedPhotocard?.back_image_id ?? null}
                         description={
                             mostWishlistedPhotocard
                                 ? photocardToName(mostWishlistedPhotocard, collections, cardTypes)

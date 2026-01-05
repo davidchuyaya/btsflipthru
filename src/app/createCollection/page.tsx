@@ -2,29 +2,20 @@
 
 import { useState, useMemo, useEffect, useRef, Suspense } from "react";
 import {
-    NameToMember,
+    MemberToInt,
     PresignedUrl,
     ReportType,
     reportWindowURL,
     Result,
     fullSizeUrl,
     thumbnailUrl,
-    numbersToMembers,
-    membersToBooleanNumbers,
+    Effects,
+    BackImageType,
+    ExclusiveCountry,
+    Role,
 } from "@/constants";
 import { useMetadata } from "@/metadata-context";
 import { generateSignedUploadUrlForPhotocards, getCollectionForEdit } from "@/actions";
-import {
-    BackImageType,
-    CardSize,
-    CardType,
-    DEFAULT_CARD_TYPE,
-    Effects,
-    ExclusiveCountry,
-    ParsedCollection,
-    Photocard,
-    Role,
-} from "@/db";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import Combobox from "@/components/ui/combobox";
@@ -43,6 +34,8 @@ import TooltipComponent from "@/components/ui/tooltip";
 import MultiCombobox from "@/components/ui/multi-combobox";
 import { cardSizeToString, createCardSizeFromString, uploadImage } from "@/actions-client";
 import { isAtLeastMod } from "@/auth-client";
+import { CardSizes, CardTypes, Collections, Photocards } from "@/db";
+import { Insertable, Selectable } from "kysely";
 
 interface LocalPhotocard {
     id?: number;
@@ -52,10 +45,10 @@ interface LocalPhotocard {
     backImage: File | null;
     backImageId?: string | null;
     backImageType: BackImageType;
-    members: NameToMember[];
-    cardSize?: CardSize;
+    members: MemberToInt[];
+    cardSize?: Selectable<CardSizes>;
     temporary: boolean;
-    cardType: CardType;
+    cardType: Selectable<CardTypes>;
     exclusiveCountry: ExclusiveCountry;
 }
 
@@ -87,10 +80,10 @@ const formSchema = z.object({
                 backImage: z.instanceof(File).nullable(),
                 backImageId: z.string().optional().nullable(),
                 backImageType: z.enum(BackImageType),
-                members: z.array(z.enum(NameToMember)).min(1, "At least one member must be selected"),
+                members: z.array(z.enum(MemberToInt)).min(1, "At least one member must be selected"),
                 cardSize: z
                     .object({
-                        id: z.number().optional(),
+                        id: z.number(),
                         name: z.string(),
                         width: z.number(),
                         height: z.number(),
@@ -99,7 +92,7 @@ const formSchema = z.object({
                     .refine((val) => val !== undefined, { message: "Card size is required" }),
                 temporary: z.boolean(),
                 cardType: z.object({
-                    id: z.number().optional(),
+                    id: z.number(),
                     name: z.string(),
                 }),
                 exclusiveCountry: z.enum(ExclusiveCountry),
@@ -121,12 +114,12 @@ function CreatePhotocardRowComponent({
     isLocked,
 }: {
     index: number;
-    cardSizes: Array<CardSize>;
-    cardTypes: Array<CardType>;
+    cardSizes: Array<Selectable<CardSizes>>;
+    cardTypes: Array<Selectable<CardTypes>>;
     forceBackImage: File | null;
     onSameBackImageClick: (backImage: File) => void;
     onCreateCardType: (name: string, index: number) => void;
-    onCreateCardSize: (cardSize: CardSize, index: number) => void;
+    onCreateCardSize: (cardSize: Insertable<CardSizes>, index: number) => void;
     onRemovePhotocard: () => void;
     expandImages: boolean;
     isLocked: boolean;
@@ -350,7 +343,7 @@ function CreatePhotocardRowComponent({
                         <Field data-invalid={fieldState.invalid}>
                             <div className="flex justify-center w-full">
                                 <MultiCombobox
-                                    items={Object.entries(NameToMember)}
+                                    items={Object.entries(MemberToInt)}
                                     allItem="OT7"
                                     selectedItems={field.value}
                                     onSelect={(items) => field.onChange([...items])}
@@ -507,45 +500,45 @@ function CreateCollectionInner() {
                 return;
             }
 
-            const { collection, photocards } = result.data;
+            const { collections, photocards } = result.data;
             setPhotocardLocked(
                 photocards.map((p) => {
                     switch (session?.user.role) {
                         case Role.ADMIN:
                             return false;
                         case Role.MOD:
-                            return p.adminTemporary === 0;
+                            return p.admin_temporary === false;
                         default:
-                            return p.modTemporary === 0;
+                            return p.mod_temporary === false;
                     }
                 }),
             );
             const formPhotocards: LocalPhotocard[] = photocards.map((p, index) => ({
                 id: p.id,
                 frontImage: null,
-                frontImageId: p.imageId,
+                frontImageId: p.image_id,
                 effects: p.effects as Effects,
                 backImage: null,
-                backImageId: p.backImageId,
-                backImageType: p.backImageType as BackImageType,
-                members: numbersToMembers(p),
-                cardSize: cardSizes.find((s) => s.id === p.sizeId)!,
-                temporary: isAdmin ? p.adminTemporary === 0 : p.modTemporary === 0,
-                cardType: p.cardType === null ? DEFAULT_CARD_TYPE : cardTypes.find((t) => t.id === p.cardType)!,
-                exclusiveCountry: p.exclusiveCountry as ExclusiveCountry,
+                backImageId: p.back_image_id,
+                backImageType: p.back_image_type as BackImageType,
+                members: p.members as MemberToInt[],
+                cardSize: cardSizes.find((s) => s.id === p.size_id)!,
+                temporary: isAdmin ? p.admin_temporary === false : p.mod_temporary === false,
+                cardType: cardTypes.find((t) => t.id === p.card_type)!,
+                exclusiveCountry: p.exclusive_country as ExclusiveCountry,
             }));
             console.log("Local photocards:", formPhotocards);
 
-            const formCollectionTypes = collection.collectionTypes.map((id) => {
+            const formCollectionTypes = collections.collection_types.map((id) => {
                 const ct = collectionTypes.find((t) => t.id === id);
                 return ct ? { name: ct.name, id: ct.id } : { name: "", id };
             });
 
             form.reset({
-                collectionName: collection.name,
-                releaseDate: collection.releaseDate.toISOString().split("T")[0],
-                version: collection.version || "",
-                versionOrder: collection.versionOrder ?? undefined,
+                collectionName: collections.name,
+                releaseDate: collections.release_date.toISOString().split("T")[0],
+                version: collections.version || "",
+                versionOrder: collections.version_order ?? undefined,
                 collectionTypes: formCollectionTypes.length > 0 ? formCollectionTypes : [{ name: "", id: undefined }],
                 photocards: formPhotocards,
             });
@@ -590,7 +583,7 @@ function CreateCollectionInner() {
         }
     }
 
-    async function onCreateCardSize(cardSize: CardSize, index: number) {
+    async function onCreateCardSize(cardSize: Insertable<CardSizes>, index: number) {
         const id = await addCardSize(cardSize);
         if (id !== undefined) {
             // Update the form field with the newly created card size
@@ -606,7 +599,7 @@ function CreateCollectionInner() {
             backImageType: BackImageType.Image,
             members: [],
             temporary: true, // True unless both front & back are uploaded
-            cardType: DEFAULT_CARD_TYPE,
+            cardType: cardTypes[0],
             exclusiveCountry: ExclusiveCountry.Global,
         };
     }
@@ -675,7 +668,7 @@ function CreateCollectionInner() {
             }
         }
 
-        const uploadedPhotocards: Photocard[] = [];
+        const uploadedPhotocards: Insertable<Photocards>[] = [];
 
         for (const p of data.photocards) {
             let frontImageId = p.frontImageId || null;
@@ -690,22 +683,20 @@ function CreateCollectionInner() {
                 backImageId = fileToPresignedUrl.get(p.backImage.size)?.params.public_id || null;
             }
 
-            const members = membersToBooleanNumbers(new Set(p.members));
-            const photocard: Photocard = {
+            const photocard: Insertable<Photocards> = {
                 ...(p.id ? { id: p.id } : {}),
-                collectionId: Number(collectionId) || 0, // Will be ignored if creating new
-                imageId: frontImageId,
-                backImageId: backImageId,
-                backImageType: p.backImageType,
-                cardType: p.cardType.id || null,
-                sizeId: p.cardSize!.id!, // Must exist
+                collection_id: Number(collectionId) || 0, // Will be ignored if creating new
+                image_id: frontImageId,
+                back_image_id: backImageId,
+                back_image_type: p.backImageType,
+                card_type: p.cardType.id,
+                size_id: p.cardSize!.id!, // Must exist
                 effects: p.effects,
-                exclusiveCountry: Number(p.exclusiveCountry),
-                modTemporary: p.temporary ? 0 : 1, // Backend sets this
-                adminTemporary: p.temporary ? 0 : 1, // Backend sets this
-                ...members,
-                imageContributorId: "", // Backend sets this
-                updatedAt: Date.now(), // Backend sets this
+                exclusive_country: Number(p.exclusiveCountry),
+                mod_temporary: p.temporary,
+                admin_temporary: p.temporary,
+                members: p.members,
+                image_contributor_id: "", // Backend sets this
             };
             uploadedPhotocards.push(photocard);
         }
@@ -714,12 +705,12 @@ function CreateCollectionInner() {
             .filter((collectionType) => collectionType.id !== undefined)
             .map((collectionType) => collectionType.id!);
 
-        const collection: ParsedCollection = {
+        const collection: Insertable<Collections> = {
             name: data.collectionName,
-            releaseDate: new Date(data.releaseDate),
-            collectionTypes: collectionTypesIds,
+            release_date: new Date(data.releaseDate),
+            collection_types: collectionTypesIds,
             version: data.version === "" ? null : data.version,
-            versionOrder: data.versionOrder ?? null,
+            version_order: data.versionOrder ?? null,
         };
 
         toast.promise(

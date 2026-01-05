@@ -1,9 +1,10 @@
-import { ParsedCollection, Photocard } from "@/db";
 import PhotocardComponent from "./photocard";
-import { memberBooleanNumbersToName, thumbnailUrl } from "@/constants";
+import { memberIntsToName, thumbnailUrl } from "@/constants";
 import React from "react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
+import { Collections, Photocards } from "@/db";
+import { Selectable } from "kysely";
 
 function PhotocardGridWithoutCollections({
     photocards,
@@ -14,10 +15,10 @@ function PhotocardGridWithoutCollections({
     selectedIds,
     onToggleSelection,
 }: {
-    photocards: Photocard[];
+    photocards: Selectable<Photocards>[];
     className?: string;
     showFront?: boolean;
-    collections?: ParsedCollection[];
+    collections?: Selectable<Collections>[];
     isSelectionMode?: boolean;
     selectedIds?: Set<number>;
     onToggleSelection?: (id: number) => void;
@@ -29,20 +30,20 @@ function PhotocardGridWithoutCollections({
                     key={photocard.id}
                     src={
                         showFront
-                            ? photocard.imageId
-                                ? thumbnailUrl(photocard.imageId)
+                            ? photocard.image_id
+                                ? thumbnailUrl(photocard.image_id)
                                 : null
-                            : photocard.backImageId
-                              ? thumbnailUrl(photocard.backImageId)
+                            : photocard.back_image_id
+                              ? thumbnailUrl(photocard.back_image_id)
                               : null
                     }
                     fallbackSrc={
                         showFront
-                            ? photocard.backImageId
-                                ? thumbnailUrl(photocard.backImageId)
+                            ? photocard.back_image_id
+                                ? thumbnailUrl(photocard.back_image_id)
                                 : null
-                            : photocard.imageId
-                              ? thumbnailUrl(photocard.imageId)
+                            : photocard.image_id
+                              ? thumbnailUrl(photocard.image_id)
                               : null
                     }
                     effects={photocard.effects}
@@ -53,8 +54,8 @@ function PhotocardGridWithoutCollections({
                 >
                     {collections && (
                         <>
-                            <p>{collections?.find((c) => c.id === photocard.collectionId)?.name}</p>
-                            <p>{memberBooleanNumbersToName(photocard)}</p>
+                            <p>{collections?.find((c) => c.id === photocard.collection_id)?.name}</p>
+                            <p>{photocard.members && memberIntsToName(photocard.members)}</p>
                         </>
                     )}
                 </PhotocardComponent>
@@ -74,8 +75,8 @@ export default function PhotocardGrid({
     onToggleSelection,
     showEditButton = false,
 }: {
-    photocards: Photocard[]; // Will be displayed in order provided
-    collections?: ParsedCollection[]; // Will be displayed in order provided
+    photocards: Selectable<Photocards>[]; // Will be displayed in order provided
+    collections?: Selectable<Collections>[]; // Will be displayed in order provided
     displayCollections?: boolean;
     className?: string;
     showFront?: boolean;
@@ -87,7 +88,7 @@ export default function PhotocardGrid({
     return displayCollections ? (
         <div className={`flex flex-col gap-4 justify-center items-center ${className}`}>
             {collections!.map((collection) => {
-                const children = photocards.filter((pc) => pc.collectionId === collection.id);
+                const children = photocards.filter((pc) => pc.collection_id === collection.id);
                 const hidden = children.length === 0;
 
                 return (

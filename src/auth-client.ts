@@ -1,5 +1,5 @@
 import { auth } from "@/auth";
-import { Role } from "@/db";
+import { Role } from "@/constants";
 import { inferAdditionalFields } from "better-auth/client/plugins";
 import { createAuthClient } from "better-auth/react";
 import { env } from "process";
@@ -7,7 +7,7 @@ import { env } from "process";
 export const authClient = createAuthClient({
     baseURL: env.BETTER_AUTH_URL,
     // Must remain in sync with src/auth.ts
-    plugins: [inferAdditionalFields<ReturnType<typeof auth>>()],
+    plugins: [inferAdditionalFields<typeof auth>()],
 });
 
 export type ClientSession = ReturnType<typeof authClient.useSession>["data"];

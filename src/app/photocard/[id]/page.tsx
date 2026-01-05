@@ -1,12 +1,11 @@
 "use client";
 
-import { getPhotocardFromDB, getPhotocardsInCollection, getPhotocardsInDB, getUsernameFromDB } from "@/actions";
+import { getPhotocardFromDB, getPhotocardsInCollection, getUserDataFromDB } from "@/actions";
 import { cardSizeToString } from "@/actions-client";
 import PhotocardComponent from "@/app/photocard";
 import { AlertDialogHeader, AlertDialogFooter } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { fullSizeUrl, memberBooleanNumbersToName, memberBooleansToName, ReportType, reportWindowURL } from "@/constants";
-import { DEFAULT_CARD_TYPE, Effects, ParsedCollection, Photocard, CardSize, CardType, ExclusiveCountry } from "@/db";
+import { Effects, ExclusiveCountry, fullSizeUrl, memberIntsToName, ReportType, reportWindowURL } from "@/constants";
 import { useMetadata } from "@/metadata-context";
 import {
     AlertDialog,
@@ -22,6 +21,8 @@ import { useParams } from "next/navigation";
 import { useState, useEffect } from "react";
 import { ClientSession, signInGoogle } from "@/auth-client";
 import PhotocardGrid from "@/app/photocard-grid";
+import { Selectable } from "kysely";
+import { CardSizes, CardTypes, Collections, Photocards } from "@/db";
 
 function DialogTriggerButton({
     title,
@@ -56,13 +57,13 @@ function DialogTriggerButton({
 export default function PhotocardPage() {
     const { id } = useParams();
     const { collections, cardSizes, cardTypes, session, setError } = useMetadata();
-    const [photocard, setPhotocard] = useState<Photocard | null>(null);
-    const [collection, setCollection] = useState<ParsedCollection | null>(null);
-    const [cardSize, setCardSize] = useState<CardSize | null>(null);
-    const [cardType, setCardType] = useState<CardType | null>(null);
+    const [photocard, setPhotocard] = useState<Selectable<Photocards> | null>(null);
+    const [collection, setCollection] = useState<Selectable<Collections> | null>(null);
+    const [cardSize, setCardSize] = useState<Selectable<CardSizes> | null>(null);
+    const [cardType, setCardType] = useState<Selectable<CardTypes> | null>(null);
     const [imageContributor, setImageContributor] = useState<string>("");
     const [flipped, setFlipped] = useState(false);
-    const [relatedPhotocards, setRelatedPhotocards] = useState<Photocard[]>([]);
+    const [relatedPhotocards, setRelatedPhotocards] = useState<Selectable<Photocards>[]>([]);
 
     useEffect(() => {
         getPhotocardFromDB(Number(id)).then((result) => {
@@ -70,7 +71,7 @@ export default function PhotocardPage() {
                 setError(result.error);
             } else {
                 setPhotocard(result.data!);
-                const foundCollection = collections?.find((c) => c.id === result.data?.collectionId);
+                const foundCollection = collections?.find((c) => c.id === result.data?.collection_id);
                 if (foundCollection) {
                     setCollection(foundCollection);
 
@@ -83,19 +84,19 @@ export default function PhotocardPage() {
                         }
                     });
                 }
-                const foundCardSize = cardSizes?.find((s) => s.id === result.data?.sizeId);
+                const foundCardSize = cardSizes?.find((s) => s.id === result.data?.size_id);
                 if (foundCardSize) {
                     setCardSize(foundCardSize);
                 }
-                const foundCardType = cardTypes?.find((s) => s.id === result.data?.cardType);
+                const foundCardType = cardTypes?.find((s) => s.id === result.data?.card_type);
                 if (foundCardType) {
                     setCardType(foundCardType);
                 }
-                getUsernameFromDB(result.data!.imageContributorId).then((result) => {
+                getUserDataFromDB(result.data!.image_contributor_id).then((result) => {
                     if (result.error) {
                         setError(result.error);
                     } else {
-                        setImageContributor(result.data!);
+                        setImageContributor(result.data!.username);
                     }
                 });
             }
@@ -126,20 +127,20 @@ export default function PhotocardPage() {
                 <PhotocardComponent
                     src={
                         flipped
-                            ? photocard?.backImageId
-                                ? fullSizeUrl(photocard.backImageId)
-                                : null
-                            : photocard?.imageId
-                              ? fullSizeUrl(photocard.imageId)
+                            ? photocard?.back_image_id
+                              ? fullSizeUrl(photocard.back_image_id)
+                              : null
+                            : photocard?.image_id
+                              ? fullSizeUrl(photocard.image_id)
                               : null
                     }
                     fallbackSrc={
                         flipped
-                            ? photocard?.imageId
-                                ? fullSizeUrl(photocard.imageId)
-                                : null
-                            : photocard?.backImageId
-                              ? fullSizeUrl(photocard.backImageId)
+                            ? photocard?.image_id
+                              ? fullSizeUrl(photocard.image_id)
+                              : null
+                            : photocard?.back_image_id
+                              ? fullSizeUrl(photocard.back_image_id)
                               : null
                     }
                     effects={photocard?.effects ?? Effects.Matte}
@@ -148,7 +149,7 @@ export default function PhotocardPage() {
                 <Button className="w-fit mt-4" onClick={() => setFlipped(!flipped)}>
                     Flip
                 </Button>
-                <Button hidden={!photocard?.modTemporary} className="w-fit">
+                <Button hidden={!photocard?.mod_temporary} className="w-fit">
                     Submit Alt Image
                 </Button>
                 <Button asChild className="w-fit">
@@ -160,13 +161,13 @@ export default function PhotocardPage() {
             <div className="flex flex-col gap-4 w-2/3">
                 <div className="flex flex-col gap">
                     <h2>{collection?.name}</h2>
-                    <p className="text-2xl">{photocard && memberBooleanNumbersToName(photocard)}</p>
+                    <p className="text-2xl">{photocard && memberIntsToName(photocard.members)}</p>
                 </div>
                 <div className="flex flex-row gap-8">
                     <div className="flex flex-col gap-4 rounded-2xl p-8 bg-accent-light grow">
                         <div className="flex flex-row gap-4 items-center">
                             <h3>Release Date</h3>
-                            <p>{collection && new Date(collection.releaseDate).toLocaleDateString()}</p>
+                            <p>{collection && new Date(collection.release_date).toLocaleDateString()}</p>
                         </div>
                         <div className="flex flex-row gap-4 items-center">
                             <h3>Dimensions</h3>
@@ -178,12 +179,12 @@ export default function PhotocardPage() {
                         </div>
                         <div className="flex flex-row gap-4 items-center">
                             <h3>Type</h3>
-                            <p>{cardType?.name ?? DEFAULT_CARD_TYPE.name}</p>
+                            <p>{cardType?.name}</p>
                         </div>
                         <div className="flex flex-row gap-4 items-center">
                             <h3>Country</h3>
                             <p>
-                                {Object.keys(ExclusiveCountry)[photocard?.exclusiveCountry ?? ExclusiveCountry.Global]}
+                                {Object.keys(ExclusiveCountry)[photocard?.exclusive_country ?? ExclusiveCountry.Global]}
                             </p>
                         </div>
                         <div className="flex flex-row gap-4 items-center">

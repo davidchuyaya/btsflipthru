@@ -11,11 +11,12 @@ import { CLOUDFLARE_TURNSTILE_SITE_KEY, ReportType, reportTypeToFields } from "@
 import { useRef } from "react";
 import Script from "next/script";
 import useTurnstile from "@/hooks/useTurnstile";
-import { Report } from "@/db";
 import { useMetadata } from "@/metadata-context";
 import { addReportToDB } from "@/actions";
 import { UAParser } from "ua-parser-js";
 import { uploadImage } from "@/actions-client";
+import { Reports } from "@/db";
+import { Insertable } from "kysely";
 
 const reportSchema = z.object({
     description: z.string().max(5000, "Description must be at most 5000 characters"),
@@ -47,15 +48,14 @@ export default function ReportForm({ reportType, title, url }: { reportType: Rep
     async function onSubmit(data: z.infer<typeof reportSchema>) {
         const imageUUID = data.image ? crypto.randomUUID() : null;
 
-        const report: Report = {
+        const report: Insertable<Reports> = {
             title: title || "No title provided",
             description: data.description,
-            imageId: imageUUID,
-            userId: session?.user.id || null,
-            userEmail: data.includeEmail && session?.user.email ? session.user.email : null,
+            image_id: imageUUID,
+            user_id: session?.user.id || null,
+            user_email: data.includeEmail && session?.user.email ? session.user.email : null,
             url: url || "",
-            userAgent: `Browser: ${browser.name || "Unknown"} ${browser.version || ""}, OS: ${os.name || "Unknown"} ${os.version || ""}, Device: (${device.vendor || "Unknown Device"} ${device.model || ""})`,
-            createdAt: new Date(),
+            user_agent: `Browser: ${browser.name || "Unknown"} ${browser.version || ""}, OS: ${os.name || "Unknown"} ${os.version || ""}, Device: (${device.vendor || "Unknown Device"} ${device.model || ""})`,
         };
 
         const result = await addReportToDB(report, data.image?.size || null, data.turnstileToken);

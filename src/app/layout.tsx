@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/sonner";
 import CursorGlow from "./cursor-glow";
 import NavigationComponent from "@/components/ui/navigation-menu";
 import FooterComponent from "./footer";
+import { GoogleAnalytics } from "@next/third-parties/google";
 
 export const metadata: Metadata = {
     title: "BTS Flipthru",
@@ -30,6 +31,7 @@ export default function RootLayout({
                 </MetadataProvider>
                 <Toaster />
             </body>
+            <GoogleAnalytics gaId="G-GRGW5SYNGY" />
         </html>
     );
 }

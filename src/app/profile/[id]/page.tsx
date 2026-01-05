@@ -3,13 +3,14 @@
 import { getUserProfileDataFromDB } from "@/actions";
 import { cardSizeToString } from "@/actions-client";
 import PhotocardComponent from "@/app/photocard";
-import { fullSizeUrl, memberBooleanNumbersToName } from "@/constants";
-import { DEFAULT_CARD_TYPE, Effects, ExclusiveCountry, Role, UserBinder, UserData } from "@/db";
+import { Effects, fullSizeUrl } from "@/constants";
 import { useMetadata } from "@/metadata-context";
 import { useParams } from "next/navigation";
 import { useState, useEffect } from "react";
 import PhotocardGrid from "@/app/photocard-grid";
 import { Button } from "@/components/ui/button";
+import { Selectable } from "kysely";
+import { UserData } from "@/db";
 
 function SocialsComponent({ logoSrc, id }: { logoSrc: string; id?: string | null }) {
     return (
@@ -23,23 +24,14 @@ function SocialsComponent({ logoSrc, id }: { logoSrc: string; id?: string | null
 export default function ProfilePage() {
     const { id } = useParams();
     const { session, sessionRefetch, setError } = useMetadata();
-    const [userData, setUserData] = useState<UserData | null>(null);
-    const [createdAt, setCreatedAt] = useState<Date | null>(null);
+    const [userData, setUserData] = useState<Selectable<UserData> | null>(null);
 
     useEffect(() => {
         getUserProfileDataFromDB(String(id)).then((result) => {
             if (result.error) {
                 setError(result.error);
             } else {
-                const {
-                    userData: newUserData,
-                    createdAt: newCreatedAt,
-                    photocards: newPhotocards,
-                    wishlist: newWishlist,
-                    binders: newBinders,
-                } = result.data!;
-                setUserData(newUserData);
-                setCreatedAt(newCreatedAt);
+                setUserData(result.data!);
             }
         });
     }, [id]);
@@ -49,16 +41,16 @@ export default function ProfilePage() {
             <div className="flex flex-row gap-8 m-12">
                 <div className="flex flex-col gap-8 items-center w-1/4 shrink-0">
                     <PhotocardComponent
-                        src={userData?.imageId ? fullSizeUrl(userData.imageId) : null}
+                        src={userData?.image_id ? fullSizeUrl(userData.image_id) : null}
                         effects={Effects.Matte}
                         large
                     />
                     <div className="flex flex-row gap-3 items-center">
-                        <SocialsComponent logoSrc="/b-cd.png" id={userData?.bcdId} />
-                        <SocialsComponent logoSrc="/bluesky.svg" id={userData?.blueskyId} />
-                        <SocialsComponent logoSrc="/twitter.svg" id={userData?.twitterId} />
-                        <SocialsComponent logoSrc="/instagram.svg" id={userData?.instagramId} />
-                        <SocialsComponent logoSrc="/discord.svg" id={userData?.discordId} />
+                        <SocialsComponent logoSrc="/b-cd.png" id={userData?.bcd_id} />
+                        <SocialsComponent logoSrc="/bluesky.svg" id={userData?.bluesky_id} />
+                        <SocialsComponent logoSrc="/twitter.svg" id={userData?.twitter_id} />
+                        <SocialsComponent logoSrc="/instagram.svg" id={userData?.instagram_id} />
+                        <SocialsComponent logoSrc="/discord.svg" id={userData?.discord_id} />
                     </div>
                 </div>
                 <div className="flex flex-col gap-4 w-1/2">
@@ -69,8 +61,8 @@ export default function ProfilePage() {
                     <div className="flex flex-row gap-8">
                         <div className="flex flex-col gap-4 rounded-2xl p-8 bg-accent-light grow">
                             <div className="flex flex-row gap-4 items-center">
-                                <h3>Account Created</h3>
-                                <p>{createdAt && new Date(createdAt).toLocaleDateString()}</p>
+                                <h3>Army Since</h3>
+                                <p>{userData?.army_since && new Date(userData.army_since).toLocaleDateString()}</p>
                             </div>
                             <div className="flex flex-row gap-4 items-center">
                                 <h3>Bias</h3>

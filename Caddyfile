@@ -1,0 +1,4 @@
+btsflipthru.com {
+    reverse_proxy localhost:3000
+    tls btsflipthru@gmail.com
+}

@@ -4,9 +4,8 @@ import { useDropzone } from "react-dropzone";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Trash2Icon } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { de } from "zod/v4/locales";
 import PhotocardComponent from "./photocard";
-import { Effects } from "@/db";
+import { Effects } from "@/constants";
 
 export interface ImageDropzoneRef {
     delete: () => void;

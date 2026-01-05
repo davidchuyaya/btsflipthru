@@ -2,28 +2,18 @@
 
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import {
-    CardSize,
-    CardType,
-    CollectionType,
-    DEFAULT_CARD_TYPE,
-    ParsedCollection,
-    Photocard,
-    serializeCollection,
-} from "@/db";
-import {
     addCardSizeToDB,
     addCardTypeToDB,
     addCollectionToDB,
     addCollectionTypeToDB,
-    getCardSizesFromDB,
-    getCardTypesFromDB,
-    getCollectionsFromDB,
-    getCollectionTypesFromDB,
+    getMetadataFromDB,
     updateCollectionInDB,
 } from "@/actions";
 import { ReportType, reportWindowURL, CACHE_DURATION_MS } from "@/constants";
 import { authClient, ClientSession, isAtLeastMod } from "@/auth-client";
 import { toast } from "sonner";
+import { Collections, CollectionTypes, CardTypes, CardSizes, Photocards } from "./db";
+import { Insertable, Selectable } from "kysely";
 
 const STORAGE_KEYS = {
     collections: "metadata_collections",
@@ -36,16 +26,20 @@ const STORAGE_KEYS = {
 interface MetadataContextType {
     session: ClientSession;
     sessionRefetch: () => Promise<void>;
-    collections: ParsedCollection[];
-    collectionTypes: CollectionType[];
-    cardTypes: CardType[];
-    cardSizes: CardSize[];
+    collections: Selectable<Collections>[];
+    collectionTypes: Selectable<CollectionTypes>[];
+    cardTypes: Selectable<CardTypes>[];
+    cardSizes: Selectable<CardSizes>[];
     isLoading: boolean;
-    addCollection: (collection: ParsedCollection, photocards: Photocard[]) => Promise<boolean>;
-    updateCollection: (collectionId: number, collection: ParsedCollection, photocards: Photocard[]) => Promise<boolean>;
-    addCollectionType: (collectionType: CollectionType) => Promise<number | undefined>;
-    addCardType: (cardType: CardType) => Promise<number | undefined>;
-    addCardSize: (cardSize: CardSize) => Promise<number | undefined>;
+    addCollection: (collection: Insertable<Collections>, photocards: Insertable<Photocards>[]) => Promise<boolean>;
+    updateCollection: (
+        collectionId: number,
+        collection: Insertable<Collections>,
+        photocards: Insertable<Photocards>[],
+    ) => Promise<boolean>;
+    addCollectionType: (collectionType: Insertable<CollectionTypes>) => Promise<number | undefined>;
+    addCardType: (cardType: Insertable<CardTypes>) => Promise<number | undefined>;
+    addCardSize: (cardSize: Insertable<CardSizes>) => Promise<number | undefined>;
     setError: (message: string) => void;
 }
 
@@ -77,16 +71,16 @@ function isCacheValid(): boolean {
 }
 
 function loadFromStorage(): {
-    collections: ParsedCollection[] | null;
-    collectionTypes: CollectionType[] | null;
-    cardTypes: CardType[] | null;
-    cardSizes: CardSize[] | null;
+    collections: Selectable<Collections>[] | null;
+    collectionTypes: Selectable<CollectionTypes>[] | null;
+    cardTypes: Selectable<CardTypes>[] | null;
+    cardSizes: Selectable<CardSizes>[] | null;
     hasAll: boolean;
 } {
-    const collections = getFromStorage<ParsedCollection[]>(STORAGE_KEYS.collections);
-    const collectionTypes = getFromStorage<CollectionType[]>(STORAGE_KEYS.collectionTypes);
-    const cardTypes = getFromStorage<CardType[]>(STORAGE_KEYS.cardTypes);
-    const cardSizes = getFromStorage<CardSize[]>(STORAGE_KEYS.cardSizes);
+    const collections = getFromStorage<Selectable<Collections>[]>(STORAGE_KEYS.collections);
+    const collectionTypes = getFromStorage<Selectable<CollectionTypes>[]>(STORAGE_KEYS.collectionTypes);
+    const cardTypes = getFromStorage<Selectable<CardTypes>[]>(STORAGE_KEYS.cardTypes);
+    const cardSizes = getFromStorage<Selectable<CardSizes>[]>(STORAGE_KEYS.cardSizes);
 
     return {
         collections,
@@ -98,10 +92,10 @@ function loadFromStorage(): {
 }
 
 function saveToStorage(
-    collections: ParsedCollection[],
-    collectionTypes: CollectionType[],
-    cardTypes: CardType[],
-    cardSizes: CardSize[],
+    collections: Selectable<Collections>[],
+    collectionTypes: Selectable<CollectionTypes>[],
+    cardTypes: Selectable<CardTypes>[],
+    cardSizes: Selectable<CardSizes>[],
 ): void {
     setToStorage(STORAGE_KEYS.collections, collections);
     setToStorage(STORAGE_KEYS.collectionTypes, collectionTypes);
@@ -111,10 +105,10 @@ function saveToStorage(
 }
 
 export function MetadataProvider({ children }: { children: ReactNode }) {
-    const [collections, setCollections] = useState<ParsedCollection[]>([]);
-    const [collectionTypes, setCollectionTypes] = useState<CollectionType[]>([]);
-    const [cardTypes, setCardTypes] = useState<CardType[]>([]);
-    const [cardSizes, setCardSizes] = useState<CardSize[]>([]);
+    const [collections, setCollections] = useState<Selectable<Collections>[]>([]);
+    const [collectionTypes, setCollectionTypes] = useState<Selectable<CollectionTypes>[]>([]);
+    const [cardTypes, setCardTypes] = useState<Selectable<CardTypes>[]>([]);
+    const [cardSizes, setCardSizes] = useState<Selectable<CardSizes>[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
     const {
@@ -124,10 +118,6 @@ export function MetadataProvider({ children }: { children: ReactNode }) {
         refetch: sessionRefetch, //refetch the session
     } = authClient.useSession();
 
-    function setCardTypesWithDefault(types: CardType[]) {
-        setCardTypes([DEFAULT_CARD_TYPE, ...types]);
-    }
-
     useEffect(() => {
         async function fetchMetadata() {
             // Try to load from localStorage first
@@ -135,7 +125,7 @@ export function MetadataProvider({ children }: { children: ReactNode }) {
 
             if (cached.collections) setCollections(cached.collections);
             if (cached.collectionTypes) setCollectionTypes(cached.collectionTypes);
-            if (cached.cardTypes) setCardTypesWithDefault(cached.cardTypes);
+            if (cached.cardTypes) setCardTypes(cached.cardTypes);
             if (cached.cardSizes) setCardSizes(cached.cardSizes);
 
             // If cache is valid, don't fetch from DB
@@ -144,19 +134,14 @@ export function MetadataProvider({ children }: { children: ReactNode }) {
                 return;
             }
 
-            const [collectionsData, types, cardTypesData, sizes] = await Promise.all([
-                getCollectionsFromDB(),
-                getCollectionTypesFromDB(),
-                getCardTypesFromDB(),
-                getCardSizesFromDB(),
-            ]);
-            setCollections(collectionsData);
-            setCollectionTypes(types);
-            setCardTypesWithDefault(cardTypesData);
-            setCardSizes(sizes);
+            const { cardSizes, collectionTypes, cardTypes, collections } = await getMetadataFromDB();
+            setCollections(collections);
+            setCollectionTypes(collectionTypes);
+            setCardTypes(cardTypes);
+            setCardSizes(cardSizes);
 
             // Save to localStorage
-            saveToStorage(collectionsData, types, cardTypesData, sizes);
+            saveToStorage(collections, collectionTypes, cardTypes, cardSizes);
             setIsLoading(false);
         }
 
@@ -177,7 +162,7 @@ export function MetadataProvider({ children }: { children: ReactNode }) {
             const cached = loadFromStorage();
             if (cached.collections) setCollections(cached.collections);
             if (cached.collectionTypes) setCollectionTypes(cached.collectionTypes);
-            if (cached.cardTypes) setCardTypesWithDefault(cached.cardTypes);
+            if (cached.cardTypes) setCardTypes(cached.cardTypes);
             if (cached.cardSizes) setCardSizes(cached.cardSizes);
         }
 
@@ -197,20 +182,20 @@ export function MetadataProvider({ children }: { children: ReactNode }) {
         });
     }
 
-    async function addCollection(collection: ParsedCollection, photocards: Photocard[]) {
+    async function addCollection(collection: Insertable<Collections>, photocards: Insertable<Photocards>[]) {
         const allowed = isAtLeastMod(session);
         if (!allowed) {
             setError("Not authorized to add collection");
             return false;
         }
 
-        const result = await addCollectionToDB(serializeCollection(collection), photocards);
+        const result = await addCollectionToDB(collection, photocards);
         if (result.error) {
             setError(`Server error: ${result.error}`);
             return false;
         } else {
             collection.id = Number(result.data);
-            const newCollections = [...collections, collection];
+            const newCollections = [...collections, collection as Selectable<Collections>];
             setCollections(newCollections);
             setToStorage(STORAGE_KEYS.collections, newCollections);
             setToStorage(STORAGE_KEYS.lastUpdated, Date.now());
@@ -218,7 +203,7 @@ export function MetadataProvider({ children }: { children: ReactNode }) {
         }
     }
 
-    async function addCollectionType(collectionType: CollectionType) {
+    async function addCollectionType(collectionType: Insertable<CollectionTypes>) {
         const allowed = isAtLeastMod(session);
         if (!allowed) {
             setError("Not authorized to add collection category");
@@ -231,7 +216,7 @@ export function MetadataProvider({ children }: { children: ReactNode }) {
             return;
         } else {
             collectionType.id = Number(result.data);
-            const newCollectionTypes = [...collectionTypes, collectionType];
+            const newCollectionTypes = [...collectionTypes, collectionType as Selectable<CollectionTypes>];
             console.log(`New collection types: ${JSON.stringify(newCollectionTypes)}`);
             setCollectionTypes(newCollectionTypes);
             setToStorage(STORAGE_KEYS.collectionTypes, newCollectionTypes);
@@ -240,7 +225,7 @@ export function MetadataProvider({ children }: { children: ReactNode }) {
         }
     }
 
-    async function addCardType(cardType: CardType) {
+    async function addCardType(cardType: Insertable<CardTypes>) {
         const allowed = isAtLeastMod(session);
         if (!allowed) {
             setError("Not authorized to add card type");
@@ -253,15 +238,15 @@ export function MetadataProvider({ children }: { children: ReactNode }) {
             return;
         } else {
             cardType.id = Number(result.data);
-            const newCardTypes = [...cardTypes, cardType];
-            setCardTypesWithDefault(newCardTypes);
+            const newCardTypes = [...cardTypes, cardType as Selectable<CardTypes>];
+            setCardTypes(newCardTypes);
             setToStorage(STORAGE_KEYS.cardTypes, newCardTypes);
             setToStorage(STORAGE_KEYS.lastUpdated, Date.now());
             return cardType.id!;
         }
     }
 
-    async function addCardSize(cardSize: CardSize) {
+    async function addCardSize(cardSize: Insertable<CardSizes>) {
         const allowed = isAtLeastMod(session);
         if (!allowed) {
             setError("Not authorized to add card size");
@@ -274,7 +259,7 @@ export function MetadataProvider({ children }: { children: ReactNode }) {
             return;
         } else {
             cardSize.id = Number(result.data);
-            const newCardSizes = [...cardSizes, cardSize];
+            const newCardSizes = [...cardSizes, cardSize as Selectable<CardSizes>];
             setCardSizes(newCardSizes);
             setToStorage(STORAGE_KEYS.cardSizes, newCardSizes);
             setToStorage(STORAGE_KEYS.lastUpdated, Date.now());
@@ -282,7 +267,11 @@ export function MetadataProvider({ children }: { children: ReactNode }) {
         }
     }
 
-    async function updateCollection(collectionId: number, collection: ParsedCollection, photocards: Photocard[]) {
+    async function updateCollection(
+        collectionId: number,
+        collection: Insertable<Collections>,
+        photocards: Insertable<Photocards>[],
+    ) {
         const allowed = isAtLeastMod(session);
         if (!allowed) {
             // TODO: Allow users to upload photos
@@ -296,7 +285,13 @@ export function MetadataProvider({ children }: { children: ReactNode }) {
             return false;
         } else {
             // Update local state
-            const updatedCollection = { ...collection, id: collectionId };
+            const updatedCollection: Selectable<Collections> = {
+                ...collection,
+                id: collectionId,
+                release_date: new Date(collection.release_date),
+                version: collection.version ?? null,
+                version_order: collection.version_order ?? null,
+            };
             const newCollections = collections.map((c) => (c.id === collectionId ? updatedCollection : c));
             setCollections(newCollections);
             setToStorage(STORAGE_KEYS.collections, newCollections);

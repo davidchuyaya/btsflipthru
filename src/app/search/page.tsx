@@ -1,9 +1,8 @@
 "use client";
 
 import { getPhotocardsInDB } from "@/actions";
-import { CardSize, CardType, ExclusiveCountry, ParsedCollection, Photocard } from "@/db";
 import { useEffect, useState } from "react";
-import { membersToBooleans, NameToMember, NUM_LOAD_COLLECTIONS, SearchQuery, SortType } from "@/constants";
+import { ExclusiveCountry, MemberToInt, NUM_LOAD_COLLECTIONS, SearchQuery, SortType } from "@/constants";
 import PhotocardGrid from "../photocard-grid";
 import {
     Sidebar,
@@ -21,7 +20,7 @@ import {
     SidebarMenuSubItem,
     SidebarProvider,
 } from "@/components/ui/sidebar";
-import { cardSizeToString, getTestPhotocards } from "@/actions-client";
+import { cardSizeToString } from "@/actions-client";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -33,6 +32,8 @@ import { Button } from "@/components/ui/button";
 import BottomSpinnerComponent from "../bottom-spinner";
 import Link from "next/link";
 import { isAtLeastMod } from "@/auth-client";
+import { CardTypes, CardSizes, Collections, Photocards } from "@/db";
+import { Selectable } from "kysely";
 
 function CollapsibleGroup({
     defaultOpen = true,
@@ -121,10 +122,10 @@ type Filters = {
     collectionTypes: Set<number>;
     topCollections: Set<number>;
     subCollections: Set<number>;
-    members: Set<NameToMember>;
+    members: Set<MemberToInt>;
     exclusiveCountries: Set<ExclusiveCountry>;
-    cardTypes: Set<CardType>;
-    cardSizes: Set<CardSize>;
+    cardTypes: Set<Selectable<CardTypes>>;
+    cardSizes: Set<Selectable<CardSizes>>;
     sort: SortType;
 };
 
@@ -132,26 +133,26 @@ type VisibleOptions = {
     collectionTypes: Set<number>;
     topCollections: Set<number>;
     subCollections: Set<number>;
-    members: Set<string>; // NameToMember values
-    cardTypes: Set<CardType>;
-    cardSizes: Set<CardSize>;
+    members: Set<MemberToInt>;
+    cardTypes: Set<Selectable<CardTypes>>;
+    cardSizes: Set<Selectable<CardSizes>>;
     exclusiveCountries: Set<ExclusiveCountry>;
 };
 
 export default function SearchComponent() {
     const { collections, collectionTypes, cardTypes, cardSizes, session, setError } = useMetadata();
-    const [topCollections, setTopCollections] = useState<Array<{ collection: ParsedCollection; hasSub: boolean }>>([]); // Purely for display & ease of selecting children, doesn't affect search query
-    const [subCollections, setSubCollections] = useState<ParsedCollection[]>([]);
-    const [photocards, setPhotocards] = useState<Array<Photocard>>([]);
+    const [topCollections, setTopCollections] = useState<Array<{ collection: Selectable<Collections>; hasSub: boolean }>>([]); // Purely for display & ease of selecting children, doesn't affect search query
+    const [subCollections, setSubCollections] = useState<Array<Selectable<Collections>>>([]);
+    const [photocards, setPhotocards] = useState<Array<Selectable<Photocards>>>([]);
     const [filters, setFilters] = useState<Filters>({
         query: "",
         collectionTypes: new Set<number>(),
         topCollections: new Set<number>(),
         subCollections: new Set<number>(),
-        members: new Set(Object.values(NameToMember)),
+        members: new Set(Object.values(MemberToInt)),
         exclusiveCountries: new Set(Object.values(ExclusiveCountry)),
-        cardTypes: new Set<CardType>(),
-        cardSizes: new Set<CardSize>(),
+        cardTypes: new Set<Selectable<CardTypes>>(),
+        cardSizes: new Set<Selectable<CardSizes>>(),
         sort: SortType.DateAddedDesc,
     });
     // Stores the previous search, and "where we stopped" for pagination
@@ -167,10 +168,10 @@ export default function SearchComponent() {
         collectionTypes: new Set(),
         topCollections: new Set(),
         subCollections: new Set(),
-        members: new Set(Object.values(NameToMember)),
+        members: new Set(Object.values(MemberToInt)),
         exclusiveCountries: new Set(Object.values(ExclusiveCountry)),
-        cardTypes: new Set(),
-        cardSizes: new Set(),
+        cardTypes: new Set<Selectable<CardTypes>>(),
+        cardSizes: new Set<Selectable<CardSizes>>(),
     });
 
     // Run on launch
@@ -183,7 +184,7 @@ export default function SearchComponent() {
             subCollections: subColsSet,
             cardTypes: new Set(cardTypes),
             cardSizes: new Set(cardSizes),
-            members: new Set(Object.values(NameToMember)),
+            members: new Set(Object.values(MemberToInt)),
             exclusiveCountries: new Set(Object.values(ExclusiveCountry)),
         };
         setFilters(newFilters);
@@ -206,7 +207,7 @@ export default function SearchComponent() {
                 collectionTypes: new Set(collectionTypes.map((type) => type.id!)),
                 topCollections: topColsSet,
                 subCollections: subColsSet,
-                members: new Set(Object.values(NameToMember)),
+                members: new Set(Object.values(MemberToInt)),
                 exclusiveCountries: new Set(Object.values(ExclusiveCountry)),
                 cardTypes: new Set(cardTypes),
                 cardSizes: new Set(cardSizes),
@@ -215,7 +216,7 @@ export default function SearchComponent() {
                 collectionTypes: new Set(collectionTypes.map((type) => type.id!)),
                 topCollections: topColsSet,
                 subCollections: subColsSet,
-                members: new Set(Object.values(NameToMember)),
+                members: new Set(Object.values(MemberToInt)),
                 exclusiveCountries: new Set(Object.values(ExclusiveCountry)),
                 cardTypes: new Set(cardTypes),
                 cardSizes: new Set(cardSizes),
@@ -273,7 +274,7 @@ export default function SearchComponent() {
 
         // Logic for each category with Term Consumption
         // 1. Members (Priority 1)
-        const memberEntries = Object.entries(NameToMember);
+        const memberEntries = Object.entries(MemberToInt);
         const {
             winners: winningMembers,
             maxScore: memberScore,
@@ -371,7 +372,7 @@ export default function SearchComponent() {
         const nextVisibleMembers =
             memberScore > 0
                 ? new Set(Array.from(winningMembers).map(([_, v]) => v))
-                : new Set(Object.values(NameToMember));
+                : new Set(Object.values(MemberToInt));
         const nextVisibleCardTypes = cardTypeScore > 0 ? winningCardTypes : new Set(cardTypes);
         const nextVisibleCardSizes = cardSizeScore > 0 ? winningCardSizes : new Set(cardSizes);
         const nextVisibleCountries =
@@ -402,8 +403,8 @@ export default function SearchComponent() {
     }, [searchInput, collections, collectionTypes, cardTypes, cardSizes, topCollections, subCollections]);
 
     function calculateCollectionsHierarchy(): { topColsSet: Set<number>; subColsSet: Set<number> } {
-        const topCols: Array<{ collection: ParsedCollection; hasSub: boolean }> = [];
-        const subCols: ParsedCollection[] = [];
+        const topCols: Array<{ collection: Selectable<Collections>; hasSub: boolean }> = [];
+        const subCols: Selectable<Collections>[] = [];
         for (const col of collections) {
             if (col.version) {
                 subCols.push(col);
@@ -412,7 +413,7 @@ export default function SearchComponent() {
             }
         }
         // Create top-level collections for any sub-collections that don't have a parent
-        const topAndSubCols: ParsedCollection[] = [];
+        const topAndSubCols: Selectable<Collections>[] = [];
         for (const subCol of subCols) {
             const parentCol = topCols.find((c) => c.collection.name === subCol.name);
             if (!parentCol) {
@@ -420,10 +421,10 @@ export default function SearchComponent() {
                     collection: {
                         id: subCol.id!,
                         name: subCol.name,
-                        releaseDate: new Date(subCol.releaseDate),
-                        collectionTypes: [...subCol.collectionTypes],
+                        release_date: new Date(subCol.release_date),
+                        collection_types: [...subCol.collection_types],
                         version: null,
-                        versionOrder: null,
+                        version_order: null,
                     },
                     hasSub: true,
                 });
@@ -438,11 +439,11 @@ export default function SearchComponent() {
 
         setTopCollections(
             topCols.sort(
-                (a, b) => new Date(b.collection.releaseDate).getTime() - new Date(a.collection.releaseDate).getTime(),
+                (a, b) => new Date(b.collection.release_date).getTime() - new Date(a.collection.release_date).getTime(),
             ),
         );
         setSubCollections(
-            subCols.sort((a, b) => new Date(b.releaseDate).getTime() - new Date(a.releaseDate).getTime()),
+            subCols.sort((a, b) => new Date(b.release_date).getTime() - new Date(a.release_date).getTime()),
         );
 
         const topColsSet = new Set(topCols.map((col) => col.collection.id!));
@@ -457,7 +458,7 @@ export default function SearchComponent() {
             collectionTypes: new Set(collectionTypes.map((type) => type.id!)),
             topCollections: new Set(topCollections.map((col) => col.collection.id!)),
             subCollections: new Set(subCollections.map((col) => col.id!)),
-            members: new Set(Object.values(NameToMember)),
+            members: new Set(Object.values(MemberToInt)),
             cardTypes: new Set(cardTypes),
             cardSizes: new Set(cardSizes),
             exclusiveCountries: new Set(Object.values(ExclusiveCountry)),
@@ -488,7 +489,7 @@ export default function SearchComponent() {
         if (checked) {
             const newFilters = {
                 ...filters,
-                members: new Set(Object.values(NameToMember)),
+                members: new Set(Object.values(MemberToInt)),
             };
             setFilters(newFilters);
         } else {
@@ -544,14 +545,14 @@ export default function SearchComponent() {
         );
     }
 
-    function getTopCollectionForSub(subCollection: ParsedCollection): ParsedCollection | undefined {
+    function getTopCollectionForSub(subCollection: Selectable<Collections>): Selectable<Collections> | undefined {
         return topCollections.find(({ collection }) => collection.name === subCollection.name)?.collection;
     }
 
     function getTopCollectionsForType(typeId: number): Set<number> {
         return new Set(
             topCollections
-                .filter(({ collection }) => collection.collectionTypes.includes(typeId))
+                .filter(({ collection }) => collection.collection_types.includes(typeId))
                 .map(({ collection }) => collection.id!),
         );
     }
@@ -559,7 +560,7 @@ export default function SearchComponent() {
     function getSubCollectionsForType(typeId: number): Set<number> {
         return new Set(
             subCollections
-                .filter((collection) => collection.collectionTypes.includes(typeId))
+                .filter((collection) => collection.collection_types.includes(typeId))
                 .map((collection) => collection.id!),
         );
     }
@@ -601,7 +602,7 @@ export default function SearchComponent() {
         setFilters(newFilters);
     }
 
-    function onSelectedTopCollection(collection: ParsedCollection, hasSub: boolean, checked: boolean) {
+    function onSelectedTopCollection(collection: Selectable<Collections>, hasSub: boolean, checked: boolean) {
         const newSelectedTopCollections = new Set(filters.topCollections);
         let newSelectedSubCollections = new Set(filters.subCollections);
         const subColsForTop = hasSub ? getSubCollectionsForTop(collection.name) : new Set<number>();
@@ -638,7 +639,7 @@ export default function SearchComponent() {
         setFilters(newFilters);
     }
 
-    function onSelectedSubCollection(collection: ParsedCollection, checked: boolean) {
+    function onSelectedSubCollection(collection: Selectable<Collections>, checked: boolean) {
         const topCollection = getTopCollectionForSub(collection);
         const newSelectedSubCollections = new Set(filters.subCollections);
 
@@ -687,7 +688,7 @@ export default function SearchComponent() {
         }
     }
 
-    function onSelectedMember(member: NameToMember, checked: boolean) {
+    function onSelectedMember(member: MemberToInt, checked: boolean) {
         const newSelectedMembers = new Set(filters.members);
         if (checked) {
             newSelectedMembers.add(member);
@@ -698,7 +699,7 @@ export default function SearchComponent() {
         setFilters(newFilters);
     }
 
-    function onSelectedCardType(cardType: CardType, checked: boolean) {
+    function onSelectedCardType(cardType: Selectable<CardTypes>, checked: boolean) {
         const newSelectedCardTypes = new Set(filters.cardTypes);
         if (checked) {
             newSelectedCardTypes.add(cardType);
@@ -709,7 +710,7 @@ export default function SearchComponent() {
         setFilters(newFilters);
     }
 
-    function onSelectedCardSize(cardSize: CardSize, checked: boolean) {
+    function onSelectedCardSize(cardSize: Selectable<CardSizes>, checked: boolean) {
         const newSelectedCardSizes = new Set(filters.cardSizes);
         if (checked) {
             newSelectedCardSizes.add(cardSize);
@@ -777,72 +778,66 @@ export default function SearchComponent() {
         selectedCollections: Set<number>,
         ignorePrevSearch: boolean,
     ): number[] {
-        // TODO: Add limit once we migrate away from D1; D1 scans the entire table anyway
-        return Array.from(selectedCollections);
+        const prevCollections =
+            prevSearch && !ignorePrevSearch
+                ? collections.filter((col) => prevSearch.coveredCollectionIds.includes(col.id!))
+                : [];
+        let sortedAndFilteredCollections: Selectable<Collections>[] = [];
+        switch (currentFilters.sort) {
+            case SortType.ReleaseDateAsc:
+                const maxReleaseDate =
+                    prevCollections.length === 0
+                        ? null
+                        : prevCollections.reduce((prev, curr) => {
+                              return new Date(curr.release_date) > new Date(prev.release_date) ? curr : prev;
+                          });
+                sortedAndFilteredCollections = collections
+                    .filter(
+                        (col) =>
+                            prevCollections.length === 0 ||
+                            new Date(col.release_date) > new Date(maxReleaseDate!.release_date),
+                    )
+                    .sort((a, b) => new Date(a.release_date).getTime() - new Date(b.release_date).getTime());
+                break;
+            case SortType.ReleaseDateDesc:
+                const minReleaseDate =
+                    prevCollections.length === 0
+                        ? null
+                        : prevCollections.reduce((prev, curr) => {
+                              return new Date(curr.release_date) < new Date(prev.release_date) ? curr : prev;
+                          });
+                sortedAndFilteredCollections = collections
+                    .filter(
+                        (col) =>
+                            prevCollections.length === 0 ||
+                            new Date(col.release_date) < new Date(minReleaseDate!.release_date),
+                    )
+                    .sort((a, b) => new Date(b.release_date).getTime() - new Date(a.release_date).getTime());
+                break;
+            default:
+                return dontFilterIfAllSelected(selectedCollections, collections);
+        }
 
-        // const prevCollections =
-        //     prevSearch && !ignorePrevSearch
-        //         ? collections.filter((col) => prevSearch.coveredCollectionIds.includes(col.id!))
-        //         : [];
-        // let sortedAndFilteredCollections: ParsedCollection[] = [];
-        // switch (currentFilters.sort) {
-        //     case SortType.ReleaseDateAsc:
-        //         const maxReleaseDate =
-        //             prevCollections.length === 0
-        //                 ? null
-        //                 : prevCollections.reduce((prev, curr) => {
-        //                       return new Date(curr.releaseDate) > new Date(prev.releaseDate) ? curr : prev;
-        //                   });
-        //         sortedAndFilteredCollections = collections
-        //             .filter(
-        //                 (col) =>
-        //                     prevCollections.length === 0 ||
-        //                     new Date(col.releaseDate) > new Date(maxReleaseDate!.releaseDate),
-        //             )
-        //             .sort((a, b) => new Date(a.releaseDate).getTime() - new Date(b.releaseDate).getTime());
-        //         break;
-        //     case SortType.ReleaseDateDesc:
-        //         const minReleaseDate =
-        //             prevCollections.length === 0
-        //                 ? null
-        //                 : prevCollections.reduce((prev, curr) => {
-        //                       return new Date(curr.releaseDate) < new Date(prev.releaseDate) ? curr : prev;
-        //                   });
-        //         sortedAndFilteredCollections = collections
-        //             .filter(
-        //                 (col) =>
-        //                     prevCollections.length === 0 ||
-        //                     new Date(col.releaseDate) < new Date(minReleaseDate!.releaseDate),
-        //             )
-        //             .sort((a, b) => new Date(b.releaseDate).getTime() - new Date(a.releaseDate).getTime());
-        //         break;
-        //     default:
-        //         return dontFilterIfAllSelected(selectedCollections, collections);
-        // }
-
-        // // Return the NUM_LOAD_COLLECTIONS first collections that were selected
-        // return sortedAndFilteredCollections
-        //     .filter((col) => selectedCollections.has(col.id!))
-        //     .map((col) => col.id!)
-        //     .slice(0, NUM_LOAD_COLLECTIONS);
+        // Return the NUM_LOAD_COLLECTIONS first collections that were selected
+        return sortedAndFilteredCollections
+            .filter((col) => selectedCollections.has(col.id!))
+            .map((col) => col.id!)
+            .slice(0, NUM_LOAD_COLLECTIONS);
     }
 
     function limitSearchDate(): Date | null {
-        // TODO: Add limit once we migrate away from D1; D1 scans the entire table anyway
-        return null;
+        if (!prevSearch) {
+            return null;
+        }
 
-        // if (!prevSearch) {
-        //     return null;
-        // }
-
-        // switch (filters.sort) {
-        //     case SortType.DateAddedAsc:
-        //     case SortType.DateAddedDesc:
-        //         const lastPhotocard = photocards[photocards.length - 1];
-        //         return lastPhotocard ? new Date(lastPhotocard.updatedAt) : null;
-        //     default:
-        //         return null;
-        // }
+        switch (filters.sort) {
+            case SortType.DateAddedAsc:
+            case SortType.DateAddedDesc:
+                const lastPhotocard = photocards[photocards.length - 1];
+                return lastPhotocard ? new Date(lastPhotocard.updated_at) : null;
+            default:
+                return null;
+        }
     }
 
     function filtersToQuery(currentFilters: Filters): SearchQuery {
@@ -858,7 +853,7 @@ export default function SearchComponent() {
                 currentFilters.exclusiveCountries,
                 Object.values(ExclusiveCountry),
             ),
-            ...membersToBooleans(currentFilters.members),
+            members: [...currentFilters.members],
             sortBy: currentFilters.sort,
         };
         return searchQuery;
@@ -1077,7 +1072,7 @@ export default function SearchComponent() {
                                                 {topCollections
                                                     .filter(
                                                         ({ collection, hasSub }) =>
-                                                            collection.collectionTypes.includes(type.id!) &&
+                                                            collection.collection_types.includes(type.id!) &&
                                                             visibleOptions.topCollections.has(collection.id!),
                                                     )
                                                     .map(({ collection, hasSub }) => (
@@ -1136,7 +1131,7 @@ export default function SearchComponent() {
                             checked={filters.members.size > 0}
                             onChecked={onCheckedAllMembers}
                         >
-                            {Object.entries(NameToMember)
+                            {Object.entries(MemberToInt)
                                 .filter(([_, memberKey]) => visibleOptions.members.has(memberKey))
                                 .map(([name, memberKey]) => (
                                     <CheckMenuButton
@@ -1250,8 +1245,8 @@ export default function SearchComponent() {
                         photocards={photocards}
                         collections={collections.sort((a, b) =>
                             filters.sort === SortType.ReleaseDateAsc
-                                ? new Date(a.releaseDate).getTime() - new Date(b.releaseDate).getTime()
-                                : new Date(b.releaseDate).getTime() - new Date(a.releaseDate).getTime(),
+                                ? new Date(a.release_date).getTime() - new Date(b.release_date).getTime()
+                                : new Date(b.release_date).getTime() - new Date(a.release_date).getTime(),
                         )}
                         displayCollections={
                             filters.sort === SortType.ReleaseDateAsc || filters.sort === SortType.ReleaseDateDesc

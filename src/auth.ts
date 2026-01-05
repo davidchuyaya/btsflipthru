@@ -1,19 +1,16 @@
 import { betterAuth } from "better-auth";
-import { db, Role } from "./db";
-import { getCloudflareContext } from "@opennextjs/cloudflare";
+import { dbPool } from "./db-instance";
 import { headers } from "next/headers";
-import { Result } from "./constants";
+import { Result, Role } from "./constants";
+import { addUserDataToDB } from "./actions";
 
-export const auth = (env: Env) =>
+export const auth =
     betterAuth({
-        database: {
-            db: db(env),
-            type: "sqlite",
-        },
+        database: dbPool,
         socialProviders: {
             google: {
-                clientId: env.GOOGLE_CLIENT_ID,
-                clientSecret: env.GOOGLE_CLIENT_SECRET,
+                clientId: process.env.GOOGLE_CLIENT_ID,
+                clientSecret: process.env.GOOGLE_CLIENT_SECRET,
             },
         },
         // See https://www.better-auth.com/docs/concepts/session-management#stateless-session-management
@@ -39,14 +36,24 @@ export const auth = (env: Env) =>
                 },
             },
         },
+        databaseHooks: {
+            user: {
+                create: {
+                    after: async (user) => {
+                        // Automatically create a user_data entry
+                        await addUserDataToDB({
+                            user_id: user.id,
+                            username: user.email, // Username defaults to email, must be unique
+                        });
+                    }
+                }
+            }
+        }
     });
 
 // Throw an error if not authenticated
 export async function getSession() {
-    const { env } = getCloudflareContext();
-    const authInstance = auth(env as Env);
-
-    const session = await authInstance.api.getSession({
+    const session = await auth.api.getSession({
         headers: await headers(),
     });
 

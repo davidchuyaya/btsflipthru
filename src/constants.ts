@@ -1,4 +1,5 @@
-import { UserBinder, UserData } from "./db";
+import { Photocards, UserBinders, UserData } from "@/db";
+import { Selectable } from "kysely";
 
 export const SEPARATOR = ","; // Used when arrays are stored as strings in the database
 export const MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024; // 10MB. Enforced by Cloudinary's free tier
@@ -12,6 +13,59 @@ export const CLOUDFLARE_TURNSTILE_SITE_KEY = "0x4AAAAAACJg4L7-eUjaAdjN";
 export const CLOUDINARY_CLOUD_NAME = "dddxuuyxu";
 export const CLOUDINARY_API_KEY = "688582694844734";
 
+// Important: Any number used by an enum should not be reused in the future
+export const Role = {
+    USER: 0,
+    MOD: 1,
+    ADMIN: 2,
+} as const;
+export type Role = (typeof Role)[keyof typeof Role];
+
+export const ExclusiveCountry = {
+    Global: 0,
+    USA: 1,
+    Korea: 2,
+    Japan: 3,
+    Taiwan: 4,
+    Australia: 5,
+    Brazil: 6,
+    Canada: 7,
+    Chile: 8,
+    China: 9,
+    England: 10,
+    France: 11,
+    Germany: 12,
+    "Hong Kong": 13,
+    Indonesia: 14,
+    Italy: 15,
+    Malaysia: 16,
+    Mexico: 17,
+    Netherlands: 18,
+    Philippines: 19,
+    Russia: 20,
+    Singapore: 21,
+    Spain: 22,
+    Sweden: 23,
+    Thailand: 24,
+    "United Arab Emirates": 25,
+    Vietnam: 26,
+};
+export type ExclusiveCountry = (typeof ExclusiveCountry)[keyof typeof ExclusiveCountry];
+
+export const BackImageType = {
+    Image: 0,
+    White: 1,
+    Transparent: 2,
+};
+export type BackImageType = (typeof BackImageType)[keyof typeof BackImageType];
+
+export const Effects = {
+    Matte: 0,
+    Glossy: 1,
+    Shiny: 2,
+};
+export type Effects = (typeof Effects)[keyof typeof Effects];
+
 export function fullSizeUrl(imageId: string): string {
     return `https://res.cloudinary.com/${CLOUDINARY_CLOUD_NAME}/image/upload/${imageId}.avif`;
 }
@@ -22,66 +76,25 @@ export function thumbnailUrl(imageId: string): string {
     return `https://res.cloudinary.com/${CLOUDINARY_CLOUD_NAME}/image/upload/${THUMBNAIL_POSTFIX}/${imageId}.avif`;
 }
 
-export const NameToMember = {
-    RM: "rm",
-    Jin: "jin",
-    Suga: "suga",
-    "j-hope": "jhope",
-    Jimin: "jimin",
-    V: "v",
-    "Jung Kook": "jungkook",
+export const MemberToInt = {
+    RM: 1,
+    Jin: 2,
+    Suga: 3,
+    "j-hope": 4,
+    Jimin: 5,
+    V: 6,
+    "Jung Kook": 7,
 } as const;
-export type NameToMember = (typeof NameToMember)[keyof typeof NameToMember];
+export type MemberToInt = (typeof MemberToInt)[keyof typeof MemberToInt];
 
-export const MEMBERS: NameToMember[] = Object.values(NameToMember);
+export const MemberInts: MemberToInt[] = Object.values(MemberToInt);
 
-export function membersToBooleans(activeMembers: ReadonlySet<string>): Record<NameToMember, boolean> {
-    return MEMBERS.reduce((acc, member) => {
-        acc[member] = activeMembers.has(member);
-        return acc;
-    }, {} as Record<NameToMember, boolean>);
-}
-
-export function membersToBooleanNumbers(activeMembers: ReadonlySet<string>): Record<NameToMember, number> {
-    return MEMBERS.reduce((acc, member) => {
-        acc[member] = activeMembers.has(member) ? 1 : 0;
-        return acc;
-    }, {} as Record<NameToMember, number>);
-}
-
-export const MEMBER_CODE_TO_DISPLAY: Record<NameToMember, string> = Object.entries(NameToMember).reduce(
-    (acc, [displayName, code]) => {
-        acc[code] = displayName;
-        return acc;
-    },
-    {} as Record<NameToMember, string>,
-);
-
-export type MemberBooleans = Record<NameToMember, boolean>;
-export type MemberBooleanNumbers = Record<NameToMember, number>;
-
-export function booleansToMembers(source: MemberBooleans): NameToMember[] {
-    return MEMBERS.filter((member) => source[member]);
-}
-
-export function numbersToMembers(source: MemberBooleanNumbers): NameToMember[] {
-    return MEMBERS.filter((member) => source[member] === 1);
-}
-
-export function memberBooleansToName(source: MemberBooleans): string {
-    const members = booleansToMembers(source);
-    if (members.length === 7) {
+// Note: MemberToInt is 1-indexed, so we need to subtract 1
+export function memberIntsToName(source: number[]): string {
+    if (source.length === 7) {
         return "OT7";
     }
-    return members.map((member) => MEMBER_CODE_TO_DISPLAY[member]).join(", ");
-}
-
-export function memberBooleanNumbersToName(source: MemberBooleanNumbers): string {
-    const members = numbersToMembers(source);
-    if (members.length === 7) {
-        return "OT7";
-    }
-    return members.map((member) => MEMBER_CODE_TO_DISPLAY[member]).join(", ");
+    return source.map((member) => Object.keys(MemberToInt)[member - 1]).join(", ");
 }
 
 export const MEMBER_TO_EMOJI = {
@@ -179,21 +192,17 @@ export type SearchQuery = {
     collectionIds: number[];
     cardTypeIds: number[];
     sizeIds: number[];
-    exclusiveCountryIds: number[];
-    rm: boolean;
-    jin: boolean;
-    suga: boolean;
-    jhope: boolean;
-    jimin: boolean;
-    v: boolean;
-    jungkook: boolean;
+    exclusiveCountryIds: ExclusiveCountry[];
+    members: MemberToInt[];
     sortBy: SortType;
 };
 
-export type UserProfileData = {
-    userData: UserData;
-    createdAt: Date;
-    photocards?: string;
-    wishlist?: string;
-    binders?: UserBinder[];
-}
+export type HomeStats = {
+    mostContributionsUser: Selectable<UserData>;
+    // TODO: Uncomment when we allow saving and wishlisting
+    // mostOwnedPhotocard: Selectable<Photocards>;
+    // mostWishlistedPhotocard: Selectable<Photocards>;
+    totalPhotocards: number;
+    totalPhotocardsWithoutImages: number;
+    recentlyAddedPhotocards: Selectable<Photocards>[];
+};

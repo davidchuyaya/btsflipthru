@@ -1,47 +1,39 @@
-# OpenNext Starter
+# BTS Flipthru
+See the [About Page](https://btsflipthru.com/about) for more information.
 
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+## Development
+We use the following technologies:
+- Next.js (Server)
+- Better-auth (Authentication)
+- Kysely (Database ORM)
+- TailwindCSS (Styling)
+- Neobrutalism (UI)
+- Shadcn UI (Used by Neobrutalism)
+- Postgres (Database)
+- Contabo (Server)
+- Caddy (HTTPS)
 
-## Getting Started
+### Modifying the Schema
+1. Modify `schema.sql`
+2. Update postgres: `npm run load-local-db`
+3. Update types: `npm run kysely-codegen`
 
-Read the documentation at https://opennext.js.org/cloudflare.
+### Setting up the Server
+1. Set up firewalls with `ufw`, only allow SSH, HTTP, and HTTPS
+2. Install postgres: `sudo apt install postgres` and import old data. Immediately execute `refresh.sql` to refresh materialized views.
+3. Install [pnpm](https://pnpm.io/installation#on-posix-systems), then use it to install Node.js
+4. Clone this repo
+5. Install dependencies: `pnpm i`
+6. Copy the environment file to the remote server: `scp .env root@server-ip:~/bts-flip-thru/.env`
+7. Load the database: `npm run load-local-db`
+8. Generate types: `npm run kysely-codegen`
+9. Build the app: `npm run build`
+10. Start the app and keep it running: `pm2 start npm -- start`
+11. Point DNS records to the server and set up [caddy](https://caddyserver.com/docs/quick-starts/https) with HTTPS
+12. Add a cron job to refresh materialized views: `sudo crontab -e`
 
-## Develop
-
-Run the Next.js development server:
-
-```bash
-npm run dev
-# or similar package manager command
-```
-
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-## Preview
-
-Preview the application locally on the Cloudflare runtime:
-
-```bash
-npm run preview
-# or similar package manager command
-```
-
-## Deploy
-
-Deploy the application to Cloudflare:
-
-```bash
-npm run deploy
-# or similar package manager command
-```
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Deploying
+1. Pull changes: `git pull`
+2. Update postgres if schema changed: `npm run load-local-db`
+3. Build: `npm run build`
+4. Restart the app: `pm2 restart all`

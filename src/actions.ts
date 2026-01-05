@@ -2,22 +2,6 @@
 
 import { getSession, isAtLeastMod } from "@/auth";
 import {
-    db,
-    Collection,
-    Photocard,
-    CollectionType,
-    CardType,
-    CardSize,
-    ParsedCollection,
-    parseCollection,
-    Report,
-    Role,
-    UserData,
-    PhotocardData,
-    DEFAULT_CARD_TYPE,
-    UserBinder,
-} from "@/db";
-import {
     Result,
     generateSignedParams,
     PresignedUrl,
@@ -28,34 +12,53 @@ import {
     NUM_HOME_PHOTOCARDS,
     NUM_LOAD_PHOTOCARDS,
     NUM_LOAD_COLLECTIONS,
-    booleansToMembers,
-    UserProfileData,
+    Role,
+    HomeStats,
 } from "@/constants";
-import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { v2 as cloudinary } from "cloudinary";
-import { sql, type SqlBool } from "kysely";
+import { sql, type Selectable, type Insertable } from "kysely";
+import { db } from "./db-instance";
+import {
+    CollectionTypes,
+    CardTypes,
+    CardSizes,
+    Collections,
+    Photocards,
+    Reports,
+    UserData,
+    ViewMostContributions,
+    ViewMostOwnedPhotocards,
+    ViewMostWishlistedPhotocards,
+} from "./db";
 
-function getEnv() {
-    const { env } = getCloudflareContext();
-    return env as Env;
-}
-
-function getDb() {
-    return db(getEnv());
-}
-
-export async function getUsernameFromDB(userId: string): Promise<Result<string>> {
-    return await getDb()
-        .selectFrom("user_data")
-        .where("userId", "=", userId)
-        .select("username")
+export async function addUserDataToDB(user_data: Insertable<UserData>): Promise<Result<bigint>> {
+    return await db
+        .insertInto("user_data")
+        .values(user_data)
         .executeTakeFirstOrThrow()
         .then(
             (result) => {
-                return { data: result.username };
+                if (result.insertId === undefined) {
+                    return { error: "User data conflicts with existing entry" };
+                }
+                return { data: result.insertId };
             },
             (reason) => ({
-                error: `Could not get user name: ${reason}`,
+                error: "Could not add user data",
+            }),
+        );
+}
+
+export async function getUserDataFromDB(userId: string): Promise<Result<Selectable<UserData>>> {
+    return await db
+        .selectFrom("user_data")
+        .where("user_id", "=", userId)
+        .selectAll()
+        .executeTakeFirstOrThrow()
+        .then(
+            (data) => ({ data }),
+            (reason) => ({
+                error: `Could not get user data: ${reason}`,
             }),
         );
 }
@@ -65,13 +68,13 @@ export async function getUsernameFromDB(userId: string): Promise<Result<string>>
  * @param collectionType Only the name field is used
  * @returns The auto-assigned ID of the collection type.
  */
-export async function addCollectionTypeToDB(collectionType: CollectionType): Promise<Result<bigint>> {
+export async function addCollectionTypeToDB(collectionType: Insertable<CollectionTypes>): Promise<Result<bigint>> {
     const result = await isAtLeastMod<bigint>();
     if (result.error) {
         return result;
     }
-    return await getDb()
-        .insertInto("collectionTypes")
+    return await db
+        .insertInto("collection_types")
         .values({ name: collectionType.name })
         .executeTakeFirstOrThrow()
         .then(
@@ -87,23 +90,18 @@ export async function addCollectionTypeToDB(collectionType: CollectionType): Pro
         );
 }
 
-export async function getCollectionTypesFromDB(): Promise<CollectionType[]> {
-    const database = getDb();
-    return await database.selectFrom("collectionTypes").selectAll().execute();
-}
-
 /**
  *
  * @param cardType Only the name field is used
  * @returns The auto-assigned ID of the card type.
  */
-export async function addCardTypeToDB(cardType: CardType): Promise<Result<bigint>> {
+export async function addCardTypeToDB(cardType: Insertable<CardTypes>): Promise<Result<bigint>> {
     const result = await isAtLeastMod<bigint>();
     if (result.error) {
         return result;
     }
-    return await getDb()
-        .insertInto("cardTypes")
+    return await db
+        .insertInto("card_types")
         .values({ name: cardType.name })
         .executeTakeFirstOrThrow()
         .then(
@@ -119,23 +117,18 @@ export async function addCardTypeToDB(cardType: CardType): Promise<Result<bigint
         );
 }
 
-export async function getCardTypesFromDB(): Promise<CardType[]> {
-    const database = getDb();
-    return await database.selectFrom("cardTypes").selectAll().execute();
-}
-
 /**
  *
  * @param cardSize The name, width, and height fields are used
  * @returns The auto-assigned ID of the card size.
  */
-export async function addCardSizeToDB(cardSize: CardSize): Promise<Result<bigint>> {
+export async function addCardSizeToDB(cardSize: Insertable<CardSizes>): Promise<Result<bigint>> {
     const result = await isAtLeastMod<bigint>();
     if (result.error) {
         return result;
     }
-    return await getDb()
-        .insertInto("cardSizes")
+    return await db
+        .insertInto("card_sizes")
         .values({
             name: cardSize.name,
             width: cardSize.width,
@@ -155,9 +148,25 @@ export async function addCardSizeToDB(cardSize: CardSize): Promise<Result<bigint
         );
 }
 
-export async function getCardSizesFromDB(): Promise<CardSize[]> {
-    const database = getDb();
-    return await database.selectFrom("cardSizes").selectAll().execute();
+export async function getMetadataFromDB(): Promise<{
+    cardSizes: Selectable<CardSizes>[];
+    collectionTypes: Selectable<CollectionTypes>[];
+    cardTypes: Selectable<CardTypes>[];
+    collections: Selectable<Collections>[];
+}> {
+    const [cardSizes, collectionTypes, cardTypes, collections] = await Promise.all([
+        db.selectFrom("card_sizes").selectAll().execute(),
+        db.selectFrom("collection_types").selectAll().execute(),
+        db.selectFrom("card_types").selectAll().execute(),
+        db.selectFrom("collections").selectAll().execute(),
+    ]);
+
+    return {
+        cardSizes,
+        collectionTypes,
+        cardTypes,
+        collections,
+    };
 }
 
 /**
@@ -166,15 +175,14 @@ export async function getCardSizesFromDB(): Promise<CardSize[]> {
  * @returns Pre-signed URL and cloudinary signed params
  */
 function generateSignedUploadUrl(createThumbnail: boolean): PresignedUrl {
-    const env = getEnv();
     cloudinary.config({
         cloud_name: CLOUDINARY_CLOUD_NAME,
         api_key: CLOUDINARY_API_KEY,
-        api_secret: env.CLOUDINARY_API_SECRET,
+        api_secret: process.env.CLOUDINARY_API_SECRET,
     });
 
     const params = generateSignedParams(createThumbnail);
-    const signature = cloudinary.utils.api_sign_request(params, env.CLOUDINARY_API_SECRET);
+    const signature = cloudinary.utils.api_sign_request(params, process.env.CLOUDINARY_API_SECRET);
     return { signature, params };
 }
 
@@ -191,7 +199,10 @@ export async function generateSignedUploadUrlForPhotocards(numPhotocards: number
     return { data: signatures };
 }
 
-export async function addCollectionToDB(collection: Collection, photocards: Photocard[]): Promise<Result<number>> {
+export async function addCollectionToDB(
+    collection: Insertable<Collections>,
+    photocards: Insertable<Photocards>[],
+): Promise<Result<number>> {
     const session = await getSession();
     if (session.error) {
         return { error: session.error };
@@ -201,104 +212,71 @@ export async function addCollectionToDB(collection: Collection, photocards: Phot
         return result;
     }
 
-    const date = Date.now();
-    const database = getDb();
-    // Insert the collection, get its ID
-    const collectionId: Result<number> = await database
-        .insertInto("collections")
-        .values(collection)
-        .executeTakeFirstOrThrow()
-        .then(
-            (result) => {
-                if (result.insertId === undefined) {
-                    return { error: "Collection conflicts with existing entry" };
-                }
-                return { data: Number(result.insertId) };
-            },
-            (reason) => ({ error: "Could not add collection." }),
-        );
-
-    if (collectionId.error) {
-        return { error: collectionId.error };
-    }
-
     if (photocards.length === 0) {
         return { error: "Collection must have at least one photocard." };
     }
 
-    // Insert the photocards, linking them to the collection and fixing any placeholder data
-    for (const photocard of photocards) {
-        photocard.collectionId = collectionId.data!;
-        photocard.imageContributorId = session.data!.user.id;
-        photocard.updatedAt = date;
-        delete photocard.id;
+    // If the user is a mod, set admin_temporary to true for all photocards
+    const mappedPhotocards = photocards.map((photocard) => ({
+        ...photocard,
+        admin_temporary: session.data!.user.role === Role.MOD || photocard.admin_temporary,
+    }));
 
-        // Only Admins can set adminTemporary = false; only Mods and above can set modTemporary = false
-        switch (session.data!.user.role) {
-            case Role.MOD:
-                photocard.adminTemporary = 1;
-                break;
-            case Role.USER: // Never reached for now, but just in case
-                photocard.adminTemporary = 1;
-                photocard.modTemporary = 1;
-                break;
+    try {
+        const result = await sql<{ p_new_collection_id: number }>`
+            CALL sp_add_collection_with_photocards(
+                ${JSON.stringify(collection)},
+                ${JSON.stringify(mappedPhotocards)},
+                ${session.data!.user.id},
+                NULL
+            )
+        `.execute(db);
+
+        // When using CALL with an OUT parameter, specific driver behavior determines where the value appears.
+        // In many postgres drivers, the OUT parameters are returned as the first row.
+        const newCollectionId = result.rows[0]?.p_new_collection_id;
+
+        if (newCollectionId === undefined) {
+            return { error: "Stored procedure executed but returned no ID." };
         }
-    }
-    const photocardIds: Result<boolean>[] = await Promise.all(
-        photocards.map(async (photocard) =>
-            database
-                .insertInto("photocards")
-                .values(photocard)
-                .executeTakeFirstOrThrow()
-                .then(
-                    (result) => ({
-                        data: true,
-                    }),
-                    (reason) => ({
-                        error: "Could not add photocard to database.",
-                    }),
-                ),
-        ),
-    );
-    if (photocardIds.some((res) => res.error)) {
-        return { error: "Could not add photocards to database." };
-    }
 
-    return { data: collectionId.data! };
+        return { data: newCollectionId };
+    } catch (e) {
+        return { error: `Could not add collection: ${e}` };
+    }
 }
 
 export async function getCollectionForEdit(
     collectionId: number,
-): Promise<Result<{ collection: ParsedCollection; photocards: Photocard[] }>> {
+): Promise<Result<{ collections: Selectable<Collections>; photocards: Selectable<Photocards>[] }>> {
     const result = await isAtLeastMod<boolean>();
     if (result.error) {
         return result;
     }
 
-    const database = getDb();
-    const collection = await database
+    const collections = await db
         .selectFrom("collections")
         .selectAll()
         .where("id", "=", collectionId)
         .executeTakeFirst();
 
-    if (!collection) {
+    if (!collections) {
         return { error: "Collection not found." };
     }
 
-    const photocards = await database
+    const photocards = await db
         .selectFrom("photocards")
         .selectAll()
-        .where("collectionId", "=", collectionId)
+        .where("collection_id", "=", collectionId)
         .execute();
 
-    return { data: { collection: parseCollection(collection), photocards } };
+    return { data: { collections, photocards } };
 }
 
 export async function updateCollectionInDB(
     collectionId: number,
-    collection: ParsedCollection,
-    photocards: Photocard[],
+    collection: Insertable<Collections>,
+    photocards: Insertable<Photocards>[],
 ): Promise<Result<boolean>> {
     const session = await getSession();
     if (session.error) {
@@ -309,154 +287,30 @@ export async function updateCollectionInDB(
         return result;
     }
 
-    const isAdmin = session.data!.user.role === Role.ADMIN;
-    const database = getDb();
-
-    // 1. Update Collection
-    const updateResult = await database
-        .updateTable("collections")
-        .set({
-            name: collection.name,
-            releaseDate: collection.releaseDate.getTime(),
-            version: collection.version,
-            versionOrder: collection.versionOrder,
-            collectionTypes: collection.collectionTypes.join(","),
-        })
-        .where("id", "=", collectionId)
-        .executeTakeFirst();
-
-    if (updateResult.numUpdatedRows === BigInt(0)) {
-        return { error: "Could not update collection or collection not found." };
-    }
-
-    // 2. Process Photocards
-    const existingPhotocards = await database
-        .selectFrom("photocards")
-        .selectAll()
-        .where("collectionId", "=", collectionId)
-        .execute();
-
-    const existingMap = new Map(existingPhotocards.map((p) => [p.id!, p]));
-    const newMap = new Map(photocards.filter((p) => p.id !== undefined).map((p) => [p.id!, p]));
-
-    const promises: Promise<Result<boolean>>[] = [];
-
-    // Deletions
-    for (const [id, existing] of existingMap) {
-        if (!newMap.has(id)) {
-            // Check permission
-            if (!existing.adminTemporary && !isAdmin) {
-                return { error: `One or more photocards are locked by admins and cannot be deleted.` };
-            }
-            promises.push(
-                database
-                    .deleteFrom("photocards")
-                    .where("id", "=", id)
-                    .execute()
-                    .then(
-                        () => ({ data: true }),
-                        (e) => ({ error: `Could not delete photocard: ${e}` }),
-                    ),
-            );
-        }
-    }
-
-    // Updates & Insertions
-    for (const photocard of photocards) {
-        if (photocard.id !== undefined && existingMap.has(photocard.id)) {
-            // Update
-            const existing = existingMap.get(photocard.id)!;
-            if (!existing.adminTemporary && !isAdmin) {
-                return { error: `One or more photocards are locked by admins and cannot be updated.` };
-            }
-            promises.push(
-                database
-                    .updateTable("photocards")
-                    // Only update fields that can be changed in the form
-                    .set({
-                        imageId: photocard.imageId,
-                        backImageId: photocard.backImageId,
-                        backImageType: photocard.backImageType,
-                        cardType: photocard.cardType,
-                        sizeId: photocard.sizeId,
-                        effects: photocard.effects,
-                        exclusiveCountry: photocard.exclusiveCountry,
-                        // Member booleans
-                        rm: photocard.rm,
-                        jin: photocard.jin,
-                        suga: photocard.suga,
-                        jhope: photocard.jhope,
-                        jimin: photocard.jimin,
-                        v: photocard.v,
-                        jungkook: photocard.jungkook,
-                        // Overwrite imageContributorId if imageId changed
-                        imageContributorId:
-                            photocard.imageId === existing.imageId
-                                ? existing.imageContributorId
-                                : session.data!.user.id,
-                        updatedAt: Date.now(),
-                        adminTemporary: isAdmin ? photocard.adminTemporary : existing.adminTemporary,
-                        modTemporary: !isAdmin ? photocard.modTemporary : existing.modTemporary,
-                    })
-                    .where("id", "=", photocard.id)
-                    .execute()
-                    .then(
-                        () => ({ data: true }),
-                        (e) => ({ error: `Could not update photocard: ${e}` }),
-                    ),
-            );
-        } else {
-            // Insert
-            // Enforce modTemporary/adminTemporary defaults
-            const newCard = { ...photocard };
-            newCard.collectionId = collectionId;
-            newCard.imageContributorId = session.data!.user.id;
-            newCard.updatedAt = Date.now();
-            delete newCard.id; // Ensure no ID is passed for insert
-
-            switch (session.data!.user.role) {
-                case Role.ADMIN:
-                    break;
-                case Role.MOD:
-                    newCard.adminTemporary = 1;
-                    break;
-                case Role.USER:
-                default:
-                    newCard.adminTemporary = 1;
-                    newCard.modTemporary = 1;
-                    break;
-            }
-
-            promises.push(
-                database
-                    .insertInto("photocards")
-                    .values(newCard)
-                    .executeTakeFirstOrThrow()
-                    .then(
-                        () => ({ data: true }),
-                        (e) => ({ error: `Could not insert photocard: ${e}` }),
-                    ),
-            );
-        }
-    }
-
-    const results = await Promise.all(promises);
-    const firstError = results.find((r) => r.error);
-    if (firstError && firstError.error) {
-        return firstError;
-    }
-
-    return { data: true };
-}
-
-export async function getCollectionsFromDB(): Promise<ParsedCollection[]> {
-    return (await getDb().selectFrom("collections").selectAll().execute()).map((collection) =>
-        parseCollection(collection),
+    // Filter out any photocards that are locked by admins
+    const mappedPhotocards = photocards.filter(
+        (photocard) => photocard.admin_temporary === false && session.data!.user.role !== Role.ADMIN,
     );
+
+    try {
+        await sql`
+            CALL sp_update_collection_with_photocards(
+                ${collectionId},
+                ${JSON.stringify(collection)},
+                ${JSON.stringify(mappedPhotocards)},
+                ${session.data!.user.id},
+                ${session.data!.user.role}
+            )
+        `.execute(db);
+
+        return { data: true };
+    } catch (e) {
+        return { error: `Could not update collection: ${e}` };
+    }
 }
 
-export async function getPhotocardFromDB(id: number): Promise<Result<Photocard>> {
-    return await getDb()
+export async function getPhotocardFromDB(id: number): Promise<Result<Selectable<Photocards>>> {
+    return await db
         .selectFrom("photocards")
         .where("id", "=", id)
         .selectAll()
@@ -477,7 +331,7 @@ async function verifyTurnstile(token: string): Promise<Result<boolean>> {
                 "Content-Type": "application/json",
             },
             body: new URLSearchParams({
-                secret: getEnv().TURNSTILE_SECRET_KEY,
+                secret: process.env.TURNSTILE_SECRET_KEY,
                 response: token,
             }),
         });
@@ -496,7 +350,7 @@ async function verifyTurnstile(token: string): Promise<Result<boolean>> {
  * @returns If an image was provided, returns the pre-signed URL and image ID for uploading. Null if no image was provided.
  */
 export async function addReportToDB(
-    report: Report,
+    report: Insertable<Reports>,
     imageSize: number | null,
     turnstileToken: string,
 ): Promise<Result<PresignedUrl | null>> {
@@ -510,12 +364,11 @@ export async function addReportToDB(
     let presignUrl: PresignedUrl | null = null;
     if (imageSize !== null) {
         const { signature, params } = generateSignedUploadUrl(false);
-        report.imageId = params.public_id;
+        report.image_id = params.public_id;
         presignUrl = { signature, params };
     }
 
-    const database = getDb();
-    const result = await database
+    const result = await db
         .insertInto("reports")
         .values(report)
         .executeTakeFirstOrThrow()
@@ -531,7 +384,7 @@ export async function addReportToDB(
             }),
         );
 
-    if (result.error || !report.imageId) {
+    if (result.error || !report.image_id) {
         return result;
     }
 
@@ -539,32 +392,35 @@ export async function addReportToDB(
     return { data: presignUrl };
 }
 
-export async function getMostContributionsUser(): Promise<Result<UserData>> {
-    const database = getDb();
-    return await database
-        .selectFrom("user_data")
+async function getMostContributionsUser(): Promise<Result<Selectable<UserData>>> {
+    const result: Result<Selectable<ViewMostContributions>> = await db
+        .selectFrom("view_most_contributions")
         .selectAll()
-        .orderBy("contributions", "desc")
-        .limit(1)
         .executeTakeFirstOrThrow()
         .then(
-            (userData) => ({ data: userData }),
+            (data) => ({ data }),
             (reason) => ({
                 error: "Could not fetch most contributions user: " + reason,
             }),
         );
+
+    if (result.error) {
+        return result;
+    }
+    if (!result.data || result.data.image_contributor_id === null) {
+        return { error: "Could not fetch most contributions user" };
+    }
+
+    return getUserDataFromDB(result.data.image_contributor_id);
 }
 
-export async function getMostOwnedPhotocard(): Promise<Result<Photocard>> {
-    const database = getDb();
-    const photocardData: Result<PhotocardData> = await database
-        .selectFrom("photocard_data")
+async function getMostOwnedPhotocard(): Promise<Result<Selectable<Photocards>>> {
+    const photocardData: Result<Selectable<ViewMostOwnedPhotocards>> = await db
+        .selectFrom("view_most_owned_photocards")
         .selectAll()
-        .orderBy("numOwners", "desc")
-        .limit(1)
         .executeTakeFirstOrThrow()
         .then(
-            (data) => ({ data: data }),
+            (data) => ({ data }),
             (reason) => ({
                 error: "Could not fetch most owned photocard data: " + reason,
             }),
@@ -572,27 +428,17 @@ export async function getMostOwnedPhotocard(): Promise<Result<Photocard>> {
     if (photocardData.error) {
         return photocardData;
     }
+    if (!photocardData.data || photocardData.data.photocard_id === null) {
+        return { error: "Could not fetch most owned photocard data." };
+    }
 
-    return await database
-        .selectFrom("photocards")
-        .selectAll()
-        .where("id", "=", photocardData.data!.photocardId)
-        .executeTakeFirstOrThrow()
-        .then(
-            (card) => ({ data: card }),
-            (reason) => ({
-                error: "Could not fetch most owned photocard: " + reason,
-            }),
-        );
+    return getPhotocardFromDB(photocardData.data.photocard_id);
 }
 
-export async function getMostWishlistedPhotocard(): Promise<Result<Photocard>> {
-    const database = getDb();
-    const photocardData: Result<PhotocardData> = await database
-        .selectFrom("photocard_data")
+async function getMostWishlistedPhotocard(): Promise<Result<Selectable<Photocards>>> {
+    const photocardData: Result<Selectable<ViewMostWishlistedPhotocards>> = await db
+        .selectFrom("view_most_wishlisted_photocards")
         .selectAll()
-        .orderBy("numWishlists", "desc")
-        .limit(1)
         .executeTakeFirstOrThrow()
         .then(
             (data) => ({ data: data }),
@@ -603,123 +449,121 @@ export async function getMostWishlistedPhotocard(): Promise<Result<Photocard>> {
     if (photocardData.error) {
         return photocardData;
     }
+    if (!photocardData.data || photocardData.data.photocard_id === null) {
+        return { error: "Could not fetch most wishlisted photocard data." };
+    }
 
-    return await database
-        .selectFrom("photocards")
-        .selectAll()
-        .where("id", "=", photocardData.data!.photocardId)
-        .executeTakeFirstOrThrow()
-        .then(
-            (card) => ({ data: card }),
-            (reason) => ({
-                error: "Could not fetch most wishlisted photocard: " + reason,
-            }),
-        );
+    return getPhotocardFromDB(photocardData.data.photocard_id);
 }
 
-export async function getTotalPhotocards(): Promise<Result<number>> {
-    const database = getDb();
-    return await database
-        .selectFrom("db_data")
-        .select("numPhotocards")
+async function getTotalPhotocards(): Promise<Result<number>> {
+    return await db
+        .selectFrom("view_db_stats")
+        .select("num_photocards")
         .executeTakeFirstOrThrow()
         .then(
-            (data) => ({ data: data.numPhotocards }),
+            (data) => {
+                if (data.num_photocards === null) {
+                    return { error: "Could not fetch total photocards" };
+                } else {
+                    return { data: data.num_photocards };
+                }
+            },
             (reason) => ({
                 error: "Could not fetch total photocards: " + reason,
             }),
         );
 }
 
-export async function getTotalPhotocardsWithoutImages(): Promise<Result<number>> {
-    const database = getDb();
-    return await database
-        .selectFrom("db_data")
-        .select("numPhotocardsWithoutImages")
+async function getTotalPhotocardsWithoutImages(): Promise<Result<number>> {
+    return await db
+        .selectFrom("view_db_stats")
+        .select("num_photocards_without_images")
         .executeTakeFirstOrThrow()
         .then(
-            (data) => ({ data: data.numPhotocardsWithoutImages }),
+            (data) => {
+                if (data.num_photocards_without_images === null) {
+                    return { error: "Could not fetch total photocards without images" };
+                } else {
+                    return { data: data.num_photocards_without_images };
+                }
+            },
             (reason) => ({
                 error: "Could not fetch total photocards without images: " + reason,
             }),
         );
 }
 
-/**
- *
- * @returns Photocards with an image ID
- */
-export async function getRecentlyAddedPhotocardsInDB() {
-    const database = getDb();
-    return await database
+async function getRecentlyAddedPhotocardsInDB(): Promise<Result<Selectable<Photocards>[]>> {
+    return await db
         .selectFrom("photocards")
         .selectAll()
-        .where("imageId", "is not", null)
-        .orderBy("updatedAt", "desc")
+        .where("image_id", "is not", null)
+        .orderBy("updated_at", "desc")
         .limit(NUM_HOME_PHOTOCARDS)
-        .execute();
+        .execute()
+        .then(
+            (cards) => ({ data: cards }),
+            (reason) => ({
+                error: "Could not fetch recently added photocards: " + reason,
+            }),
+        );
 }
 
-export async function getPhotocardsInCollection(collectionId: number): Promise<Result<Photocard[]>> {
+export async function getHomeStats(): Promise<Result<HomeStats>> {
+    const results = await Promise.all([
+        getMostContributionsUser(),
+        getTotalPhotocards(),
+        getTotalPhotocardsWithoutImages(),
+        getRecentlyAddedPhotocardsInDB(),
+    ]);
+    if (results.some((result) => result.error) || results.some((result) => !result.data)) {
+        return { error: "Could not fetch home stats" };
+    }
     return {
-        data: await getDb().selectFrom("photocards").selectAll().where("collectionId", "=", collectionId).execute(),
+        data: {
+            mostContributionsUser: results[0].data!,
+            totalPhotocards: results[1].data!,
+            totalPhotocardsWithoutImages: results[2].data!,
+            recentlyAddedPhotocards: results[3].data!,
+        },
     };
+}
+
+export async function getPhotocardsInCollection(collectionId: number): Promise<Result<Selectable<Photocards>[]>> {
+    return await db
+        .selectFrom("photocards")
+        .selectAll()
+        .where("collection_id", "=", collectionId)
+        .execute()
+        .then(
+            (cards) => ({ data: cards }),
+            (reason) => ({
+                error: "Could not fetch photocards in collection: " + reason,
+            }),
+        );
 }
 
 export async function getPhotocardsInDB(
     query: SearchQuery,
     updateDate: Date | null,
-): Promise<Result<{ cards: Photocard[]; query: string }>> {
-    const database = getDb();
-    let queryBuilder = database.selectFrom("photocards").selectAll();
-
-    // TODO: Don't hardcode once we migrate away from D1
-    // Filters - Hardcoded into SQL to avoid variables (for D1)
-    // Convert all array elements to numbers first to prevent SQL injection
-    query.collectionIds = query.collectionIds.map(Number);
-    query.cardTypeIds = query.cardTypeIds.map(Number);
-    query.sizeIds = query.sizeIds.map(Number);
-    query.exclusiveCountryIds = query.exclusiveCountryIds.map(Number);
+): Promise<Result<{ cards: Selectable<Photocards>[]; query: string }>> {
+    let queryBuilder = db.selectFrom("photocards").selectAll();
 
     if (query.collectionIds.length > 0) {
-        const ids = query.collectionIds.join(",");
-        queryBuilder = queryBuilder.where(sql<SqlBool>`collectionId IN (${sql.raw(ids)})`);
+        queryBuilder = queryBuilder.where("collection_id", "in", query.collectionIds);
     }
-    // START: Special handling for default card type (NULL in DB), uses OR condition
-    const defaultCardTypeIndex = query.cardTypeIds.findIndex((id) => id === DEFAULT_CARD_TYPE.id);
-    // Cut out the default card type from the array to handle separately
-    if (defaultCardTypeIndex !== -1) {
-        query.cardTypeIds.splice(defaultCardTypeIndex, 1);
+    if (query.cardTypeIds.length > 0) {
+        queryBuilder = queryBuilder.where("card_type", "in", query.cardTypeIds);
     }
-    const cardTypeIdsString = query.cardTypeIds.join(",");
-    if (query.cardTypeIds.length > 0 && defaultCardTypeIndex !== -1) {
-        queryBuilder = queryBuilder.where(
-            sql<SqlBool>`(cardType IN (${sql.raw(cardTypeIdsString)}) OR cardType IS NULL)`,
-        );
-    } else if (query.cardTypeIds.length > 0) {
-        queryBuilder = queryBuilder.where(sql<SqlBool>`cardType IN (${sql.raw(cardTypeIdsString)})`);
-    } else if (defaultCardTypeIndex !== -1) {
-        queryBuilder = queryBuilder.where(sql<SqlBool>`cardType IS NULL`);
-    }
-    // Note: If no card types selected and defaultCardType = true, no filtering is applied
-    // END: Special handling for default card type (NULL in DB)
     if (query.sizeIds.length > 0) {
-        const ids = query.sizeIds.join(",");
-        queryBuilder = queryBuilder.where(sql<SqlBool>`sizeId IN (${sql.raw(ids)})`);
+        queryBuilder = queryBuilder.where("size_id", "in", query.sizeIds);
     }
     if (query.exclusiveCountryIds.length > 0) {
-        const ids = query.exclusiveCountryIds.join(",");
-        queryBuilder = queryBuilder.where(sql<SqlBool>`exclusiveCountry IN (${sql.raw(ids)})`);
+        queryBuilder = queryBuilder.where("exclusive_country", "in", query.exclusiveCountryIds);
     }
-
-    // Member filters - OR condition (match any selected member)
-    const memberConditions: string[] = [];
-    const activeMembers = booleansToMembers(query);
-    activeMembers.forEach((member) => memberConditions.push(`${member} = 1`));
-
-    if (memberConditions.length > 0) {
-        const memberConditionString = memberConditions.join(" OR ");
-        queryBuilder = queryBuilder.where(sql<SqlBool>`(${sql.raw(memberConditionString)})`);
+    if (query.members.length > 0) {
+        queryBuilder = queryBuilder.where(sql<boolean>`members && ARRAY[${sql.join(query.members)}]::integer[]`);
     }
 
     // Ordering
@@ -730,27 +574,22 @@ export async function getPhotocardsInDB(
             if (query.collectionIds.length === 0) {
                 return { error: "Release date sorting requires at least one collection filter." };
             } else if (query.collectionIds.length > NUM_LOAD_COLLECTIONS) {
-                // TODO: Add limit once we migrate away from D1; D1 scans the entire table anyway
-                // return {
-                //     error: `Cannot load more than ${NUM_LOAD_COLLECTIONS} collections when sorting by release date.`,
-                // };
+                return {
+                    error: `Cannot load more than ${NUM_LOAD_COLLECTIONS} collections when sorting by release date.`,
+                };
             }
             break;
         case SortType.DateAddedAsc:
             if (updateDate !== null) {
-                queryBuilder = queryBuilder.where("updatedAt", ">", updateDate.getTime());
+                queryBuilder = queryBuilder.where("updated_at", ">", updateDate);
             }
-            queryBuilder = queryBuilder.orderBy("updatedAt", "asc");
-            // TODO: Add limit once we migrate away from D1; D1 scans the entire table anyway
-            // .limit(NUM_LOAD_PHOTOCARDS);
+            queryBuilder = queryBuilder.orderBy("updated_at", "asc").limit(NUM_LOAD_PHOTOCARDS);
             break;
         case SortType.DateAddedDesc:
             if (updateDate !== null) {
-                queryBuilder = queryBuilder.where("updatedAt", "<", updateDate.getTime());
+                queryBuilder = queryBuilder.where("updated_at", "<", updateDate);
             }
-            queryBuilder = queryBuilder.orderBy("updatedAt", "desc");
-            // TODO: Add limit once we migrate away from D1; D1 scans the entire table anyway
-            // .limit(NUM_LOAD_PHOTOCARDS);
+            queryBuilder = queryBuilder.orderBy("updated_at", "desc").limit(NUM_LOAD_PHOTOCARDS);
             break;
         default:
             return { error: "Invalid sort type." };
@@ -760,91 +599,31 @@ export async function getPhotocardsInDB(
     return { data: { cards: await queryBuilder.execute(), query: queryString } };
 }
 
-export async function getUserProfileDataFromDB(id: string): Promise<Result<UserProfileData>> {
-    const database = getDb();
-
-    // TODO: Change implementation once migrated to D1; will need to scan photocard/wishlist tables
-
-    const [userDataResult, createdAtResult, userPhotocardsResult, userWishlistResult, userBindersResult] =
-        await Promise.all([
-            database
-                .selectFrom("user_data")
-                .selectAll()
-                .where("userId", "=", id)
-                .executeTakeFirstOrThrow()
-                .then(
-                    (data): Result<UserData> => ({ data }),
-                    (reason): Result<UserData> => ({ error: "Could not fetch user data: " + reason }),
-                ),
-            database
-                .selectFrom("user")
-                .select("createdAt")
-                .where("id", "=", id)
-                .executeTakeFirstOrThrow()
-                .then(
-                    (data): Result<Date> => ({ data: data.createdAt }),
-                    (reason): Result<Date> => ({ error: "Could not fetch user creation date: " + reason }),
-                ),
-            database
-                .selectFrom("user_photocards")
-                .select("photocards")
-                .where("userId", "=", id)
-                .executeTakeFirst()
-                .then(
-                    (data): Result<string | undefined> => ({ data: data?.photocards }),
-                    (reason): Result<string | undefined> => ({ error: "Could not fetch user photocards: " + reason }),
-                ),
-            database
-                .selectFrom("user_wishlist")
-                .select("wishlist")
-                .where("userId", "=", id)
-                .executeTakeFirst()
-                .then(
-                    (data): Result<string | undefined> => ({ data: data?.wishlist }),
-                    (reason): Result<string | undefined> => ({ error: "Could not fetch user wishlist: " + reason }),
-                ),
-            database
-                .selectFrom("user_binders")
-                .selectAll()
-                .where("userId", "=", id)
-                .orderBy("lastUpdatedAt", "desc")
-                .execute()
-                .then(
-                    (data): Result<UserBinder[]> => ({ data }),
-                    (reason): Result<UserBinder[]> => ({ error: "Could not fetch user binders: " + reason }),
-                ),
-        ]);
-
-    if (userDataResult.error) return { error: userDataResult.error };
-    if (createdAtResult.error) return { error: createdAtResult.error };
-    if (userPhotocardsResult.error) return { error: userPhotocardsResult.error };
-    if (userWishlistResult.error) return { error: userWishlistResult.error };
-    if (userBindersResult.error) return { error: userBindersResult.error };
-
-    return {
-        data: {
-            userData: userDataResult.data!,
-            createdAt: createdAtResult.data!,
-            photocards: userPhotocardsResult.data,
-            wishlist: userWishlistResult.data,
-            binders: userBindersResult.data,
-        },
-    };
+export async function getUserProfileDataFromDB(id: string): Promise<Result<Selectable<UserData>>> {
+    return db
+        .selectFrom("user_data")
+        .selectAll()
+        .where("user_id", "=", id)
+        .executeTakeFirstOrThrow()
+        .then(
+            (data): Result<Selectable<UserData>> => ({ data }),
+            (reason): Result<Selectable<UserData>> => ({ error: "Could not fetch user data: " + reason }),
+        );
 }
 
-export async function updateUserDataInDB(userData: UserData): Promise<Result<boolean>> {
+export async function updateUserDataInDB(userData: Selectable<UserData>): Promise<Result<boolean>> {
     const session = await getSession();
     if (session.error) {
         return { error: session.error };
     }
-    if (session.data!.user.id !== userData.userId) {
+    if (session.data!.user.id !== userData.user_id) {
         return { error: "You do not have permission to update this user's data." };
     }
 
-    return await getDb()
+    return await db
         .updateTable("user_data")
         .set(userData)
-        .where("userId", "=", userData.userId)
+        .where("user_id", "=", userData.user_id)
         .executeTakeFirstOrThrow()
         .then(
             (data) => ({ data: true }),

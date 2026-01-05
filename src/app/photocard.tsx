@@ -1,7 +1,6 @@
 "use client";
 
-import { THUMBNAIL_DISPLAY_HEIGHT_PX } from "@/constants";
-import { Effects } from "@/db";
+import { THUMBNAIL_DISPLAY_HEIGHT_PX, Effects } from "@/constants";
 import { CheckboxWithoutLabel } from "@/components/ui/checkbox";
 import { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
