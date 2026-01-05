@@ -287,9 +287,9 @@ export async function updateCollectionInDB(
         return result;
     }
 
-    // Filter out any photocards that are locked by admins
+    // Only keep cards that aren't locked by admins (unless we're an admin)
     const mappedPhotocards = photocards.filter(
-        (photocard) => photocard.admin_temporary === false && session.data!.user.role !== Role.ADMIN,
+        (photocard) => photocard.admin_temporary === true || session.data!.user.role === Role.ADMIN,
     );
 
     try {

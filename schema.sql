@@ -275,11 +275,11 @@ BEGIN
 
     INSERT INTO collections (name, release_date, collection_types, version, version_order)
     VALUES (
-        (p_collection->>name)::TEXT,
-        (p_collection->>release_date)::DATE,
+        (p_collection->>'name')::TEXT,
+        (p_collection->>'release_date')::DATE,
         v_collection_types,
-        (p_collection->>version)::TEXT,
-        (p_collection->>version_order)::INTEGER
+        (p_collection->>'version')::TEXT,
+        (p_collection->>'version_order')::INTEGER
     )
     RETURNING id INTO p_new_collection_id;
 
@@ -296,15 +296,15 @@ BEGIN
         )
         VALUES (
             p_new_collection_id,
-            (v_pc->>image_id)::TEXT,
-            (v_pc->>back_image_id)::TEXT,
-            (v_pc->>back_image_type)::INTEGER,
-            (v_pc->>card_type)::INTEGER,
-            (v_pc->>size_id)::INTEGER,
-            (v_pc->>mod_temporary)::BOOLEAN,
-            (v_pc->>admin_temporary)::BOOLEAN,
-            (v_pc->>exclusive_country)::INTEGER,
-            (v_pc->>effects)::INTEGER,
+            (v_pc->>'image_id')::TEXT,
+            (v_pc->>'back_image_id')::TEXT,
+            (v_pc->>'back_image_type')::INTEGER,
+            (v_pc->>'card_type')::INTEGER,
+            (v_pc->>'size_id')::INTEGER,
+            (v_pc->>'mod_temporary')::BOOLEAN,
+            (v_pc->>'admin_temporary')::BOOLEAN,
+            (v_pc->>'exclusive_country')::INTEGER,
+            (v_pc->>'effects')::INTEGER,
             v_members,
             p_user_id,
             NOW()
@@ -334,18 +334,18 @@ BEGIN
     v_collection_types := ARRAY(SELECT jsonb_array_elements_text(p_collection->'collection_types')::INTEGER);
 
     UPDATE collections
-    SET name = (p_collection->>name)::TEXT,
-        release_date = (p_collection->>release_date)::DATE,
+    SET name = (p_collection->>'name')::TEXT,
+        release_date = (p_collection->>'release_date')::DATE,
         collection_types = v_collection_types,
-        version = (p_collection->>version)::TEXT,
-        version_order = (p_collection->>version_order)::INTEGER
+        version = (p_collection->>'version')::TEXT,
+        version_order = (p_collection->>'version_order')::INTEGER
     WHERE id = p_collection_id;
 
     SELECT ARRAY_AGG(id) INTO v_current_ids FROM photocards WHERE collection_id = p_collection_id;
 
-    SELECT ARRAY_AGG((x->>id)::INTEGER) INTO v_incoming_ids
+    SELECT ARRAY_AGG((x->>'id')::INTEGER) INTO v_incoming_ids
     FROM jsonb_array_elements(p_photocards) x
-    WHERE (x->>id) IS NOT NULL;
+    WHERE (x->>'id') IS NOT NULL;
 
     IF v_current_ids IS NOT NULL THEN
         DELETE FROM photocards
@@ -359,29 +359,29 @@ BEGIN
 
     FOR v_pc IN SELECT * FROM jsonb_array_elements(p_photocards)
     LOOP
-        v_pc_id := (v_pc->>id)::INTEGER;
+        v_pc_id := (v_pc->>'id')::INTEGER;
 
-        v_members := ARRAY(SELECT jsonb_array_elements_text(v_pc->members)::INTEGER);
+        v_members := ARRAY(SELECT jsonb_array_elements_text(v_pc->'members')::INTEGER);
 
         IF v_pc_id IS NOT NULL THEN
             UPDATE photocards SET
                 image_contributor_id = CASE 
-                    WHEN (image_id IS DISTINCT FROM (v_pc->>image_id)::TEXT) 
-                      OR (back_image_id IS DISTINCT FROM (v_pc->>back_image_id)::TEXT)
+                    WHEN (image_id IS DISTINCT FROM (v_pc->>'image_id')::TEXT) 
+                      OR (back_image_id IS DISTINCT FROM (v_pc->>'back_image_id')::TEXT)
                     THEN p_user_id 
                     ELSE image_contributor_id 
                 END,
-                image_id = (v_pc->>image_id)::TEXT,
-                back_image_id = (v_pc->>back_image_id)::TEXT,
-                back_image_type = (v_pc->>back_image_type)::INTEGER,
-                card_type = (v_pc->>card_type)::INTEGER,
-                size_id = (v_pc->>size_id)::INTEGER,
-                effects = (v_pc->>effects)::INTEGER,
-                exclusive_country = (v_pc->>exclusive_country)::INTEGER,
+                image_id = (v_pc->>'image_id')::TEXT,
+                back_image_id = (v_pc->>'back_image_id')::TEXT,
+                back_image_type = (v_pc->>'back_image_type')::INTEGER,
+                card_type = (v_pc->>'card_type')::INTEGER,
+                size_id = (v_pc->>'size_id')::INTEGER,
+                effects = (v_pc->>'effects')::INTEGER,
+                exclusive_country = (v_pc->>'exclusive_country')::INTEGER,
                 members = v_members,
                 updated_at = NOW(),
-                mod_temporary = (v_pc->>mod_temporary)::BOOLEAN,
-                admin_temporary = (v_pc->>admin_temporary)::BOOLEAN
+                mod_temporary = (v_pc->>'mod_temporary')::BOOLEAN,
+                admin_temporary = (v_pc->>'admin_temporary')::BOOLEAN
             WHERE id = v_pc_id;
         ELSE
              INSERT INTO photocards (
@@ -393,18 +393,18 @@ BEGIN
             )
             VALUES (
                 p_collection_id,
-                (v_pc->>image_id)::TEXT,
-                (v_pc->>back_image_id)::TEXT,
-                (v_pc->>back_image_type)::INTEGER,
-                (v_pc->>card_type)::INTEGER,
-                (v_pc->>size_id)::INTEGER,
-                (v_pc->>exclusive_country)::INTEGER,
-                (v_pc->>effects)::INTEGER,
+                (v_pc->>'image_id')::TEXT,
+                (v_pc->>'back_image_id')::TEXT,
+                (v_pc->>'back_image_type')::INTEGER,
+                (v_pc->>'card_type')::INTEGER,
+                (v_pc->>'size_id')::INTEGER,
+                (v_pc->>'exclusive_country')::INTEGER,
+                (v_pc->>'effects')::INTEGER,
                 v_members,
                 p_user_id,
                 NOW(),
-                (v_pc->>mod_temporary)::BOOLEAN,
-                (v_pc->>admin_temporary)::BOOLEAN
+                (v_pc->>'mod_temporary')::BOOLEAN,
+                (v_pc->>'admin_temporary')::BOOLEAN
             );
         END IF;
     END LOOP;
