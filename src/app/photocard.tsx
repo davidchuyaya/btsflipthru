@@ -200,8 +200,7 @@ export default function PhotocardComponent({
                     glare-intensity={glareIntensity}
                     tilt-factor="0.7"
                     scale-factor="1"
-                    class={effects === Effects.Shiny ? "shiny" : ""}
-                    style={large ? { display: "block", width: "100%" } : undefined}
+                    className={`${effects === Effects.Shiny ? "shiny" : ""} ${large ? "block w-full" : ""}`}
                 >
                     {src ? (
                         <img src={src} style={imgStyle} alt="Photocard" />
