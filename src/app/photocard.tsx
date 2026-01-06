@@ -2,8 +2,7 @@
 
 import { THUMBNAIL_DISPLAY_HEIGHT_PX, Effects } from "@/constants";
 import { CheckboxWithoutLabel } from "@/components/ui/checkbox";
-import { useEffect, useRef, useState } from "react";
-import { createRoot } from "react-dom/client";
+import { useEffect, useState } from "react";
 
 const DEFAULT_ASPECT_RATIO = "11 / 17"; // Standard photocard aspect ratio 55mm x 85mm
 
@@ -133,101 +132,59 @@ export default function PhotocardComponent({
 }) {
     const [borderRadius, setBorderRadius] = useState<number>(16);
     const [aspectRatio, setAspectRatio] = useState<string>(DEFAULT_ASPECT_RATIO);
-    const hostRef = useRef<HTMLDivElement>(null);
+
+    // Load the web component once
+    useEffect(() => {
+        import("hover-tilt/web-component");
+    }, []);
 
     useEffect(() => {
-        if (src && !manualRadius)
-            detectBorderRadiusAndRatio(src).then(({ borderRadius, aspectRatio }) => {
-                setBorderRadius(borderRadius);
-                setAspectRatio(aspectRatio);
+        if (src && !manualRadius) {
+            detectBorderRadiusAndRatio(src).then(({ borderRadius: br, aspectRatio: ar }) => {
+                setBorderRadius((prev) => (prev === br ? prev : br));
+                setAspectRatio((prev) => (prev === ar ? prev : ar));
             });
-        else if (fallbackSrc && !manualRadius)
-            detectBorderRadiusAndRatio(fallbackSrc).then(({ borderRadius, aspectRatio }) => {
-                setBorderRadius(borderRadius);
-                setAspectRatio(aspectRatio);
+        } else if (fallbackSrc && !manualRadius) {
+            detectBorderRadiusAndRatio(fallbackSrc).then(({ borderRadius: br, aspectRatio: ar }) => {
+                setBorderRadius((prev) => (prev === br ? prev : br));
+                setAspectRatio((prev) => (prev === ar ? prev : ar));
             });
+        }
     }, [src, fallbackSrc, manualRadius]);
 
-    useEffect(() => {
-        init();
-    }, [src, fallbackSrc, className, effects, borderRadius, aspectRatio, children]);
+    const [w, h] = aspectRatio.split(" / ").map(Number);
+    const ratio = w / h;
+    const verticalPercent = (borderRadius / THUMBNAIL_DISPLAY_HEIGHT_PX) * 100;
+    const horizontalPercent = verticalPercent / ratio;
+    const radiusString = `${horizontalPercent.toFixed(2)}% / ${verticalPercent.toFixed(2)}%`;
 
-    async function init() {
-        await import("hover-tilt/web-component");
-        if (!hostRef.current) return;
+    let glareIntensity = "";
+    switch (effects) {
+        case Effects.Matte:
+            glareIntensity = "0.3";
+            break;
+        case Effects.Glossy:
+            glareIntensity = "1.0";
+            break;
+        case Effects.Shiny:
+            glareIntensity = "1.5";
+            break;
+    }
 
-        // 1. Create and configure
-        const el = document.createElement("hover-tilt");
-        if (large) {
-            el.setAttribute("style", "display: block; width: 100%;");
-        }
-        let glareIntensity = "";
-        switch (effects) {
-            case Effects.Matte:
-                glareIntensity = "0.3";
-                break;
-            case Effects.Glossy:
-                glareIntensity = "1.0";
-                break;
-            case Effects.Shiny:
-                glareIntensity = "1.5";
-                break;
-        }
-        el.setAttribute("glare-intensity", glareIntensity);
-        el.setAttribute("tilt-factor", "0.7");
-        el.setAttribute("scale-factor", "1");
-        if (effects === Effects.Shiny) {
-            el.className = "shiny";
-        }
+    const HoverTilt = "hover-tilt" as any;
 
-        // 2. Append to DOM BEFORE accessing .style
-        hostRef.current.innerHTML = ""; // Clear previous
-        hostRef.current.appendChild(el);
+    const imgStyle: React.CSSProperties = large
+        ? {
+              height: "auto",
+              width: "100%",
+          }
+        : {
+              height: `${THUMBNAIL_DISPLAY_HEIGHT_PX}px`,
+              maxWidth: "none",
+          };
 
-        // 3. Now set styles safely
-        const [w, h] = aspectRatio.split(" / ").map(Number);
-        const ratio = w / h;
-        const verticalPercent = (borderRadius / THUMBNAIL_DISPLAY_HEIGHT_PX) * 100;
-        const horizontalPercent = verticalPercent / ratio;
-        const radiusString = `${horizontalPercent.toFixed(2)}% / ${verticalPercent.toFixed(2)}%`;
-
-        hostRef.current.style.setProperty("--detected-radius", radiusString);
-
-        // 4. Inject Image
-        if (!src) {
-            // 1. Create a wrapper div to hold the React tree
-            const placeholderContainer = document.createElement("div");
-            placeholderContainer.style.borderRadius = radiusString;
-            el.appendChild(placeholderContainer);
-
-            // 2. Mount the React component into that div
-            const root = createRoot(placeholderContainer);
-            root.render(
-                <PlaceholderComponent
-                    type={placeholderType}
-                    borderRadius={borderRadius}
-                    aspectRatio={aspectRatio}
-                    large={large}
-                >
-                    {children}
-                </PlaceholderComponent>,
-            );
-        } else {
-            const img = document.createElement("img");
-            img.src = src;
-            if (!large) {
-                img.style.height = `${THUMBNAIL_DISPLAY_HEIGHT_PX}px`;
-                img.style.maxWidth = "none";
-            } else {
-                img.style.height = "auto";
-                img.style.width = "100%";
-            }
-            if (manualRadius) {
-                // Crop image
-                img.style.borderRadius = "16px";
-            }
-            el.appendChild(img);
-        }
+    if (manualRadius) {
+        imgStyle.borderRadius = "16px";
     }
 
     return (
@@ -236,9 +193,30 @@ export default function PhotocardComponent({
             onClick={() => (selectable ? onToggle?.() : onClick?.())}
         >
             <div
-                ref={hostRef}
                 className={`${large ? "w-full" : "inline-block"} transition-opacity ${selectable ? (isSelected ? "opacity-100" : "opacity-50") : ""}`}
-            />
+                style={{ "--detected-radius": radiusString } as React.CSSProperties}
+            >
+                <HoverTilt
+                    glare-intensity={glareIntensity}
+                    tilt-factor="0.7"
+                    scale-factor="1"
+                    class={effects === Effects.Shiny ? "shiny" : ""}
+                    style={large ? { display: "block", width: "100%" } : undefined}
+                >
+                    {src ? (
+                        <img src={src} style={imgStyle} alt="Photocard" />
+                    ) : (
+                        <PlaceholderComponent
+                            type={placeholderType}
+                            borderRadius={borderRadius}
+                            aspectRatio={aspectRatio}
+                            large={large}
+                        >
+                            {children}
+                        </PlaceholderComponent>
+                    )}
+                </HoverTilt>
+            </div>
             {selectable && (
                 <div className="absolute inset-0 flex items-center justify-center z-20 cursor-pointer">
                     <CheckboxWithoutLabel checked={isSelected} className="w-8 h-8 border-2 pointer-events-none" />
