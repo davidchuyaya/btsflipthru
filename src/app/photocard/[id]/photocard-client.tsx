@@ -20,7 +20,24 @@ import { ClientSession, signInGoogle } from "@/auth-client";
 import PhotocardGrid from "@/app/photocard-grid";
 import { Selectable } from "kysely";
 import { Photocards, UserData } from "@/db";
-import { cardSizeToString } from "@/actions-client";
+import { cardSizeToString, uploadImage } from "@/actions-client";
+import { DialogHeader, DialogFooter } from "@/components/ui/dialog";
+import {
+    Dialog,
+    DialogTrigger,
+    DialogContent,
+    DialogTitle,
+    DialogDescription,
+    DialogClose,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import z from "zod";
+import { ImageDropzone } from "@/app/image-dropzone";
+import { Controller, useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { FieldError } from "@/components/ui/field";
+import { generateSignedUploadUrlForPhotocards, updatePhotocardInDB } from "@/actions";
+import { toast } from "sonner";
 
 function AlertDialogTriggerButton({
     title,
@@ -49,6 +66,150 @@ function AlertDialogTriggerButton({
                 </AlertDialogFooter>
             </AlertDialogContent>
         </AlertDialog>
+    );
+}
+
+const formSchema = z.object({
+    frontImage: z
+        .instanceof(File)
+        .nullable()
+        .refine((file) => file !== null, {
+            message: "Front image is required",
+        }),
+    backImage: z
+        .instanceof(File)
+        .nullable()
+        .refine((file) => file !== null, {
+            message: "Back image is required",
+        }),
+});
+
+function SubmitAltImageDialog({ id }: { id: number }) {
+    const form = useForm<z.infer<typeof formSchema>>({
+        resolver: zodResolver(formSchema),
+        defaultValues: {
+            frontImage: null,
+            backImage: null,
+        },
+    });
+
+    async function onSubmit(data: z.infer<typeof formSchema>) {
+        toast.promise(
+            async () => {
+                const presignedUrls = await generateSignedUploadUrlForPhotocards(2);
+                if (presignedUrls.error) {
+                    throw new Error("Failed to generate presigned URLs: " + presignedUrls.error);
+                }
+                const databaseUpdated = await updatePhotocardInDB(
+                    id,
+                    presignedUrls.data![0].params.public_id,
+                    presignedUrls.data![1].params.public_id,
+                );
+                if (databaseUpdated.error) {
+                    throw new Error("Failed to update database: " + databaseUpdated.error);
+                }
+
+                await Promise.all([
+                    uploadImage(presignedUrls.data![0], data.frontImage!),
+                    uploadImage(presignedUrls.data![1], data.backImage!),
+                ]).then((results) => {
+                    const error = results.find((res) => res.error);
+                    if (error) {
+                        throw new Error(error.error!);
+                    }
+                });
+            },
+            {
+                loading: "Uploading...",
+                success: () => {
+                    form.reset();
+                    return "Uploaded successfully! Refresh the page to see your changes.";
+                },
+                error: (error) => {
+                    return {
+                        message: "Error uploading: " + error.message,
+                        action: {
+                            label: "Report",
+                            onClick: () => {
+                                const url = reportWindowURL(ReportType.Error, window.location.href, error.message);
+                                window.open(url, "_blank");
+                            },
+                        },
+                    };
+                },
+            },
+        );
+    }
+
+    return (
+        <Dialog>
+            <DialogTrigger asChild>
+                <Button>Submit Alt Image</Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[60%]">
+                <form onSubmit={form.handleSubmit(onSubmit)}>
+                    <DialogHeader>
+                        <DialogTitle>Submit an Image</DialogTitle>
+                        <DialogDescription>
+                            Contribute to our database by submitting the front and back image of the photocard! Please
+                            only use images that you've taken yourself and refer to the steps in the
+                            <Button variant="underline" asChild>
+                                <Link href="/faq#how-do-i-upload-cards">FAQ</Link>
+                            </Button>
+                            .
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="flex flex-row gap-4 mb-2">
+                        <div className="flex flex-col gap-2">
+                            <Label>Front Image</Label>
+                            <Controller
+                                name="frontImage"
+                                control={form.control}
+                                render={({ field, fieldState }) => (
+                                    <>
+                                        <ImageDropzone
+                                            onImageChanged={field.onChange}
+                                            onDelete={() => {
+                                                field.onChange(null);
+                                            }}
+                                            expand={true}
+                                            image={field.value}
+                                        />
+                                        {fieldState.error && <FieldError errors={[fieldState.error]} />}
+                                    </>
+                                )}
+                            />
+                        </div>
+                        <div className="flex flex-col gap-2">
+                            <Label>Back Image</Label>
+                            <Controller
+                                name="backImage"
+                                control={form.control}
+                                render={({ field, fieldState }) => (
+                                    <>
+                                        <ImageDropzone
+                                            onImageChanged={field.onChange}
+                                            onDelete={() => {
+                                                field.onChange(null);
+                                            }}
+                                            expand={true}
+                                            image={field.value}
+                                        />
+                                        {fieldState.error && <FieldError errors={[fieldState.error]} />}
+                                    </>
+                                )}
+                            />
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <DialogClose asChild>
+                            <Button variant="neutral">Cancel</Button>
+                        </DialogClose>
+                        <Button type="submit">Submit</Button>
+                    </DialogFooter>
+                </form>
+            </DialogContent>
+        </Dialog>
     );
 }
 
@@ -113,9 +274,7 @@ export default function PhotocardClient({
                 <Button className="w-fit mt-4" onClick={() => setFlipped(!flipped)}>
                     Flip
                 </Button>
-                <Button hidden={!photocard?.mod_temporary} className="w-fit">
-                    Submit Alt Image
-                </Button>
+                {photocard?.mod_temporary && <SubmitAltImageDialog id={photocard.id} />}
                 <Button asChild className="w-fit">
                     <Link href={reportWindowURL(ReportType.Error, "/photocard/" + photocard.id, "Photocard error")}>
                         Report an Error
@@ -154,9 +313,7 @@ export default function PhotocardClient({
                         <div className="flex flex-row gap-4 items-center">
                             <h3>Image Submission</h3>
                             <Button variant="underline" asChild>
-                                <Link href={"/profile/" + imageContributor.user_id}>
-                                    @{imageContributor.username}
-                                </Link>
+                                <Link href={"/profile/" + imageContributor.user_id}>@{imageContributor.username}</Link>
                             </Button>
                         </div>
                     </div>

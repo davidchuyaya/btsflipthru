@@ -2,3 +2,6 @@ btsflipthru.com {
     reverse_proxy localhost:3000
     tls btsflipthru@gmail.com
 }
+www.btsflipthru.com {
+    redir https://btsflipthru.com{uri}
+}

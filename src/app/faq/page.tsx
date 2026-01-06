@@ -190,7 +190,7 @@ export default function FaqComponent() {
                     credit. The top contributor at any given time will be featured on our front page!
                 </p>
             </div>
-            <div className="page-body">
+            <div className="page-body" id="how-do-i-upload-cards">
                 <h1>How do I upload cards? Do they have to be scans, or are photos acceptable?</h1>
                 <p>
                     Thank you for contributing to the site! We know that not everyone has access to a scanner, and we

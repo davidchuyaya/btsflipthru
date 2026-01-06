@@ -38,4 +38,4 @@ We use the following technologies:
 1. Pull changes: `git pull`
 2. Update postgres if schema changed: `npm run load-local-db`
 3. Build: `npm run build`
-4. Restart the app: `pm2 restart all`
+4. Restart the app: `npx pm2 restart all`

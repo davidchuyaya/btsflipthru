@@ -122,7 +122,7 @@ export const ImageDropzone = forwardRef<
                             <p className="p-4">{fileName ?? "Choose image"}</p>
                         ) : (
                             <>
-                                <p>Drop images here.</p>
+                                <p>Drop image here.</p>
                                 <p>Only images under {MAX_IMAGE_SIZE_BYTES / (1024 * 1024)}MB are allowed.</p>
                             </>
                         )}

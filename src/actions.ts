@@ -323,6 +323,24 @@ export async function getPhotocardFromDB(id: number): Promise<Result<Selectable<
         );
 }
 
+export async function updatePhotocardInDB(id: number, imageId: string, backImageId: string): Promise<Result<boolean>> {
+    return await db
+        .updateTable("photocards")
+        .set({
+            image_id: imageId,
+            back_image_id: backImageId,
+        })
+        .where("id", "=", id)
+        .where("mod_temporary", "=", true) // Only if the photocard is marked temporary
+        .executeTakeFirstOrThrow()
+        .then(
+            () => ({ data: true }),
+            (reason) => ({
+                error: "Could not update photocard: " + reason,
+            }),
+        );
+}
+
 async function verifyTurnstile(token: string): Promise<Result<boolean>> {
     try {
         const response = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {

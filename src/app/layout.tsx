@@ -31,7 +31,7 @@ export default function RootLayout({
                 </MetadataProvider>
                 <Toaster />
             </body>
-            <GoogleAnalytics gaId="G-GRGW5SYNGY" />
+            <GoogleAnalytics gaId="G-CCW8KV9SSY" />
         </html>
     );
 }
