@@ -22,7 +22,7 @@ import { useState, useEffect } from "react";
 import { ClientSession, signInGoogle } from "@/auth-client";
 import PhotocardGrid from "@/app/photocard-grid";
 import { Selectable } from "kysely";
-import { CardSizes, CardTypes, Collections, Photocards } from "@/db";
+import { CardSizes, CardTypes, Collections, Photocards, UserData } from "@/db";
 
 function DialogTriggerButton({
     title,
@@ -61,7 +61,7 @@ export default function PhotocardPage() {
     const [collection, setCollection] = useState<Selectable<Collections> | null>(null);
     const [cardSize, setCardSize] = useState<Selectable<CardSizes> | null>(null);
     const [cardType, setCardType] = useState<Selectable<CardTypes> | null>(null);
-    const [imageContributor, setImageContributor] = useState<string>("");
+    const [imageContributor, setImageContributor] = useState<Selectable<UserData> | null>(null);
     const [flipped, setFlipped] = useState(false);
     const [relatedPhotocards, setRelatedPhotocards] = useState<Selectable<Photocards>[]>([]);
 
@@ -96,7 +96,7 @@ export default function PhotocardPage() {
                     if (result.error) {
                         setError(result.error);
                     } else {
-                        setImageContributor(result.data!.username);
+                        setImageContributor(result.data!);
                     }
                 });
             }
@@ -189,7 +189,9 @@ export default function PhotocardPage() {
                         </div>
                         <div className="flex flex-row gap-4 items-center">
                             <h3>Image Submission</h3>
-                            <p>@{imageContributor}</p>
+                            <Button variant="underline" asChild>
+                                <Link href={"/profile/" + imageContributor?.user_id}>@{imageContributor?.username}</Link>
+                            </Button>
                         </div>
                     </div>
                     <div className="flex flex-col gap-4 items-left justify-center">
