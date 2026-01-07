@@ -1,4 +1,4 @@
-import { getPhotocardFromDB, getPhotocardsInCollection, getUserDataFromDB } from "@/actions";
+import { didUserWishlistPhotocard, doesUserOwnPhotocard, getPhotocardFromDB, getPhotocardsInCollection, getUserDataFromDB } from "@/actions";
 import PhotocardClient from "./photocard-client";
 import { notFound } from "next/navigation";
 
@@ -15,12 +15,14 @@ export default async function PhotocardPage({ params }: { params: Promise<{ id: 
     }
     const photocard = photocardResult.data!;
 
-    const [relatedResult, contributorResult] = await Promise.all([
+    const [relatedResult, contributorResult, isOwnedResult, isWishlistedResult] = await Promise.all([
         getPhotocardsInCollection(photocard.collection_id),
         getUserDataFromDB(photocard.image_contributor_id),
+        doesUserOwnPhotocard(id),
+        didUserWishlistPhotocard(id),
     ]);
 
-    if (contributorResult.error || !contributorResult.data) {
+    if (contributorResult.error || !contributorResult.data || isOwnedResult.error || isWishlistedResult.error) {
         notFound();
     }
 
@@ -31,6 +33,8 @@ export default async function PhotocardPage({ params }: { params: Promise<{ id: 
             photocard={photocard}
             imageContributor={contributorResult.data}
             relatedPhotocards={relatedPhotocards}
+            wasOwned={isOwnedResult.data ?? false}
+            wasWishlisted={isWishlistedResult.data ?? false}
         />
     );
 }

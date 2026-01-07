@@ -2,7 +2,7 @@
 
 import { getPhotocardsInDB } from "@/actions";
 import { useEffect, useState } from "react";
-import { ExclusiveCountry, MemberToInt, NUM_LOAD_COLLECTIONS, SearchQuery, SortType } from "@/constants";
+import { ExclusiveCountry, MemberToIntWithOT7, NUM_LOAD_COLLECTIONS, SearchQuery, SortType } from "@/constants";
 import PhotocardGrid from "../photocard-grid";
 import {
     Sidebar,
@@ -25,7 +25,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
-import { ChevronDown, PlusIcon, SquareCheckBigIcon, SquareIcon } from "lucide-react";
+import {
+    ChevronDown,
+    FlipHorizontal,
+    FlipHorizontal2,
+    PlusIcon,
+    Rotate3D,
+    RotateCw,
+    SquareCheckBigIcon,
+    SquareIcon,
+} from "lucide-react";
 import { useMetadata } from "@/metadata-context";
 import React from "react";
 import { Button } from "@/components/ui/button";
@@ -34,33 +43,25 @@ import Link from "next/link";
 import { isAtLeastMod } from "@/auth-client";
 import { CardTypes, CardSizes, Collections, Photocards } from "@/db";
 import { Selectable } from "kysely";
+import Image from "next/image";
 
 function CollapsibleGroup({
     defaultOpen = true,
     label,
     children,
-    checked,
-    onChecked,
 }: {
     defaultOpen?: boolean;
     label: string;
     children: React.ReactNode;
-    checked: boolean;
-    onChecked: (checked: boolean) => void;
 }) {
     return (
         <Collapsible defaultOpen={defaultOpen} className="group/collapsible">
             <SidebarGroup>
                 <SidebarGroupLabel asChild>
-                    <div>
-                        <CollapsibleTrigger className="flex flex-row justify-between items-center grow">
-                            {label}
-                            <ChevronDown className="w-4 transition-transform group-data-[state=open]/collapsible:rotate-180" />
-                        </CollapsibleTrigger>
-                        <div className="ml-3" onClick={() => onChecked(!checked)}>
-                            {checked ? <SquareCheckBigIcon className="w-4" /> : <SquareIcon className="w-4" />}
-                        </div>
-                    </div>
+                    <CollapsibleTrigger className="flex flex-row justify-between items-center">
+                        {label}
+                        <ChevronDown className="w-4 transition-transform group-data-[state=open]/collapsible:rotate-180" />
+                    </CollapsibleTrigger>
                 </SidebarGroupLabel>
                 <CollapsibleContent>
                     <SidebarGroupContent>
@@ -122,7 +123,7 @@ type Filters = {
     collectionTypes: Set<number>;
     topCollections: Set<number>;
     subCollections: Set<number>;
-    members: Set<MemberToInt>;
+    members: Set<MemberToIntWithOT7>;
     exclusiveCountries: Set<ExclusiveCountry>;
     cardTypes: Set<Selectable<CardTypes>>;
     cardSizes: Set<Selectable<CardSizes>>;
@@ -133,7 +134,7 @@ type VisibleOptions = {
     collectionTypes: Set<number>;
     topCollections: Set<number>;
     subCollections: Set<number>;
-    members: Set<MemberToInt>;
+    members: Set<MemberToIntWithOT7>;
     cardTypes: Set<Selectable<CardTypes>>;
     cardSizes: Set<Selectable<CardSizes>>;
     exclusiveCountries: Set<ExclusiveCountry>;
@@ -141,7 +142,9 @@ type VisibleOptions = {
 
 export default function SearchComponent() {
     const { collections, collectionTypes, cardTypes, cardSizes, session, setError } = useMetadata();
-    const [topCollections, setTopCollections] = useState<Array<{ collection: Selectable<Collections>; hasSub: boolean }>>([]); // Purely for display & ease of selecting children, doesn't affect search query
+    const [topCollections, setTopCollections] = useState<
+        Array<{ collection: Selectable<Collections>; hasSub: boolean }>
+    >([]); // Purely for display & ease of selecting children, doesn't affect search query
     const [subCollections, setSubCollections] = useState<Array<Selectable<Collections>>>([]);
     const [photocards, setPhotocards] = useState<Array<Selectable<Photocards>>>([]);
     const [filters, setFilters] = useState<Filters>({
@@ -149,8 +152,8 @@ export default function SearchComponent() {
         collectionTypes: new Set<number>(),
         topCollections: new Set<number>(),
         subCollections: new Set<number>(),
-        members: new Set(Object.values(MemberToInt)),
-        exclusiveCountries: new Set(Object.values(ExclusiveCountry)),
+        members: new Set(),
+        exclusiveCountries: new Set(),
         cardTypes: new Set<Selectable<CardTypes>>(),
         cardSizes: new Set<Selectable<CardSizes>>(),
         sort: SortType.DateAddedDesc,
@@ -168,7 +171,7 @@ export default function SearchComponent() {
         collectionTypes: new Set(),
         topCollections: new Set(),
         subCollections: new Set(),
-        members: new Set(Object.values(MemberToInt)),
+        members: new Set(Object.values(MemberToIntWithOT7)),
         exclusiveCountries: new Set(Object.values(ExclusiveCountry)),
         cardTypes: new Set<Selectable<CardTypes>>(),
         cardSizes: new Set<Selectable<CardSizes>>(),
@@ -176,47 +179,20 @@ export default function SearchComponent() {
 
     // Run on launch
     useEffect(() => {
-        const { topColsSet, subColsSet } = calculateCollectionsHierarchy();
-        const newFilters: Filters = {
-            ...filters,
-            collectionTypes: new Set(collectionTypes.map((type) => type.id!)),
-            topCollections: topColsSet,
-            subCollections: subColsSet,
-            cardTypes: new Set(cardTypes),
-            cardSizes: new Set(cardSizes),
-            members: new Set(Object.values(MemberToInt)),
-            exclusiveCountries: new Set(Object.values(ExclusiveCountry)),
-        };
-        setFilters(newFilters);
-        setPrevSearch({
-            fullQuery: filtersToQuery(newFilters),
-            coveredCollectionIds: [],
-        });
-        console.log("Collections: ", collections);
-
-        // Provide parameters to trySearch since it may not see the updated parameters in time
-        trySearch(newFilters);
+        calculateCollectionsHierarchy();
+        trySearch(filters);
     }, [collections, collectionTypes, cardTypes, cardSizes]);
 
     useEffect(() => {
         if (!searchInput.trim()) {
             const topColsSet = new Set(topCollections.map((c) => c.collection.id!));
             const subColsSet = new Set(subCollections.map((c) => c.id!));
-            setFilters((prev) => ({
-                ...prev,
-                collectionTypes: new Set(collectionTypes.map((type) => type.id!)),
-                topCollections: topColsSet,
-                subCollections: subColsSet,
-                members: new Set(Object.values(MemberToInt)),
-                exclusiveCountries: new Set(Object.values(ExclusiveCountry)),
-                cardTypes: new Set(cardTypes),
-                cardSizes: new Set(cardSizes),
-            }));
+            onClearAll();
             setVisibleOptions({
                 collectionTypes: new Set(collectionTypes.map((type) => type.id!)),
                 topCollections: topColsSet,
                 subCollections: subColsSet,
-                members: new Set(Object.values(MemberToInt)),
+                members: new Set(Object.values(MemberToIntWithOT7)),
                 exclusiveCountries: new Set(Object.values(ExclusiveCountry)),
                 cardTypes: new Set(cardTypes),
                 cardSizes: new Set(cardSizes),
@@ -274,7 +250,7 @@ export default function SearchComponent() {
 
         // Logic for each category with Term Consumption
         // 1. Members (Priority 1)
-        const memberEntries = Object.entries(MemberToInt);
+        const memberEntries = Object.entries(MemberToIntWithOT7);
         const {
             winners: winningMembers,
             maxScore: memberScore,
@@ -372,7 +348,7 @@ export default function SearchComponent() {
         const nextVisibleMembers =
             memberScore > 0
                 ? new Set(Array.from(winningMembers).map(([_, v]) => v))
-                : new Set(Object.values(MemberToInt));
+                : new Set(Object.values(MemberToIntWithOT7));
         const nextVisibleCardTypes = cardTypeScore > 0 ? winningCardTypes : new Set(cardTypes);
         const nextVisibleCardSizes = cardSizeScore > 0 ? winningCardSizes : new Set(cardSizes);
         const nextVisibleCountries =
@@ -402,7 +378,7 @@ export default function SearchComponent() {
         }));
     }, [searchInput, collections, collectionTypes, cardTypes, cardSizes, topCollections, subCollections]);
 
-    function calculateCollectionsHierarchy(): { topColsSet: Set<number>; subColsSet: Set<number> } {
+    function calculateCollectionsHierarchy() {
         const topCols: Array<{ collection: Selectable<Collections>; hasSub: boolean }> = [];
         const subCols: Selectable<Collections>[] = [];
         for (const col of collections) {
@@ -445,92 +421,20 @@ export default function SearchComponent() {
         setSubCollections(
             subCols.sort((a, b) => new Date(b.release_date).getTime() - new Date(a.release_date).getTime()),
         );
-
-        const topColsSet = new Set(topCols.map((col) => col.collection.id!));
-        const subColsSet = new Set(subCols.map((col) => col.id!));
-
-        return { topColsSet, subColsSet };
     }
 
-    function onSelectAll() {
-        const newFilters = {
+    function onClearAll() {
+        const newFilters: Filters = {
             ...filters,
-            collectionTypes: new Set(collectionTypes.map((type) => type.id!)),
-            topCollections: new Set(topCollections.map((col) => col.collection.id!)),
-            subCollections: new Set(subCollections.map((col) => col.id!)),
-            members: new Set(Object.values(MemberToInt)),
-            cardTypes: new Set(cardTypes),
-            cardSizes: new Set(cardSizes),
-            exclusiveCountries: new Set(Object.values(ExclusiveCountry)),
+            collectionTypes: new Set(),
+            topCollections: new Set(),
+            subCollections: new Set(),
+            members: new Set(),
+            cardTypes: new Set(),
+            cardSizes: new Set(),
+            exclusiveCountries: new Set(),
         };
         setFilters(newFilters);
-    }
-
-    function onCheckedAllCollectionTypes(checked: boolean) {
-        if (checked) {
-            const newFilters = {
-                ...filters,
-                collectionTypes: new Set(collectionTypes.map((type) => type.id!)),
-                topCollections: new Set(topCollections.map((col) => col.collection.id!)),
-                subCollections: new Set(subCollections.map((col) => col.id!)),
-            };
-            setFilters(newFilters);
-        } else {
-            setFilters({
-                ...filters,
-                collectionTypes: new Set(),
-                topCollections: new Set(),
-                subCollections: new Set(),
-            });
-        }
-    }
-
-    function onCheckedAllMembers(checked: boolean) {
-        if (checked) {
-            const newFilters = {
-                ...filters,
-                members: new Set(Object.values(MemberToInt)),
-            };
-            setFilters(newFilters);
-        } else {
-            setFilters({ ...filters, members: new Set() });
-        }
-    }
-
-    function onCheckedAllCardTypes(checked: boolean) {
-        if (checked) {
-            const newFilters = {
-                ...filters,
-                cardTypes: new Set(cardTypes),
-            };
-            setFilters(newFilters);
-        } else {
-            setFilters({ ...filters, cardTypes: new Set() });
-        }
-    }
-
-    function onCheckedAllCardSizes(checked: boolean) {
-        if (checked) {
-            const newFilters = {
-                ...filters,
-                cardSizes: new Set(cardSizes),
-            };
-            setFilters(newFilters);
-        } else {
-            setFilters({ ...filters, cardSizes: new Set() });
-        }
-    }
-
-    function onCheckedAllExclusiveCountries(checked: boolean) {
-        if (checked) {
-            const newFilters = {
-                ...filters,
-                exclusiveCountries: new Set(Object.values(ExclusiveCountry)),
-            };
-            setFilters(newFilters);
-        } else {
-            setFilters({ ...filters, exclusiveCountries: new Set() });
-        }
     }
 
     function onSortChange(sort: SortType) {
@@ -688,7 +592,7 @@ export default function SearchComponent() {
         }
     }
 
-    function onSelectedMember(member: MemberToInt, checked: boolean) {
+    function onSelectedMember(member: MemberToIntWithOT7, checked: boolean) {
         const newSelectedMembers = new Set(filters.members);
         if (checked) {
             newSelectedMembers.add(member);
@@ -732,20 +636,9 @@ export default function SearchComponent() {
         setFilters(newFilters);
     }
 
-    function canSearch(filters: Filters, selectedCollections: Set<number>): boolean {
-        return (
-            // Ensure context has been loaded
-            collectionTypes.length > 0 &&
-            collections.length > 0 &&
-            cardSizes.length > 0 &&
-            cardTypes.length > 0 &&
-            // Ensure the user selected things
-            selectedCollections.size > 0 &&
-            filters.members.size > 0 &&
-            filters.cardTypes.size > 0 &&
-            filters.cardSizes.size > 0 &&
-            filters.exclusiveCountries.size > 0
-        );
+    // Ensure context has been loaded
+    function canSearch(): boolean {
+        return collectionTypes.length > 0 && collections.length > 0 && cardSizes.length > 0 && cardTypes.length > 0;
     }
 
     function topAndSubToSelectedCollections(
@@ -818,9 +711,12 @@ export default function SearchComponent() {
                 return dontFilterIfAllSelected(selectedCollections, collections);
         }
 
+        // If no collections were selected, return all collections
+        const actualSelectedCollections =
+            selectedCollections.size === 0 ? collections.map((col) => col.id!) : Array.from(selectedCollections);
         // Return the NUM_LOAD_COLLECTIONS first collections that were selected
         return sortedAndFilteredCollections
-            .filter((col) => selectedCollections.has(col.id!))
+            .filter((col) => actualSelectedCollections.includes(col.id!))
             .map((col) => col.id!)
             .slice(0, NUM_LOAD_COLLECTIONS);
     }
@@ -871,11 +767,7 @@ export default function SearchComponent() {
      * Attempt a brand new search query
      */
     async function trySearch(currentFilters: Filters) {
-        const selectedCollections = topAndSubToSelectedCollections(
-            currentFilters.topCollections,
-            currentFilters.subCollections,
-        );
-        if (!canSearch(currentFilters, selectedCollections)) {
+        if (!canSearch()) {
             console.log("Cannot search yet, missing parameters.");
             return;
         }
@@ -892,7 +784,11 @@ export default function SearchComponent() {
         switch (currentFilters.sort) {
             case SortType.ReleaseDateAsc:
             case SortType.ReleaseDateDesc:
-                newCollectionIds = limitSearchCollections(currentFilters, selectedCollections, true);
+                newCollectionIds = limitSearchCollections(
+                    currentFilters,
+                    topAndSubToSelectedCollections(currentFilters.topCollections, currentFilters.subCollections),
+                    true,
+                );
                 console.log("Limited collection IDs for release date sort:", newCollectionIds);
                 break;
         }
@@ -916,14 +812,17 @@ export default function SearchComponent() {
      */
     async function trySearchNext() {
         console.log("Trying to search next...");
-        const selectedCollections = topAndSubToSelectedCollections(filters.topCollections, filters.subCollections);
-        if (!canSearch(filters, selectedCollections) || !prevSearch) {
+        if (!canSearch() || !prevSearch) {
             return;
         }
 
         // Tell the database how much more we want to search
         const searchQuery = prevSearch.fullQuery;
-        searchQuery.collectionIds = limitSearchCollections(filters, selectedCollections, false);
+        searchQuery.collectionIds = limitSearchCollections(
+            filters,
+            topAndSubToSelectedCollections(filters.topCollections, filters.subCollections),
+            false,
+        );
         const updateDate = limitSearchDate();
         console.log("Limit collection IDs for next search:", searchQuery.collectionIds);
         console.log("Limit update date for next search:", updateDate);
@@ -1044,18 +943,13 @@ export default function SearchComponent() {
                                         }
                                     }}
                                 />
-                                <Button disabled={isSelectionMode} onClick={() => trySearch(filters)}>
-                                    Search
-                                </Button>
                             </SidebarMenuItem>
                         </SidebarMenu>
                     </SidebarHeader>
-                    <SidebarContent>
+                    <SidebarContent className="pb-24">
                         <CollapsibleGroup
                             key={searchInput ? "col-search-active" : "col-search-inactive"}
                             label="Collections"
-                            checked={filters.collectionTypes.size > 0}
-                            onChecked={onCheckedAllCollectionTypes}
                         >
                             {collectionTypes
                                 .filter((type) => visibleOptions.collectionTypes.has(type.id!))
@@ -1128,10 +1022,8 @@ export default function SearchComponent() {
                         <CollapsibleGroup
                             key={searchInput ? "mem-search-active" : "mem-search-inactive"}
                             label="Members"
-                            checked={filters.members.size > 0}
-                            onChecked={onCheckedAllMembers}
                         >
-                            {Object.entries(MemberToInt)
+                            {Object.entries(MemberToIntWithOT7)
                                 .filter(([_, memberKey]) => visibleOptions.members.has(memberKey))
                                 .map(([name, memberKey]) => (
                                     <CheckMenuButton
@@ -1149,8 +1041,6 @@ export default function SearchComponent() {
                             key={searchInput ? "ct-search-active" : "ct-search-inactive"}
                             label="Card Types"
                             defaultOpen={!!searchInput}
-                            checked={filters.cardTypes.size > 0}
-                            onChecked={onCheckedAllCardTypes}
                         >
                             {cardTypes
                                 .filter((cardType) => visibleOptions.cardTypes.has(cardType))
@@ -1170,8 +1060,6 @@ export default function SearchComponent() {
                             key={searchInput ? "cs-search-active" : "cs-search-inactive"}
                             label="Card Sizes (mm)"
                             defaultOpen={!!searchInput}
-                            checked={filters.cardSizes.size > 0}
-                            onChecked={onCheckedAllCardSizes}
                         >
                             {cardSizes
                                 .filter((cardSize) => visibleOptions.cardSizes.has(cardSize))
@@ -1191,8 +1079,6 @@ export default function SearchComponent() {
                             key={searchInput ? "ec-search-active" : "ec-search-inactive"}
                             label="Exclusive Countries"
                             defaultOpen={!!searchInput}
-                            checked={filters.exclusiveCountries.size > 0}
-                            onChecked={onCheckedAllExclusiveCountries}
                         >
                             {Object.entries(ExclusiveCountry)
                                 .filter(([_, id]) => visibleOptions.exclusiveCountries.has(id))
@@ -1209,36 +1095,14 @@ export default function SearchComponent() {
                                 ))}
                         </CollapsibleGroup>
                     </SidebarContent>
-                    <SidebarFooter>
-                        <div className="flex justify-evenly gap-2">
-                            <button
-                                onClick={onSelectAll}
-                                className="px-4 py-1 text-sm rounded-base border-2 border-transparent hover:border-border hover:bg-main"
-                            >
-                                Select All
-                            </button>
-                            <button
-                                onClick={() => setShowFront(!showFront)}
-                                className="px-4 py-1 text-sm rounded-base border-2 border-transparent hover:border-border hover:bg-main"
-                            >
-                                Show {showFront ? "Back" : "Front"}
-                            </button>
-                            <button
-                                disabled={
-                                    isSelectionMode ||
-                                    (prevSearch?.fullQuery !== undefined &&
-                                        !hasFiltersChanged(filtersToQuery(filters), prevSearch.fullQuery))
-                                }
-                                onClick={() => trySearch(filters)}
-                                className="px-4 py-1 text-sm rounded-base border-2 bg-third-light border-transparent hover:border-border hover:bg-third disabled:opacity-50"
-                            >
-                                Apply Filters
-                            </button>
-                        </div>
-                    </SidebarFooter>
+                    <div className="fixed w-[25vw] bottom-4 px-4">
+                        <Button disabled={isSelectionMode} onClick={() => trySearch(filters)} className="w-full">
+                            Search
+                        </Button>
+                    </div>
                 </Sidebar>
                 <div className="flex flex-col mt-4 mb-4 gap-4 grow">
-                    <Button hidden={!isAtLeastMod(session)} className="w-[30%] self-center" asChild>
+                    <Button hidden={!isAtLeastMod(session)} className="w-fit self-center" asChild>
                         <Link href="/createCollection">Add a Missing Collection</Link>
                     </Button>
                     <PhotocardGrid
@@ -1261,27 +1125,37 @@ export default function SearchComponent() {
                 </div>
             </SidebarProvider>
 
-            <div className="fixed bottom-8 right-8 flex gap-2 items-center z-50" hidden={session === null}>
-                {!isSelectionMode ? (
-                    <Button onClick={enterSelectionMode} className="rounded-full w-12 h-12 shadow-lg">
-                        <PlusIcon />
-                    </Button>
-                ) : (
-                    <>
-                        <div className="bg-background border rounded-md px-4 py-2 shadow-lg font-bold">
-                            Num selected: {selectedPhotocardIds.size}
-                        </div>
-                        <Button onClick={addToOwned} className="shadow-lg">
-                            Add to owned
-                        </Button>
-                        <Button onClick={addToWishlist} className="shadow-lg">
-                            Add to wishlist
-                        </Button>
-                        <Button onClick={exitSelectionMode} variant="neutral" className="shadow-lg">
-                            Exit selection mode
-                        </Button>
-                    </>
-                )}
+            <div className="fixed bottom-8 right-8 z-50 flex flex-col gap-2 items-end">
+                <Button onClick={() => setShowFront(!showFront)} className="pl-3">
+                    <Image
+                        src="/flipthru_flipcard.svg"
+                        className="size-6"
+                        width={100}
+                        height={142}
+                        alt={"Flip Card Icon"}
+                    />{" "}
+                    Show Card {showFront ? "Back" : "Front"}
+                </Button>
+                <div className="flex gap-2 items-center" hidden={session === null}>
+                    {!isSelectionMode ? (
+                        <Button onClick={enterSelectionMode}>Enter Selection Mode</Button>
+                    ) : (
+                        <>
+                            <div className="bg-background border rounded-md px-4 py-2 shadow-lg font-bold">
+                                # Selected: {selectedPhotocardIds.size}
+                            </div>
+                            <Button onClick={addToOwned} className="shadow-lg">
+                                Add to Owned
+                            </Button>
+                            <Button onClick={addToWishlist} className="shadow-lg">
+                                Add to Wishlist
+                            </Button>
+                            <Button onClick={exitSelectionMode} variant="neutral" className="shadow-lg">
+                                Exit Selection Mode
+                            </Button>
+                        </>
+                    )}
+                </div>
             </div>
         </div>
     );

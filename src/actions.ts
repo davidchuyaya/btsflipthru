@@ -14,6 +14,8 @@ import {
     NUM_LOAD_COLLECTIONS,
     Role,
     HomeStats,
+    MemberToIntWithOT7,
+    MemberInts,
 } from "@/constants";
 import { v2 as cloudinary } from "cloudinary";
 import { sql, type Selectable, type Insertable } from "kysely";
@@ -581,7 +583,20 @@ export async function getPhotocardsInDB(
         queryBuilder = queryBuilder.where("exclusive_country", "in", query.exclusiveCountryIds);
     }
     if (query.members.length > 0) {
-        queryBuilder = queryBuilder.where(sql<boolean>`members && ARRAY[${sql.join(query.members)}]::integer[]`);
+        if (!query.members.includes(MemberToIntWithOT7.OT7)) {
+            // Don't include group cards unless asked to
+            queryBuilder = queryBuilder.where(sql<boolean>`NOT members @> ARRAY[${sql.join(MemberInts)}]::integer[]`);
+        }
+
+        if (query.members.includes(MemberToIntWithOT7.OT7) && query.members.length === 1) {
+            // If only asked for OT7, include group cards only
+            queryBuilder = queryBuilder.where(sql<boolean>`members @> ARRAY[${sql.join(MemberInts)}]::integer[]`);
+        }
+        else {
+            // Otherwise, include cards with any of the members
+            const remainingMembers = query.members.filter((member) => member !== MemberToIntWithOT7.OT7);
+            queryBuilder = queryBuilder.where(sql<boolean>`members && ARRAY[${sql.join(remainingMembers)}]::integer[]`);
+        }
     }
 
     // Ordering
@@ -646,5 +661,137 @@ export async function updateUserDataInDB(userData: Selectable<UserData>): Promis
         .then(
             (data) => ({ data: true }),
             (reason) => ({ error: "Could not update user data: " + reason }),
+        );
+}
+
+export async function doesUserOwnPhotocard(photocardId: number): Promise<Result<boolean>> {
+    const session = await getSession();
+    if (session.error) {
+        return { error: session.error };
+    }
+
+    return await db
+        .selectFrom("user_photocards")
+        .select("photocard_id")
+        .where("user_id", "=", session.data!.user.id)
+        .where("photocard_id", "=", photocardId)
+        .executeTakeFirst()
+        .then(
+            (data) => ({ data: data !== undefined }),
+            (reason) => ({ error: "Could not check if user owns photocard: " + reason }),
+        );
+}
+
+export async function didUserWishlistPhotocard(photocardId: number): Promise<Result<boolean>> {
+    const session = await getSession();
+    if (session.error) {
+        return { error: session.error };
+    }
+
+    return await db
+        .selectFrom("user_wishlists")
+        .select("photocard_id")
+        .where("user_id", "=", session.data!.user.id)
+        .where("photocard_id", "=", photocardId)
+        .executeTakeFirst()
+        .then(
+            (data) => ({ data: data !== undefined }),
+            (reason) => ({ error: "Could not check if user wishlist photocard: " + reason }),
+        );
+}
+
+/**
+ * Also deletes photocard from wishlist if it exists
+ * @param photocardId
+ * @returns
+ */
+export async function addPhotocardToOwned(photocardId: number): Promise<Result<boolean>> {
+    const session = await getSession();
+    if (session.error) {
+        return { error: session.error };
+    }
+
+    const result: [Result<boolean>, Result<boolean>] = await Promise.all([
+        db
+            .insertInto("user_photocards")
+            .values({ user_id: session.data!.user.id, photocard_id: photocardId })
+            .executeTakeFirstOrThrow()
+            .then(
+                (data) => ({ data: true }),
+                (reason) => ({ error: "Could not add photocard to owned: " + reason }),
+            ),
+        removePhotocardFromWishlist(photocardId),
+    ]);
+
+    if (result[0].error || result[1].error) {
+        return { error: result[0].error || result[1].error! };
+    }
+    return { data: true };
+}
+
+export async function addPhotocardToWishlist(photocardId: number): Promise<Result<boolean>> {
+    const session = await getSession();
+    if (session.error) {
+        return { error: session.error };
+    }
+
+    return await db
+        .insertInto("user_wishlists")
+        .values({ user_id: session.data!.user.id, photocard_id: photocardId })
+        .executeTakeFirstOrThrow()
+        .then(
+            (data) => ({ data: true }),
+            (reason) => ({ error: "Could not add photocard to wishlist: " + reason }),
+        );
+}
+
+export async function removePhotocardFromOwned(photocardId: number): Promise<Result<boolean>> {
+    const session = await getSession();
+    if (session.error) {
+        return { error: session.error };
+    }
+
+    return await db
+        .deleteFrom("user_photocards")
+        .where("user_id", "=", session.data!.user.id)
+        .where("photocard_id", "=", photocardId)
+        .executeTakeFirstOrThrow()
+        .then(
+            (data) => ({ data: true }),
+            (reason) => ({ error: "Could not remove photocard from owned: " + reason }),
+        );
+}
+
+export async function removePhotocardFromWishlist(photocardId: number): Promise<Result<boolean>> {
+    const session = await getSession();
+    if (session.error) {
+        return { error: session.error };
+    }
+
+    return await db
+        .deleteFrom("user_wishlists")
+        .where("user_id", "=", session.data!.user.id)
+        .where("photocard_id", "=", photocardId)
+        .executeTakeFirstOrThrow()
+        .then(
+            (data) => ({ data: true }),
+            (reason) => ({ error: "Could not remove photocard from wishlist: " + reason }),
+        );
+}
+
+export async function markPhotocardAsFavorite(photocardId: number): Promise<Result<boolean>> {
+    const session = await getSession();
+    if (session.error) {
+        return { error: session.error };
+    }
+
+    return await db
+        .updateTable("user_data")
+        .set({ profile_photocard_id: photocardId })
+        .where("user_id", "=", session.data!.user.id)
+        .executeTakeFirstOrThrow()
+        .then(
+            (data) => ({ data: true }),
+            (reason) => ({ error: "Could not mark photocard as favorite: " + reason }),
         );
 }

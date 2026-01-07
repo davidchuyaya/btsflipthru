@@ -97,6 +97,20 @@ export function memberIntsToName(source: number[]): string {
     return source.map((member) => Object.keys(MemberToInt)[member - 1]).join(", ");
 }
 
+export const MemberToIntWithOT7 = {
+    RM: 1,
+    Jin: 2,
+    Suga: 3,
+    "j-hope": 4,
+    Jimin: 5,
+    V: 6,
+    "Jung Kook": 7,
+    OT7: 8,
+} as const;
+export type MemberToIntWithOT7 = (typeof MemberToIntWithOT7)[keyof typeof MemberToIntWithOT7];
+
+export const MemberIntsWithOT7: MemberToIntWithOT7[] = Object.values(MemberToIntWithOT7);
+
 export const MEMBER_TO_EMOJI = {
     rm: "🐨",
     jin: "🐹",
@@ -193,7 +207,7 @@ export type SearchQuery = {
     cardTypeIds: number[];
     sizeIds: number[];
     exclusiveCountryIds: ExclusiveCountry[];
-    members: MemberToInt[];
+    members: MemberToIntWithOT7[];
     sortBy: SortType;
 };
 

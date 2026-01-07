@@ -3,7 +3,15 @@
 import PhotocardComponent from "@/app/photocard";
 import { AlertDialogHeader, AlertDialogFooter } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { Effects, ExclusiveCountry, fullSizeUrl, memberIntsToName, ReportType, reportWindowURL } from "@/constants";
+import {
+    Effects,
+    ExclusiveCountry,
+    fullSizeUrl,
+    memberIntsToName,
+    ReportType,
+    reportWindowURL,
+    Role,
+} from "@/constants";
 import { useMetadata } from "@/metadata-context";
 import {
     AlertDialog,
@@ -36,7 +44,7 @@ import { ImageDropzone } from "@/app/image-dropzone";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { FieldError } from "@/components/ui/field";
-import { generateSignedUploadUrlForPhotocards, updatePhotocardInDB } from "@/actions";
+import { addPhotocardToOwned, addPhotocardToWishlist, generateSignedUploadUrlForPhotocards, removePhotocardFromOwned, removePhotocardFromWishlist, updatePhotocardInDB } from "@/actions";
 import { toast } from "sonner";
 
 function AlertDialogTriggerButton({
@@ -217,16 +225,22 @@ export default function PhotocardClient({
     photocard,
     imageContributor,
     relatedPhotocards,
+    wasOwned,
+    wasWishlisted,
 }: {
     photocard: Selectable<Photocards>;
     imageContributor: Selectable<UserData>;
     relatedPhotocards: Selectable<Photocards>[];
+    wasOwned: boolean;
+    wasWishlisted: boolean;
 }) {
     const { collections, cardTypes, cardSizes, session } = useMetadata();
     const [flipped, setFlipped] = useState(false);
     const collection = collections.find((c) => c.id === photocard.collection_id);
     const cardType = cardTypes.find((c) => c.id === photocard.card_type);
     const cardSize = cardSizes.find((c) => c.id === photocard.size_id);
+    const [owned, setOwned] = useState(wasOwned);
+    const [wishlisted, setWishlisted] = useState(wasWishlisted);
 
     function DialogIfNotSignedIn(session: ClientSession | null, children: React.ReactNode) {
         if (!session) {
@@ -283,7 +297,12 @@ export default function PhotocardClient({
             </div>
             <div className="flex flex-col gap-4 w-2/3">
                 <div className="flex flex-col gap">
-                    <h2>{collection?.name}</h2>
+                    <div className="flex flex-row justify-between">
+                        <h2>{collection?.name}</h2>
+                        <Button hidden={session?.user.role === Role.USER}>
+                            <Link href={`/createCollection?collectionId=${collection?.id}`}>Edit Collection</Link>
+                        </Button>
+                    </div>
                     <p className="text-2xl">{photocard && memberIntsToName(photocard.members)}</p>
                 </div>
                 <div className="flex flex-row gap-8">
@@ -317,25 +336,43 @@ export default function PhotocardClient({
                             </Button>
                         </div>
                     </div>
-                    <div className="flex flex-col gap-4 items-left justify-center">
+                    <div className="flex flex-col gap-4 items-center justify-center">
                         {DialogIfNotSignedIn(
                             session,
-                            <Button>
-                                <img src="/flipthru_addtobinder.svg" className="size-8 -ml-8" />
-                                Add to Owned
+                            <Button onClick={() => {
+                                if (owned) {
+                                    removePhotocardFromOwned(photocard.id);
+                                    setOwned(false);
+                                } else {
+                                    addPhotocardToOwned(photocard.id);
+                                    setOwned(true);
+                                    // Also removes it from the wishlist
+                                    setWishlisted(false);
+                                }
+                            }} className={`${owned ? "bg-third" : ""} pl-2 pr-3 w-fit`}>
+                                <img src="/flipthru_addtobinder.svg" className="size-8" />
+                                {owned ? "Remove from Owned" : "Add to Owned"}
                             </Button>,
                         )}
                         {DialogIfNotSignedIn(
                             session,
-                            <Button>
-                                <img src="/flipthru_addtowishlist.svg" className="size-8 -ml-2" />
-                                Add to Wishlist
+                            <Button onClick={() => {
+                                if (wishlisted) {
+                                    removePhotocardFromWishlist(photocard.id);
+                                    setWishlisted(false);
+                                } else {
+                                    addPhotocardToWishlist(photocard.id);
+                                    setWishlisted(true);
+                                }
+                            }} disabled={owned} className={`${wishlisted ? "bg-third" : ""} pl-2 pr-3 w-fit`}>
+                                <img src="/flipthru_addtowishlist.svg" className="size-8" />
+                                {wishlisted ? "Remove from Wishlist" : "Add to Wishlist"}
                             </Button>,
                         )}
                         {DialogIfNotSignedIn(
                             session,
-                            <Button>
-                                <img src="/flipthru_addtocollection.svg" className="size-8 -ml-6" />
+                            <Button className="pl-2 pr-3 w-fit">
+                                <img src="/flipthru_addtocollection.svg" className="size-8" />
                                 Mark Favorite
                             </Button>,
                         )}
