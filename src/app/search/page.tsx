@@ -425,9 +425,13 @@ export default function SearchComponent() {
             for (const [name, group] of groupedByName) {
                 if (group.length > 1) {
                     // Multiple versions -> Subs. Need a Top.
+                    // Top's release date = the release date of the earliest sub collection
+                    const earliestSub = group.reduce((prev, curr) =>
+                        new Date(prev.release_date).getTime() < new Date(curr.release_date).getTime() ? prev : curr,
+                    );
                     const parentCol = {
                         collection: {
-                            ...group[0],
+                            ...earliestSub,
                             version: null, // Virtual top has no version
                             version_order: null,
                         },
