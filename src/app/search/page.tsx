@@ -2,7 +2,14 @@
 
 import { getPhotocardsInDB } from "@/actions";
 import { useEffect, useState } from "react";
-import { ExclusiveCountry, MemberToIntWithOT7, NUM_LOAD_COLLECTIONS, SearchQuery, SortType } from "@/constants";
+import {
+    collectionDisplayName,
+    ExclusiveCountry,
+    MemberToIntWithOT7,
+    NUM_LOAD_COLLECTIONS,
+    SearchQuery,
+    SortType,
+} from "@/constants";
 import PhotocardGrid from "../photocard-grid";
 import {
     Sidebar,
@@ -83,12 +90,14 @@ function CheckMenuButton({
     label,
     checked,
     onClick,
+    hidden,
     children,
 }: {
     type: MenuType;
     label: string;
     checked: boolean;
     onClick?: (checked: boolean) => void;
+    hidden?: boolean;
     children?: React.ReactNode;
 }) {
     const content = (
@@ -103,14 +112,14 @@ function CheckMenuButton({
 
     if (type === MenuType.Regular) {
         return (
-            <SidebarMenuItem>
+            <SidebarMenuItem hidden={hidden}>
                 <SidebarMenuButton onClick={changeChecked}>{content}</SidebarMenuButton>
                 {children}
             </SidebarMenuItem>
         );
     } else {
         return (
-            <SidebarMenuSubItem>
+            <SidebarMenuSubItem hidden={hidden}>
                 <SidebarMenuSubButton onClick={changeChecked}>{content}</SidebarMenuSubButton>
                 {children}
             </SidebarMenuSubItem>
@@ -142,10 +151,16 @@ type VisibleOptions = {
 
 export default function SearchComponent() {
     const { collections, collectionTypes, cardTypes, cardSizes, session, setError } = useMetadata();
-    const [topCollections, setTopCollections] = useState<
-        Array<{ collection: Selectable<Collections>; hasSub: boolean }>
-    >([]); // Purely for display & ease of selecting children, doesn't affect search query
-    const [subCollections, setSubCollections] = useState<Array<Selectable<Collections>>>([]);
+    const [collectionsHierarchy, setCollectionsHierarchy] = useState<
+        Map<
+            number,
+            { tops: Array<{ collection: Selectable<Collections>; hasSub: boolean }>; subs: Selectable<Collections>[] }
+        >
+    >(new Map());
+    const [allSearchableCols, setAllSearchableCols] = useState<{
+        tops: Array<{ collection: Selectable<Collections>; hasSub: boolean }>;
+        subs: Selectable<Collections>[];
+    }>({ tops: [], subs: [] });
     const [photocards, setPhotocards] = useState<Array<Selectable<Photocards>>>([]);
     const [filters, setFilters] = useState<Filters>({
         query: "",
@@ -185,8 +200,8 @@ export default function SearchComponent() {
 
     useEffect(() => {
         if (!searchInput.trim()) {
-            const topColsSet = new Set(topCollections.map((c) => c.collection.id!));
-            const subColsSet = new Set(subCollections.map((c) => c.id!));
+            const topColsSet = new Set(allSearchableCols.tops.map((c) => c.collection.id!));
+            const subColsSet = new Set(allSearchableCols.subs.map((c) => c.id!));
             onClearAll();
             setVisibleOptions({
                 collectionTypes: new Set(collectionTypes.map((type) => type.id!)),
@@ -266,7 +281,7 @@ export default function SearchComponent() {
             winners: winningTopCols,
             maxScore: topColScore,
             matchedTerms: topColMatchedTerms,
-        } = getWinnersFromTerms(topCollections, (c) => c.collection.name, termsAfterMembers);
+        } = getWinnersFromTerms(allSearchableCols.tops, (c) => c.collection.name, termsAfterMembers);
 
         // Check Sub Collections
         const {
@@ -274,7 +289,7 @@ export default function SearchComponent() {
             maxScore: subColScore,
             matchedTerms: subColMatchedTerms,
         } = getWinnersFromTerms(
-            subCollections,
+            allSearchableCols.subs,
             (c) => (c.version ? `${c.name} ${c.version}` : c.name),
             termsAfterMembers,
         );
@@ -321,16 +336,18 @@ export default function SearchComponent() {
 
             // Include parents of visible subs
             finalVisibleSubIds.forEach((subId) => {
-                const sub = subCollections.find((c) => c.id === subId);
+                const sub = allSearchableCols.subs.find((c) => c.id === subId);
                 if (sub) {
-                    const parent = getTopCollectionForSub(sub);
-                    if (parent) finalVisibleTopIds.add(parent.id!);
+                    for (const colType of sub.collection_types) {
+                        const parent = getTopCollectionForSub(sub, colType);
+                        if (parent) finalVisibleTopIds.add(parent.id!);
+                    }
                 }
             });
         } else {
             // Show all
-            finalVisibleTopIds = new Set(topCollections.map((c) => c.collection.id!));
-            finalVisibleSubIds = new Set(subCollections.map((c) => c.id!));
+            finalVisibleTopIds = new Set(allSearchableCols.tops.map((c) => c.collection.id!));
+            finalVisibleSubIds = new Set(allSearchableCols.subs.map((c) => c.id!));
         }
 
         // Collection Types visibility
@@ -376,51 +393,82 @@ export default function SearchComponent() {
             subCollections: finalVisibleSubIds,
             collectionTypes: finalVisibleTypeIds,
         }));
-    }, [searchInput, collections, collectionTypes, cardTypes, cardSizes, topCollections, subCollections]);
+    }, [searchInput, collections, collectionTypes, cardTypes, cardSizes, allSearchableCols]);
 
+    /**
+     * Group collections by type.
+     * Within each type, group by name.
+     * If multiple collections share the same name within a type -> they are Subs, need a Top.
+     * If only one collection with that name within a type -> it is Top.
+     */
     function calculateCollectionsHierarchy() {
-        const topCols: Array<{ collection: Selectable<Collections>; hasSub: boolean }> = [];
-        const subCols: Selectable<Collections>[] = [];
-        for (const col of collections) {
-            if (col.version) {
-                subCols.push(col);
-            } else {
-                topCols.push({ collection: col, hasSub: false });
+        const newHierarchy = new Map<
+            number,
+            { tops: Array<{ collection: Selectable<Collections>; hasSub: boolean }>; subs: Selectable<Collections>[] }
+        >();
+        const globalTops = new Map<number, { collection: Selectable<Collections>; hasSub: boolean }>();
+        const globalSubs = new Map<number, Selectable<Collections>>();
+
+        for (const type of collectionTypes) {
+            const colsInType = collections.filter((c) => c.collection_types.includes(type.id!));
+            const groupedByName = new Map<string, Selectable<Collections>[]>();
+
+            for (const col of colsInType) {
+                const existing = groupedByName.get(col.name) || [];
+                existing.push(col);
+                groupedByName.set(col.name, existing);
             }
-        }
-        // Create top-level collections for any sub-collections that don't have a parent
-        const topAndSubCols: Selectable<Collections>[] = [];
-        for (const subCol of subCols) {
-            const parentCol = topCols.find((c) => c.collection.name === subCol.name);
-            if (!parentCol) {
-                topCols.push({
-                    collection: {
-                        id: subCol.id!,
-                        name: subCol.name,
-                        release_date: new Date(subCol.release_date),
-                        collection_types: [...subCol.collection_types],
-                        version: null,
-                        version_order: null,
-                    },
-                    hasSub: true,
-                });
-            } else if (parentCol && !parentCol.hasSub) {
-                // If parent already exists, clone parent as a sub collection as well
-                topAndSubCols.push({ ...parentCol.collection });
-                parentCol.hasSub = true;
+
+            const tops: Array<{ collection: Selectable<Collections>; hasSub: boolean }> = [];
+            const subs: Selectable<Collections>[] = [];
+
+            for (const [name, group] of groupedByName) {
+                if (group.length > 1) {
+                    // Multiple versions -> Subs. Need a Top.
+                    const parentCol = {
+                        collection: {
+                            ...group[0],
+                            version: null, // Virtual top has no version
+                            version_order: null,
+                        },
+                        hasSub: true,
+                    };
+                    tops.push(parentCol);
+
+                    // Add all as subs
+                    for (const sub of group) {
+                        subs.push(sub);
+                        globalSubs.set(sub.id!, sub);
+                    }
+
+                    globalTops.set(parentCol.collection.id!, parentCol);
+                } else {
+                    // Single item -> Top
+                    const col = group[0];
+                    const topItem = { collection: col, hasSub: false };
+                    tops.push(topItem);
+                    globalTops.set(col.id!, topItem);
+                }
             }
+
+            // Sort
+            tops.sort(
+                (a, b) => new Date(b.collection.release_date).getTime() - new Date(a.collection.release_date).getTime(),
+            );
+            subs.sort((a, b) => new Date(b.release_date).getTime() - new Date(a.release_date).getTime());
+
+            newHierarchy.set(type.id!, { tops, subs });
         }
 
-        subCols.push(...topAndSubCols);
-
-        setTopCollections(
-            topCols.sort(
+        setCollectionsHierarchy(newHierarchy);
+        setAllSearchableCols({
+            tops: Array.from(globalTops.values()).sort(
                 (a, b) => new Date(b.collection.release_date).getTime() - new Date(a.collection.release_date).getTime(),
             ),
-        );
-        setSubCollections(
-            subCols.sort((a, b) => new Date(b.release_date).getTime() - new Date(a.release_date).getTime()),
-        );
+            subs: Array.from(globalSubs.values()).sort(
+                (a, b) => new Date(b.release_date).getTime() - new Date(a.release_date).getTime(),
+            ),
+        });
     }
 
     function onClearAll() {
@@ -443,30 +491,26 @@ export default function SearchComponent() {
         trySearch(newFilters);
     }
 
-    function getSubCollectionsForTop(topCollectionName: string): Set<number> {
+    function getSubCollectionsForTop(topCollectionName: string, typeId: number): Set<number> {
         return new Set(
-            subCollections.filter((subCol) => subCol.name === topCollectionName).map((subCol) => subCol.id!),
+            collectionsHierarchy
+                .get(typeId)!
+                .subs.filter((subCol) => subCol.name === topCollectionName)
+                .map((subCol) => subCol.id!),
         );
     }
 
-    function getTopCollectionForSub(subCollection: Selectable<Collections>): Selectable<Collections> | undefined {
-        return topCollections.find(({ collection }) => collection.name === subCollection.name)?.collection;
+    function getTopCollectionForSub(subCollection: Selectable<Collections>, typeId: number): Selectable<Collections> {
+        return collectionsHierarchy.get(typeId)!.tops.find(({ collection }) => collection.name === subCollection.name)!
+            .collection;
     }
 
     function getTopCollectionsForType(typeId: number): Set<number> {
-        return new Set(
-            topCollections
-                .filter(({ collection }) => collection.collection_types.includes(typeId))
-                .map(({ collection }) => collection.id!),
-        );
+        return new Set(collectionsHierarchy.get(typeId)!.tops.map(({ collection }) => collection.id!));
     }
 
     function getSubCollectionsForType(typeId: number): Set<number> {
-        return new Set(
-            subCollections
-                .filter((collection) => collection.collection_types.includes(typeId))
-                .map((collection) => collection.id!),
-        );
+        return new Set(collectionsHierarchy.get(typeId)!.subs.map((collection) => collection.id!));
     }
 
     function getNewCollectionTypes(newSelectedTopCollections: Set<number>): Set<number> {
@@ -506,11 +550,15 @@ export default function SearchComponent() {
         setFilters(newFilters);
     }
 
-    function onSelectedTopCollection(collection: Selectable<Collections>, hasSub: boolean, checked: boolean) {
+    function onSelectedTopCollection(
+        collection: Selectable<Collections>,
+        hasSub: boolean,
+        checked: boolean,
+        typeId: number,
+    ) {
         const newSelectedTopCollections = new Set(filters.topCollections);
         let newSelectedSubCollections = new Set(filters.subCollections);
-        const subColsForTop = hasSub ? getSubCollectionsForTop(collection.name) : new Set<number>();
-        let newSelectedCollectionTypes = filters.collectionTypes;
+        const subColsForTop = hasSub ? getSubCollectionsForTop(collection.name, typeId) : new Set<number>();
 
         if (checked) {
             newSelectedTopCollections.add(collection.id!);
@@ -518,9 +566,6 @@ export default function SearchComponent() {
             if (hasSub) {
                 newSelectedSubCollections = newSelectedSubCollections.union(subColsForTop);
             }
-
-            // Check collection types if not already checked
-            newSelectedCollectionTypes = getNewCollectionTypes(newSelectedTopCollections);
         } else {
             newSelectedTopCollections.delete(collection.id!);
 
@@ -529,67 +574,44 @@ export default function SearchComponent() {
                     [...newSelectedSubCollections].filter((id) => !subColsForTop.has(id)),
                 );
             }
-
-            // Uncheck collection types if no more top collections are checked
-            newSelectedCollectionTypes = getNewCollectionTypes(newSelectedTopCollections);
         }
 
         const newFilters = {
             ...filters,
             topCollections: newSelectedTopCollections,
             subCollections: newSelectedSubCollections,
-            collectionTypes: newSelectedCollectionTypes,
+            collectionTypes: getNewCollectionTypes(filters.collectionTypes),
         };
         setFilters(newFilters);
     }
 
-    function onSelectedSubCollection(collection: Selectable<Collections>, checked: boolean) {
-        const topCollection = getTopCollectionForSub(collection);
+    function onSelectedSubCollection(collection: Selectable<Collections>, checked: boolean, typeId: number) {
+        const topCollection = getTopCollectionForSub(collection, typeId);
         const newSelectedSubCollections = new Set(filters.subCollections);
+        const newSelectedTopCollections = new Set(filters.topCollections);
 
         if (checked) {
             newSelectedSubCollections.add(collection.id!);
-
-            // Check the top collection
-            if (topCollection) {
-                const newSelectedTopCollections = new Set([...filters.topCollections, topCollection.id!]);
-                const newSelectedCollectionTypes = getNewCollectionTypes(newSelectedTopCollections);
-                setFilters({
-                    ...filters,
-                    topCollections: newSelectedTopCollections,
-                    subCollections: newSelectedSubCollections,
-                    collectionTypes: newSelectedCollectionTypes,
-                });
-            } else {
-                setFilters({ ...filters, subCollections: newSelectedSubCollections });
-            }
+            newSelectedTopCollections.add(topCollection.id!);
         } else {
             newSelectedSubCollections.delete(collection.id!);
 
             // Uncheck top collection if no more sub collections are checked for it
-            if (topCollection) {
-                const remainingSubsForTop = getSubCollectionsForTop(topCollection.name);
-                const hasOtherChecked = Array.from(remainingSubsForTop).some(
-                    (id) => id !== collection.id && newSelectedSubCollections.has(id),
-                );
-
-                if (!hasOtherChecked) {
-                    const newSelectedTopCollections = new Set(filters.topCollections);
-                    newSelectedTopCollections.delete(topCollection.id!);
-                    const newSelectedCollectionTypes = getNewCollectionTypes(newSelectedTopCollections);
-                    setFilters({
-                        ...filters,
-                        topCollections: newSelectedTopCollections,
-                        subCollections: newSelectedSubCollections,
-                        collectionTypes: newSelectedCollectionTypes,
-                    });
-                } else {
-                    setFilters({ ...filters, subCollections: newSelectedSubCollections });
-                }
-            } else {
-                setFilters({ ...filters, subCollections: newSelectedSubCollections });
+            const remainingSubsForTop = getSubCollectionsForTop(topCollection.name, typeId);
+            const hasOtherChecked = Array.from(remainingSubsForTop).some(
+                (id) => id !== collection.id && newSelectedSubCollections.has(id),
+            );
+            if (!hasOtherChecked) {
+                newSelectedTopCollections.delete(topCollection.id!);
             }
         }
+
+        setFilters({
+            ...filters,
+            topCollections: newSelectedTopCollections,
+            subCollections: newSelectedSubCollections,
+            collectionTypes: getNewCollectionTypes(newSelectedTopCollections),
+        });
     }
 
     function onSelectedMember(member: MemberToIntWithOT7, checked: boolean) {
@@ -647,7 +669,7 @@ export default function SearchComponent() {
     ): Set<number> {
         const selectedCollectionsSet = new Set<number>(selectedSubCollections);
         for (const topColId of selectedTopCollections) {
-            if (topCollections.find(({ collection }) => collection.id === topColId)?.hasSub) {
+            if (allSearchableCols.tops.find(({ collection }) => collection.id === topColId)?.hasSub) {
                 continue; // Skip top collections that have sub-collections
             }
             selectedCollectionsSet.add(topColId);
@@ -951,72 +973,64 @@ export default function SearchComponent() {
                             key={searchInput ? "col-search-active" : "col-search-inactive"}
                             label="Collections"
                         >
-                            {collectionTypes
-                                .filter((type) => visibleOptions.collectionTypes.has(type.id!))
-                                .map((type) => {
-                                    return (
-                                        <CheckMenuButton
-                                            key={type.id!}
-                                            type={MenuType.Regular}
-                                            label={type.name}
-                                            checked={filters.collectionTypes.has(type.id!)}
-                                            onClick={(checked) => onSelectedCollectionType(type.id!, checked)}
-                                        >
-                                            <SidebarMenuSub>
-                                                {topCollections
-                                                    .filter(
-                                                        ({ collection, hasSub }) =>
-                                                            collection.collection_types.includes(type.id!) &&
-                                                            visibleOptions.topCollections.has(collection.id!),
-                                                    )
-                                                    .map(({ collection, hasSub }) => (
-                                                        <CheckMenuButton
-                                                            key={collection.id!}
-                                                            type={MenuType.Sub}
-                                                            label={collection.name}
-                                                            checked={filters.topCollections.has(collection.id!)}
-                                                            onClick={(checked) => {
-                                                                onSelectedTopCollection(collection, hasSub, checked);
-                                                            }}
-                                                        >
-                                                            {hasSub && (
-                                                                <SidebarMenuSub>
-                                                                    {subCollections
-                                                                        .filter(
-                                                                            (subCol) =>
-                                                                                subCol.name === collection.name &&
-                                                                                visibleOptions.subCollections.has(
-                                                                                    subCol.id!,
-                                                                                ),
-                                                                        )
-                                                                        .map((subCol) => (
-                                                                            <CheckMenuButton
-                                                                                key={subCol.id!}
-                                                                                type={MenuType.Sub}
-                                                                                label={
-                                                                                    subCol.version
-                                                                                        ? `${subCol.name} (${subCol.version})`
-                                                                                        : subCol.name
-                                                                                }
-                                                                                checked={filters.subCollections.has(
-                                                                                    subCol.id!,
-                                                                                )}
-                                                                                onClick={(checked) => {
-                                                                                    onSelectedSubCollection(
-                                                                                        subCol,
-                                                                                        checked,
-                                                                                    );
-                                                                                }}
-                                                                            />
-                                                                        ))}
-                                                                </SidebarMenuSub>
-                                                            )}
-                                                        </CheckMenuButton>
-                                                    ))}
-                                            </SidebarMenuSub>
-                                        </CheckMenuButton>
-                                    );
-                                })}
+                            {collectionTypes.map((type) => {
+                                const hierarchy = collectionsHierarchy.get(type.id!);
+                                if (!hierarchy) return null;
+                                const { tops, subs } = hierarchy;
+
+                                return (
+                                    <CheckMenuButton
+                                        key={type.id!}
+                                        type={MenuType.Regular}
+                                        label={type.name}
+                                        checked={filters.collectionTypes.has(type.id!)}
+                                        hidden={!visibleOptions.collectionTypes.has(type.id!)}
+                                        onClick={(checked) => onSelectedCollectionType(type.id!, checked)}
+                                    >
+                                        <SidebarMenuSub>
+                                            {tops.map(({ collection, hasSub }) => (
+                                                <CheckMenuButton
+                                                    key={collection.id!}
+                                                    type={MenuType.Sub}
+                                                    label={collectionDisplayName(collection)}
+                                                    checked={filters.topCollections.has(collection.id!)}
+                                                    hidden={!visibleOptions.topCollections.has(collection.id!)}
+                                                    onClick={(checked) => {
+                                                        onSelectedTopCollection(collection, hasSub, checked, type.id!);
+                                                    }}
+                                                >
+                                                    {hasSub && (
+                                                        <SidebarMenuSub>
+                                                            {subs
+                                                                .filter((subCol) => subCol.name === collection.name)
+                                                                .map((subCol) => (
+                                                                    <CheckMenuButton
+                                                                        key={subCol.id!}
+                                                                        type={MenuType.Sub}
+                                                                        label={collectionDisplayName(subCol)}
+                                                                        checked={filters.subCollections.has(subCol.id!)}
+                                                                        hidden={
+                                                                            !visibleOptions.subCollections.has(
+                                                                                subCol.id!,
+                                                                            )
+                                                                        }
+                                                                        onClick={(checked) => {
+                                                                            onSelectedSubCollection(
+                                                                                subCol,
+                                                                                checked,
+                                                                                type.id!,
+                                                                            );
+                                                                        }}
+                                                                    />
+                                                                ))}
+                                                        </SidebarMenuSub>
+                                                    )}
+                                                </CheckMenuButton>
+                                            ))}
+                                        </SidebarMenuSub>
+                                    </CheckMenuButton>
+                                );
+                            })}
                         </CollapsibleGroup>
 
                         <CollapsibleGroup
