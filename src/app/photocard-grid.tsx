@@ -1,5 +1,5 @@
 import PhotocardComponent from "./photocard";
-import { memberIntsToName, thumbnailUrl } from "@/constants";
+import { collectionDisplayName, memberIntsToName, thumbnailUrl } from "@/constants";
 import React from "react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
@@ -54,7 +54,7 @@ function PhotocardGridWithoutCollections({
                 >
                     {collections && (
                         <>
-                            <p>{collections?.find((c) => c.id === photocard.collection_id)?.name}</p>
+                            <p>{collectionDisplayName(collections?.find((c) => c.id === photocard.collection_id))}</p>
                             <p>{photocard.members && memberIntsToName(photocard.members)}</p>
                         </>
                     )}

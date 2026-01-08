@@ -1,4 +1,4 @@
-import { Photocards, UserBinders, UserData } from "@/db";
+import { Collections, Photocards, UserBinders, UserData } from "@/db";
 import { Selectable } from "kysely";
 
 export const SEPARATOR = ","; // Used when arrays are stored as strings in the database
@@ -74,6 +74,13 @@ const THUMBNAIL_POSTFIX = `c_scale,h_${THUMBNAIL_COMPRESSION_HEIGHT_PX}/f_avif`;
 
 export function thumbnailUrl(imageId: string): string {
     return `https://res.cloudinary.com/${CLOUDINARY_CLOUD_NAME}/image/upload/${THUMBNAIL_POSTFIX}/${imageId}.avif`;
+}
+
+export function collectionDisplayName(collection: Selectable<Collections> | undefined | null): string {
+    if (!collection) {
+        return "Unknown Collection";
+    }
+    return collection.version ? `${collection.name} (${collection.version})` : collection.name;
 }
 
 export const MemberToInt = {
