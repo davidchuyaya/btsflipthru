@@ -18,7 +18,7 @@ import {
     MemberInts,
 } from "@/constants";
 import { v2 as cloudinary } from "cloudinary";
-import { sql, type Selectable, type Insertable } from "kysely";
+import { sql, type Selectable, type Insertable, Updateable } from "kysely";
 import { db } from "./db-instance";
 import {
     CollectionTypes,
@@ -47,6 +47,28 @@ export async function addUserDataToDB(user_data: Insertable<UserData>): Promise<
             },
             (reason) => ({
                 error: "Could not add user data",
+            }),
+        );
+}
+
+export async function updateUserDataToDB(user_data: Updateable<UserData>): Promise<Result<boolean>> {
+    const session = await getSession();
+    const userId = session?.data?.user.id;
+    if (!userId) {
+        return { error: "User not logged in" };
+    }
+
+    return await db
+        .updateTable("user_data")
+        .set(user_data)
+        .where("user_id", "=", userId)
+        .executeTakeFirstOrThrow()
+        .then(
+            (result) => {
+                return { data: true };
+            },
+            (reason) => ({
+                error: `Could not update user data: ${reason}`,
             }),
         );
 }
@@ -155,12 +177,17 @@ export async function getMetadataFromDB(): Promise<{
     collectionTypes: Selectable<CollectionTypes>[];
     cardTypes: Selectable<CardTypes>[];
     collections: Selectable<Collections>[];
+    userData: Result<Selectable<UserData>>;
 }> {
-    const [cardSizes, collectionTypes, cardTypes, collections] = await Promise.all([
+    const session = await getSession();
+    const userId = session?.data?.user?.id;
+
+    const [cardSizes, collectionTypes, cardTypes, collections, userData] = await Promise.all([
         db.selectFrom("card_sizes").selectAll().execute(),
         db.selectFrom("collection_types").selectAll().execute(),
         db.selectFrom("card_types").selectAll().execute(),
         db.selectFrom("collections").selectAll().execute(),
+        userId ? getUserDataFromDB(userId) : Promise.resolve({ error: "User not logged in" }),
     ]);
 
     return {
@@ -168,6 +195,7 @@ export async function getMetadataFromDB(): Promise<{
         collectionTypes,
         cardTypes,
         collections,
+        userData,
     };
 }
 

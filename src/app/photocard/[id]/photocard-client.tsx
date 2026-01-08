@@ -23,7 +23,7 @@ import {
     AlertDialogAction,
 } from "@/components/ui/alert-dialog";
 import Link from "next/link";
-import { useState } from "react";
+import { useState, cloneElement } from "react";
 import { ClientSession, signInGoogle } from "@/auth-client";
 import PhotocardGrid from "@/app/photocard-grid";
 import { Selectable } from "kysely";
@@ -44,7 +44,14 @@ import { ImageDropzone } from "@/app/image-dropzone";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { FieldError } from "@/components/ui/field";
-import { addPhotocardToOwned, addPhotocardToWishlist, generateSignedUploadUrlForPhotocards, removePhotocardFromOwned, removePhotocardFromWishlist, updatePhotocardInDB } from "@/actions";
+import {
+    addPhotocardToOwned,
+    addPhotocardToWishlist,
+    generateSignedUploadUrlForPhotocards,
+    removePhotocardFromOwned,
+    removePhotocardFromWishlist,
+    updatePhotocardInDB,
+} from "@/actions";
 import { toast } from "sonner";
 
 function AlertDialogTriggerButton({
@@ -234,7 +241,7 @@ export default function PhotocardClient({
     wasOwned: boolean;
     wasWishlisted: boolean;
 }) {
-    const { collections, cardTypes, cardSizes, session } = useMetadata();
+    const { collections, cardTypes, cardSizes, userData, updateUserData, session } = useMetadata();
     const [flipped, setFlipped] = useState(false);
     const collection = collections.find((c) => c.id === photocard.collection_id);
     const cardType = cardTypes.find((c) => c.id === photocard.card_type);
@@ -242,22 +249,63 @@ export default function PhotocardClient({
     const [owned, setOwned] = useState(wasOwned);
     const [wishlisted, setWishlisted] = useState(wasWishlisted);
 
-    function DialogIfNotSignedIn(session: ClientSession | null, children: React.ReactNode) {
-        if (!session) {
+    function OptionalDialog(
+        show: boolean,
+        children: React.ReactNode,
+        title: string,
+        description: string,
+        submit: string,
+        onSubmit: () => void,
+    ) {
+        if (show) {
             return (
-                <AlertDialogTriggerButton
-                    title="Sign In Required"
-                    description="Please sign in to access this feature."
-                    submit="Sign In"
-                    onSubmit={() => {
-                        signInGoogle("/photocard/" + photocard.id);
-                    }}
-                >
+                <AlertDialogTriggerButton title={title} description={description} submit={submit} onSubmit={onSubmit}>
                     {children}
                 </AlertDialogTriggerButton>
             );
         }
         return children;
+    }
+
+    function DialogIfNotSignedIn(children: React.ReactNode) {
+        return OptionalDialog(
+            session === null,
+            children,
+            "Sign In Required",
+            "Please sign in to access this feature.",
+            "Sign In",
+            () => {
+                signInGoogle("/photocard/" + photocard.id);
+            },
+        );
+    }
+
+    function MarkFavoriteDialog(children: React.ReactNode) {
+        if (session === null) {
+            return DialogIfNotSignedIn(children);
+        }
+        if (userData?.profile_photocard_id !== null && userData?.profile_photocard_id !== photocard.id) {
+            return OptionalDialog(
+                true,
+                children,
+                "Mark as Favorite",
+                "You already have a favorite card. Are you sure you want to overwrite it?",
+                "Yes",
+                () => {
+                    updateUserData({ profile_photocard_id: photocard.id });
+                },
+            );
+        } else {
+            return cloneElement(children as React.ReactElement<{ onClick: () => void }>, {
+                onClick: () => {
+                    if (userData?.profile_photocard_id === photocard.id) {
+                        updateUserData({ profile_photocard_id: null });
+                    } else {
+                        updateUserData({ profile_photocard_id: photocard.id });
+                    }
+                },
+            });
+        }
     }
 
     return (
@@ -336,44 +384,52 @@ export default function PhotocardClient({
                             </Button>
                         </div>
                     </div>
-                    <div className="flex flex-col gap-4 items-center justify-center">
+                    <div className="flex flex-col gap-4 items-end justify-center">
                         {DialogIfNotSignedIn(
-                            session,
-                            <Button onClick={() => {
-                                if (owned) {
-                                    removePhotocardFromOwned(photocard.id);
-                                    setOwned(false);
-                                } else {
-                                    addPhotocardToOwned(photocard.id);
-                                    setOwned(true);
-                                    // Also removes it from the wishlist
-                                    setWishlisted(false);
-                                }
-                            }} className={`${owned ? "bg-third" : ""} pl-2 pr-3 w-fit`}>
+                            <Button
+                                onClick={() => {
+                                    if (owned) {
+                                        removePhotocardFromOwned(photocard.id);
+                                        setOwned(false);
+                                    } else {
+                                        addPhotocardToOwned(photocard.id);
+                                        setOwned(true);
+                                        // Also removes it from the wishlist
+                                        setWishlisted(false);
+                                    }
+                                }}
+                                className={`${owned ? "bg-third" : ""} pl-2 pr-3 w-fit`}
+                            >
                                 <img src="/flipthru_addtobinder.svg" className="size-8" />
                                 {owned ? "Remove from Owned" : "Add to Owned"}
                             </Button>,
                         )}
                         {DialogIfNotSignedIn(
-                            session,
-                            <Button onClick={() => {
-                                if (wishlisted) {
-                                    removePhotocardFromWishlist(photocard.id);
-                                    setWishlisted(false);
-                                } else {
-                                    addPhotocardToWishlist(photocard.id);
-                                    setWishlisted(true);
-                                }
-                            }} disabled={owned} className={`${wishlisted ? "bg-third" : ""} pl-2 pr-3 w-fit`}>
+                            <Button
+                                onClick={() => {
+                                    if (wishlisted) {
+                                        removePhotocardFromWishlist(photocard.id);
+                                        setWishlisted(false);
+                                    } else {
+                                        addPhotocardToWishlist(photocard.id);
+                                        setWishlisted(true);
+                                    }
+                                }}
+                                disabled={owned}
+                                className={`${wishlisted ? "bg-third" : ""} pl-2 pr-3 w-fit`}
+                            >
                                 <img src="/flipthru_addtowishlist.svg" className="size-8" />
                                 {wishlisted ? "Remove from Wishlist" : "Add to Wishlist"}
                             </Button>,
                         )}
-                        {DialogIfNotSignedIn(
-                            session,
-                            <Button className="pl-2 pr-3 w-fit">
+                        {MarkFavoriteDialog(
+                            <Button
+                                className={`pl-2 pr-3 w-fit ${userData?.profile_photocard_id === photocard.id ? "bg-third" : ""}`}
+                            >
                                 <img src="/flipthru_addtocollection.svg" className="size-8" />
-                                Mark Favorite
+                                {userData?.profile_photocard_id === photocard.id
+                                    ? "Remove as Favorite"
+                                    : "Mark as Favorite"}
                             </Button>,
                         )}
                     </div>

@@ -22,7 +22,7 @@ export default async function PhotocardPage({ params }: { params: Promise<{ id: 
         didUserWishlistPhotocard(id),
     ]);
 
-    if (contributorResult.error || !contributorResult.data || isOwnedResult.error || isWishlistedResult.error) {
+    if (contributorResult.error) {
         notFound();
     }
 
@@ -31,7 +31,7 @@ export default async function PhotocardPage({ params }: { params: Promise<{ id: 
     return (
         <PhotocardClient
             photocard={photocard}
-            imageContributor={contributorResult.data}
+            imageContributor={contributorResult.data!}
             relatedPhotocards={relatedPhotocards}
             wasOwned={isOwnedResult.data ?? false}
             wasWishlisted={isWishlistedResult.data ?? false}

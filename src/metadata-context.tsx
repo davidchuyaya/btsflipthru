@@ -8,18 +8,20 @@ import {
     addCollectionTypeToDB,
     getMetadataFromDB,
     updateCollectionInDB,
+    updateUserDataToDB,
 } from "@/actions";
 import { ReportType, reportWindowURL, CACHE_DURATION_MS } from "@/constants";
 import { authClient, ClientSession, isAtLeastMod } from "@/auth-client";
 import { toast } from "sonner";
-import { Collections, CollectionTypes, CardTypes, CardSizes, Photocards } from "./db";
-import { Insertable, Selectable } from "kysely";
+import { Collections, CollectionTypes, CardTypes, CardSizes, Photocards, UserData } from "./db";
+import { Insertable, Selectable, Updateable } from "kysely";
 
 const STORAGE_KEYS = {
     collections: "metadata_collections",
     collectionTypes: "metadata_collectionTypes",
     cardTypes: "metadata_cardTypes",
     cardSizes: "metadata_cardSizes",
+    userData: "metadata_userData",
     lastUpdated: "metadata_lastUpdated",
 } as const;
 
@@ -30,6 +32,7 @@ interface MetadataContextType {
     collectionTypes: Selectable<CollectionTypes>[];
     cardTypes: Selectable<CardTypes>[];
     cardSizes: Selectable<CardSizes>[];
+    userData: Selectable<UserData> | null;
     isLoading: boolean;
     addCollection: (collection: Insertable<Collections>, photocards: Insertable<Photocards>[]) => Promise<boolean>;
     updateCollection: (
@@ -40,6 +43,7 @@ interface MetadataContextType {
     addCollectionType: (collectionType: Insertable<CollectionTypes>) => Promise<number | undefined>;
     addCardType: (cardType: Insertable<CardTypes>) => Promise<number | undefined>;
     addCardSize: (cardSize: Insertable<CardSizes>) => Promise<number | undefined>;
+    updateUserData: (userData: Updateable<UserData>) => Promise<boolean>;
     setError: (message: string) => void;
 }
 
@@ -70,24 +74,20 @@ function isCacheValid(): boolean {
     return Date.now() - lastUpdated < CACHE_DURATION_MS;
 }
 
-function loadFromStorage(): {
-    collections: Selectable<Collections>[] | null;
-    collectionTypes: Selectable<CollectionTypes>[] | null;
-    cardTypes: Selectable<CardTypes>[] | null;
-    cardSizes: Selectable<CardSizes>[] | null;
-    hasAll: boolean;
-} {
+function loadFromStorage() {
     const collections = getFromStorage<Selectable<Collections>[]>(STORAGE_KEYS.collections);
     const collectionTypes = getFromStorage<Selectable<CollectionTypes>[]>(STORAGE_KEYS.collectionTypes);
     const cardTypes = getFromStorage<Selectable<CardTypes>[]>(STORAGE_KEYS.cardTypes);
     const cardSizes = getFromStorage<Selectable<CardSizes>[]>(STORAGE_KEYS.cardSizes);
+    const userData = getFromStorage<Selectable<UserData>>(STORAGE_KEYS.userData);
 
     return {
         collections,
         collectionTypes,
         cardTypes,
         cardSizes,
-        hasAll: !!(collections && collectionTypes && cardTypes && cardSizes),
+        userData,
+        hasAll: !!(collections && collectionTypes && cardTypes && cardSizes && userData),
     };
 }
 
@@ -96,11 +96,15 @@ function saveToStorage(
     collectionTypes: Selectable<CollectionTypes>[],
     cardTypes: Selectable<CardTypes>[],
     cardSizes: Selectable<CardSizes>[],
+    userData: Selectable<UserData> | undefined,
 ): void {
     setToStorage(STORAGE_KEYS.collections, collections);
     setToStorage(STORAGE_KEYS.collectionTypes, collectionTypes);
     setToStorage(STORAGE_KEYS.cardTypes, cardTypes);
     setToStorage(STORAGE_KEYS.cardSizes, cardSizes);
+    if (userData) {
+        setToStorage(STORAGE_KEYS.userData, userData);
+    }
     setToStorage(STORAGE_KEYS.lastUpdated, Date.now());
 }
 
@@ -109,6 +113,7 @@ export function MetadataProvider({ children }: { children: ReactNode }) {
     const [collectionTypes, setCollectionTypes] = useState<Selectable<CollectionTypes>[]>([]);
     const [cardTypes, setCardTypes] = useState<Selectable<CardTypes>[]>([]);
     const [cardSizes, setCardSizes] = useState<Selectable<CardSizes>[]>([]);
+    const [userData, setUserData] = useState<Selectable<UserData> | null>(null);
     const [isLoading, setIsLoading] = useState(true);
 
     const {
@@ -127,6 +132,7 @@ export function MetadataProvider({ children }: { children: ReactNode }) {
             if (cached.collectionTypes) setCollectionTypes(cached.collectionTypes);
             if (cached.cardTypes) setCardTypes(cached.cardTypes);
             if (cached.cardSizes) setCardSizes(cached.cardSizes);
+            if (cached.userData) setUserData(cached.userData);
 
             // If cache is valid, don't fetch from DB
             if (cached.hasAll && isCacheValid()) {
@@ -134,14 +140,17 @@ export function MetadataProvider({ children }: { children: ReactNode }) {
                 return;
             }
 
-            const { cardSizes, collectionTypes, cardTypes, collections } = await getMetadataFromDB();
+            const { cardSizes, collectionTypes, cardTypes, collections, userData } = await getMetadataFromDB();
             setCollections(collections);
             setCollectionTypes(collectionTypes);
             setCardTypes(cardTypes);
             setCardSizes(cardSizes);
+            if (userData.data) {
+                setUserData(userData.data);
+            }
 
             // Save to localStorage
-            saveToStorage(collections, collectionTypes, cardTypes, cardSizes);
+            saveToStorage(collections, collectionTypes, cardTypes, cardSizes, userData.data);
             setIsLoading(false);
         }
 
@@ -164,6 +173,7 @@ export function MetadataProvider({ children }: { children: ReactNode }) {
             if (cached.collectionTypes) setCollectionTypes(cached.collectionTypes);
             if (cached.cardTypes) setCardTypes(cached.cardTypes);
             if (cached.cardSizes) setCardSizes(cached.cardSizes);
+            if (cached.userData) setUserData(cached.userData);
         }
 
         window.addEventListener("storage", handleStorageChange);
@@ -267,6 +277,22 @@ export function MetadataProvider({ children }: { children: ReactNode }) {
         }
     }
 
+    async function updateUserData(newUserData: Updateable<UserData>) {
+        const result = await updateUserDataToDB(newUserData);
+        if (result.error) {
+            setError(`Server error: ${result.error}`);
+            return false;
+        } else {
+            if (userData) {
+                const updatedUserData: Selectable<UserData> = { ...userData, ...newUserData } as Selectable<UserData>;
+                setUserData(updatedUserData);
+                setToStorage(STORAGE_KEYS.userData, updatedUserData);
+                setToStorage(STORAGE_KEYS.lastUpdated, Date.now());
+            }
+            return true;
+        }
+    }
+
     async function updateCollection(
         collectionId: number,
         collection: Insertable<Collections>,
@@ -315,12 +341,14 @@ export function MetadataProvider({ children }: { children: ReactNode }) {
                 collectionTypes,
                 cardTypes,
                 cardSizes,
+                userData,
                 isLoading,
                 addCollection,
                 updateCollection,
                 addCollectionType,
                 addCardType,
                 addCardSize,
+                updateUserData,
                 setError,
             }}
         >
