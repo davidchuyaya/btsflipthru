@@ -347,7 +347,7 @@ export default function PhotocardClient({
             <div className="flex flex-col gap-4 w-2/3">
                 <div className="flex flex-col gap">
                     <div className="flex flex-row gap-2">
-                        <h2 className="grow">{collection?.name}</h2>
+                        <h2 className="grow">{collection?.version ? `${collection?.name} (${collection?.version})` : collection?.name}</h2>
                         <Button hidden={session?.user.role === Role.USER}>
                             <Link href={`/createCollection?collectionId=${collection?.id}`}>Edit Collection</Link>
                         </Button>
