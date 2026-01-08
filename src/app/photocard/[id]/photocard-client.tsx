@@ -53,6 +53,7 @@ import {
     updatePhotocardInDB,
 } from "@/actions";
 import { toast } from "sonner";
+import { Share2Icon } from "lucide-react";
 
 function AlertDialogTriggerButton({
     title,
@@ -345,10 +346,16 @@ export default function PhotocardClient({
             </div>
             <div className="flex flex-col gap-4 w-2/3">
                 <div className="flex flex-col gap">
-                    <div className="flex flex-row justify-between">
-                        <h2>{collection?.name}</h2>
+                    <div className="flex flex-row gap-2">
+                        <h2 className="grow">{collection?.name}</h2>
                         <Button hidden={session?.user.role === Role.USER}>
                             <Link href={`/createCollection?collectionId=${collection?.id}`}>Edit Collection</Link>
+                        </Button>
+                        <Button onClick={() => {
+                            navigator.clipboard.writeText(window.location.href);
+                            toast.success("Copied to clipboard");
+                        }} size="icon">
+                            <Share2Icon />
                         </Button>
                     </div>
                     <p className="text-2xl">{photocard && memberIntsToName(photocard.members)}</p>
