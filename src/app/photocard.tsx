@@ -3,6 +3,7 @@
 import { THUMBNAIL_DISPLAY_HEIGHT_PX, Effects } from "@/constants";
 import { CheckboxWithoutLabel } from "@/components/ui/checkbox";
 import { useEffect, useState } from "react";
+import { useMetadata } from "@/metadata-context";
 
 const DEFAULT_ASPECT_RATIO = "11 / 17"; // Standard photocard aspect ratio 55mm x 85mm
 
@@ -130,6 +131,7 @@ export default function PhotocardComponent({
     onClick?: () => void;
     large?: boolean;
 }) {
+    const { effectsDisabled } = useMetadata();
     const [borderRadius, setBorderRadius] = useState<number>(16);
     const [aspectRatio, setAspectRatio] = useState<string>(DEFAULT_ASPECT_RATIO);
 
@@ -171,7 +173,8 @@ export default function PhotocardComponent({
             break;
     }
 
-    const HoverTilt = "hover-tilt" as any;
+    // If effects are disabled, use a div instead so the props don't actually do anything
+    const HoverTilt = effectsDisabled ? "div" : "hover-tilt" as any;
 
     const imgStyle: React.CSSProperties = large
         ? {

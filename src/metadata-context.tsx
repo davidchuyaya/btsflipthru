@@ -23,6 +23,8 @@ const STORAGE_KEYS = {
     cardSizes: "metadata_cardSizes",
     userData: "metadata_userData",
     lastUpdated: "metadata_lastUpdated",
+    cursorDisabled: "metadata_cursorDisabled",
+    effectsDisabled: "metadata_effectsDisabled",
 } as const;
 
 interface MetadataContextType {
@@ -33,6 +35,8 @@ interface MetadataContextType {
     cardTypes: Selectable<CardTypes>[];
     cardSizes: Selectable<CardSizes>[];
     userData: Selectable<UserData> | null;
+    cursorDisabled: boolean;
+    effectsDisabled: boolean;
     isLoading: boolean;
     addCollection: (collection: Insertable<Collections>, photocards: Insertable<Photocards>[]) => Promise<boolean>;
     updateCollection: (
@@ -44,6 +48,8 @@ interface MetadataContextType {
     addCardType: (cardType: Insertable<CardTypes>) => Promise<number | undefined>;
     addCardSize: (cardSize: Insertable<CardSizes>) => Promise<number | undefined>;
     updateUserData: (userData: Updateable<UserData>) => Promise<boolean>;
+    updateCursorDisabled: (cursorDisabled: boolean) => void;
+    updateEffectsDisabled: (effectsDisabled: boolean) => void;
     setError: (message: string) => void;
 }
 
@@ -115,6 +121,8 @@ export function MetadataProvider({ children }: { children: ReactNode }) {
     const [cardSizes, setCardSizes] = useState<Selectable<CardSizes>[]>([]);
     const [userData, setUserData] = useState<Selectable<UserData> | null>(null);
     const [isLoading, setIsLoading] = useState(true);
+    const [cursorDisabled, setCursorDisabled] = useState(false);
+    const [effectsDisabled, setEffectsDisabled] = useState(false);
 
     const {
         data: session,
@@ -133,6 +141,8 @@ export function MetadataProvider({ children }: { children: ReactNode }) {
             if (cached.cardTypes) setCardTypes(cached.cardTypes);
             if (cached.cardSizes) setCardSizes(cached.cardSizes);
             if (cached.userData) setUserData(cached.userData);
+            setCursorDisabled(getFromStorage(STORAGE_KEYS.cursorDisabled) || false);
+            setEffectsDisabled(getFromStorage(STORAGE_KEYS.effectsDisabled) || false);
 
             // If cache is valid, don't fetch from DB
             if (cached.hasAll && isCacheValid()) {
@@ -326,6 +336,16 @@ export function MetadataProvider({ children }: { children: ReactNode }) {
         }
     }
 
+    function updateCursorDisabled(disabled: boolean) {
+        setCursorDisabled(disabled);
+        setToStorage(STORAGE_KEYS.cursorDisabled, disabled);
+    }
+
+    function updateEffectsDisabled(disabled: boolean) {
+        setEffectsDisabled(disabled);
+        setToStorage(STORAGE_KEYS.effectsDisabled, disabled);
+    }
+
     return (
         <MetadataContext.Provider
             value={{
@@ -342,6 +362,8 @@ export function MetadataProvider({ children }: { children: ReactNode }) {
                 cardTypes,
                 cardSizes,
                 userData,
+                cursorDisabled,
+                effectsDisabled,
                 isLoading,
                 addCollection,
                 updateCollection,
@@ -349,6 +371,8 @@ export function MetadataProvider({ children }: { children: ReactNode }) {
                 addCardType,
                 addCardSize,
                 updateUserData,
+                updateCursorDisabled,
+                updateEffectsDisabled,
                 setError,
             }}
         >

@@ -1,15 +1,19 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
+import { useMetadata } from "../metadata-context";
 
 const GLOW_SIZE = 100;
 
 export default function HoldGlow() {
+    const { cursorDisabled } = useMetadata();
     const [pos, setPos] = useState({ x: 0, y: 0 });
     const [visible, setVisible] = useState(false);
     const activeRef = useRef(false);
 
     useEffect(() => {
+        if (cursorDisabled) return;
+
         const handleMouseDown = (e: MouseEvent) => {
             setPos({ x: e.clientX, y: e.clientY });
             activeRef.current = true;
@@ -36,7 +40,7 @@ export default function HoldGlow() {
             window.removeEventListener("mousemove", handleMouseMove);
             window.removeEventListener("mouseup", handleMouseUp);
         };
-    }, []);
+    }, [cursorDisabled]);
 
     if (!visible) return null;
 

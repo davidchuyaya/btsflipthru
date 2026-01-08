@@ -75,13 +75,15 @@
 }
 
 /** Cursor */
-* {
+.cursor,
+.cursor * {
     cursor:
         url("/cursor.svg") 2.5 4,
         auto !important;
 }
 
-*:active {
+.cursor:active,
+.cursor:active * {
     cursor:
         url("/cursor.svg") 2.5 4,
         auto !important;

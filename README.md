@@ -39,3 +39,7 @@ We use the following technologies:
 2. Update postgres if schema changed: `npm run load-local-db`
 3. Build: `npm run build`
 4. Restart the app: `npx pm2 restart all`
+
+### Backing up the database
+1. Export the database: `pg_dump -a -U postgres -d postgres -h 127.0.0.1 -f exported.sql`
+2. Copy the file somewhere safe.

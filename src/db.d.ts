@@ -133,7 +133,7 @@ export interface User {
   id: string;
   image: string | null;
   name: string;
-  role: number;
+  role: Generated<number>;
   updatedAt: Generated<Timestamp>;
 }
 
@@ -149,7 +149,7 @@ export interface UserBinders {
 }
 
 export interface UserData {
-  army_since: Timestamp | null;
+  army_since: number | null;
   bcd_id: string | null;
   bias: number | null;
   binders: Generated<string[]>;

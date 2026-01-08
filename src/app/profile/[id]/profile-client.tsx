@@ -2,6 +2,7 @@
 
 import PhotocardComponent from "@/app/photocard";
 import {
+    collectionDisplayName,
     dateToString,
     Effects,
     fullSizeUrl,
@@ -30,22 +31,15 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { Toggle } from "@/components/ui/toggle";
 import { Switch } from "@/components/ui/switch";
-
-function SocialsComponent({ logoSrc, id }: { logoSrc: string; id?: string | null }) {
-    return (
-        <div className="flex flex-row gap-2 items-center">
-            <img src={logoSrc} className="size-8" />
-            <p>{id ?? ""}</p>
-        </div>
-    );
-}
+import { Label } from "@/components/ui/label";
+import Image from "next/image";
+import Link from "next/link";
 
 const formSchema = z.object({
     username: z.string().min(1).max(MAX_USERNAME_LENGTH).nullable(),
     description: z.string().min(1).max(MAX_DESCRIPTION_LENGTH).nullable(),
-    army_since: z.date().nullable(),
+    army_since: z.number().nullable(),
     bias: z.enum(MemberToInt).nullable(),
     bcd_id: z.string().min(1).max(MAX_EXTERNAL_SITE_USERNAME_LENGTH).nullable(),
     bluesky_id: z.string().min(1).max(MAX_EXTERNAL_SITE_USERNAME_LENGTH).nullable(),
@@ -54,12 +48,19 @@ const formSchema = z.object({
     discord_id: z.string().min(1).max(MAX_EXTERNAL_SITE_USERNAME_LENGTH).nullable(),
     spotify_playlist: z.string().min(1).max(MAX_EXTERNAL_SITE_USERNAME_LENGTH).nullable(),
     image: z.instanceof(File).nullable(),
-    disable_cursor: z.boolean().nullable(),
-    disable_effects: z.boolean().nullable(),
 });
 
 export default function ProfileClient({ userData }: { userData: Selectable<UserData> }) {
-    const { session, sessionRefetch, setError } = useMetadata();
+    const {
+        collections,
+        cursorDisabled,
+        updateCursorDisabled,
+        effectsDisabled,
+        updateEffectsDisabled,
+        session,
+        sessionRefetch,
+        setError,
+    } = useMetadata();
     const isSelf = session?.user.id === userData.user_id;
     const [isEditing, setIsEditing] = useState<boolean>(false);
     const form = useForm<z.infer<typeof formSchema>>({
@@ -71,12 +72,79 @@ export default function ProfileClient({ userData }: { userData: Selectable<UserD
         },
     });
 
-    function onEdit() {
-        if (isEditing) {
-            setIsEditing(false);
-        } else {
-            setIsEditing(true);
+    function SocialsComponent({
+        fieldName,
+    }: {
+        fieldName: "bcd_id" | "bluesky_id" | "twitter_id" | "instagram_id" | "discord_id";
+    }) {
+        let logo = "";
+        switch (fieldName) {
+            case "instagram_id":
+                logo = "/instagram.svg";
+                break;
+            case "twitter_id":
+                logo = "/twitter.svg";
+                break;
+            case "bluesky_id":
+                logo = "/bluesky.svg";
+                break;
+            case "bcd_id":
+                logo = "/b-cd.png";
+                break;
+            case "discord_id":
+                logo = "/discord.svg";
+                break;
         }
+        const id = userData[fieldName];
+        let url = "";
+        switch (fieldName) {
+            case "instagram_id":
+                url = "https://www.instagram.com/" + id;
+                break;
+            case "twitter_id":
+                url = "https://x.com/" + id;
+                break;
+            case "bluesky_id":
+                url = "https://bsky.app/profile/" + id;
+                break;
+            case "bcd_id":
+            case "discord_id":
+                // Can't link
+                url = "";
+                break;
+        }
+        let placeholder = "";
+        switch (fieldName) {
+            case "bluesky_id":
+                placeholder = "@btsflipthru.bsky.social";
+                break;
+            case "bcd_id":
+            case "twitter_id":
+            case "instagram_id":
+            case "discord_id":
+                placeholder = "@btsflipthru";
+                break;
+        }
+        return (
+            <div className="flex flex-col items-center" hidden={!id && !isEditing}>
+                <div className="flex flex-row items-center justify-center gap-4">
+                    <Image src={logo} alt={fieldName} width={32} height={32} className="size-8" />
+                    {isEditing ? (
+                        <Controller
+                            control={form.control}
+                            name={fieldName}
+                            render={({ field }) => (
+                                <Input value={field.value ?? ""} onChange={field.onChange} placeholder={placeholder} />
+                            )}
+                        />
+                    ) : (
+                        <Button variant="imageShadow" asChild>
+                            <Link href={url}>{id}</Link>
+                        </Button>
+                    )}
+                </div>
+            </div>
+        );
     }
 
     function onSubmit(values: z.infer<typeof formSchema>) {
@@ -93,12 +161,12 @@ export default function ProfileClient({ userData }: { userData: Selectable<UserD
                             effects={Effects.Matte}
                             large
                         />
-                        <div className="flex flex-row gap-3 items-center">
-                            <SocialsComponent logoSrc="/b-cd.png" id={userData.bcd_id} />
-                            <SocialsComponent logoSrc="/bluesky.svg" id={userData.bluesky_id} />
-                            <SocialsComponent logoSrc="/twitter.svg" id={userData.twitter_id} />
-                            <SocialsComponent logoSrc="/instagram.svg" id={userData.instagram_id} />
-                            <SocialsComponent logoSrc="/discord.svg" id={userData.discord_id} />
+                        <div className={`flex ${isEditing ? "flex-col" : "flex-row"} gap-3 items-center`}>
+                            <SocialsComponent fieldName="bcd_id" />
+                            <SocialsComponent fieldName="bluesky_id" />
+                            <SocialsComponent fieldName="instagram_id" />
+                            <SocialsComponent fieldName="twitter_id" />
+                            <SocialsComponent fieldName="discord_id" />
                         </div>
                     </div>
                     <div className="flex flex-col gap-4 w-1/2">
@@ -116,7 +184,10 @@ export default function ProfileClient({ userData }: { userData: Selectable<UserD
                                     <h2 className="grow">{userData.username ?? "N/A"}</h2>
                                 )}
                                 {isSelf && (
-                                    <Button type={isEditing ? "submit" : "button"} onClick={onEdit}>
+                                    <Button
+                                        type={isEditing ? "submit" : "button"}
+                                        onClick={() => setIsEditing(!isEditing)}
+                                    >
                                         {isEditing ? "Save Profile" : "Edit Profile"}
                                     </Button>
                                 )}
@@ -154,18 +225,46 @@ export default function ProfileClient({ userData }: { userData: Selectable<UserD
                                             control={form.control}
                                             name="army_since"
                                             render={({ field }) => (
-                                                <Input
-                                                    type="date"
-                                                    value={field.value?.toISOString().split("T")[0] ?? ""}
-                                                    onChange={field.onChange}
-                                                    className="w-fit"
-                                                />
+                                                <Select
+                                                    defaultValue={
+                                                        field.value
+                                                            ? collectionDisplayName(
+                                                                  collections.find(
+                                                                      (col) => col.id === userData.army_since,
+                                                                  ),
+                                                              )
+                                                            : ""
+                                                    }
+                                                    onValueChange={(value) => field.onChange(Number(value))}
+                                                >
+                                                    <SelectTrigger className="w-fit bg-accent-light">
+                                                        <SelectValue placeholder="Select a collection" />
+                                                    </SelectTrigger>
+                                                    <SelectContent className="bg-accent-light">
+                                                        <SelectGroup>
+                                                            {collections
+                                                                // Sort newest to oldest
+                                                                .sort(
+                                                                    (a, b) =>
+                                                                        new Date(b.release_date).getTime() -
+                                                                        new Date(a.release_date).getTime(),
+                                                                )
+                                                                .map((col) => (
+                                                                    <SelectItem key={col.id} value={col.id.toString()}>
+                                                                        {collectionDisplayName(col)}
+                                                                    </SelectItem>
+                                                                ))}
+                                                        </SelectGroup>
+                                                    </SelectContent>
+                                                </Select>
                                             )}
                                         />
                                     ) : (
                                         <p>
                                             {userData.army_since
-                                                ? dateToString(userData.army_since)
+                                                ? collectionDisplayName(
+                                                      collections.find((col) => col.id === userData.army_since),
+                                                  )
                                                 : "N/A"}
                                         </p>
                                     )}
@@ -237,17 +336,30 @@ export default function ProfileClient({ userData }: { userData: Selectable<UserD
                             src="https://open.spotify.com/embed/playlist/43rCH6ObxLcq6d3bhg8J0l?utm_source=generator"
                             width="100%"
                             height="152"
-                            frameBorder="0"
                             allowFullScreen
                             allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
                             loading="lazy"
                         ></iframe>
                     </div>
                     <div className="flex flex-col gap-4 w-1/4 items-left justify-center">
-                        <Switch defaultChecked={!userData.disable_cursor} />
-                        <p>Custom cursor</p>
-                        <Switch defaultChecked={!userData.disable_effects} />
-                        <p>Card effects</p>
+                        <Label className="flex flex-row">
+                            <Switch
+                                defaultChecked={!cursorDisabled}
+                                onCheckedChange={(checked) => {
+                                    updateCursorDisabled(!checked);
+                                }}
+                            />
+                            Custom cursor
+                        </Label>
+                        <Label className="flex flex-row">
+                            <Switch
+                                defaultChecked={!effectsDisabled}
+                                onCheckedChange={(checked) => {
+                                    updateEffectsDisabled(!checked);
+                                }}
+                            />
+                            Card effects
+                        </Label>
                         <p>Follow a user</p>
                     </div>
                 </div>

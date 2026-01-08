@@ -6,6 +6,7 @@ import CursorGlow from "./cursor-glow";
 import NavigationComponent from "@/components/ui/navigation-menu";
 import FooterComponent from "./footer";
 import { GoogleAnalytics } from "@next/third-parties/google";
+import BodyWrapper from "./body-wrapper";
 
 export const metadata: Metadata = {
     title: "BTS Flipthru",
@@ -26,11 +27,13 @@ export default function RootLayout({
                 <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png"></link>
             </head>
             <body className="antialiased">
-                <CursorGlow />
                 <MetadataProvider>
-                    <NavigationComponent />
-                    {children}
-                    <FooterComponent />
+                    <BodyWrapper>
+                        <CursorGlow />
+                        <NavigationComponent />
+                        {children}
+                        <FooterComponent />
+                    </BodyWrapper>
                 </MetadataProvider>
                 <Toaster />
             </body>
