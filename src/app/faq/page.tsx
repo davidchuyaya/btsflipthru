@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { MAX_IMAGE_SIZE_BYTES, ReportType, reportWindowURL } from "@/constants";
 import Link from "next/link";
 import SocialButtonsComponent from "../social-buttons";
+import Image from "next/image";
 
 export default function FaqComponent() {
     return (
@@ -182,7 +183,12 @@ export default function FaqComponent() {
                     <p>
                         <b>Spine Breaker</b>
                     </p>
-                    <p>Support Flipthru’s maintenance costs on Ko-fi (coming soon).</p>
+                    <p>Support Flipthru’s maintenance costs on Ko-fi.</p>
+                    <Button className="mt-2" asChild>
+                        <Link href="https://ko-fi.com/btsflipthru">
+                            <Image src="/kofi_logo.svg" alt="Ko-fi Icon" width={738} height={202} className="size-20" />
+                        </Link>
+                    </Button>
                 </div>
 
                 <p>

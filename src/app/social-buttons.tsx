@@ -50,6 +50,12 @@ export default function SocialButtonsComponent({ size = 8, className }: { size?:
                 altText="Twitter Icon"
                 size={size}
             />
+            <SocialButton
+                href="https://ko-fi.com/btsflipthru"
+                imgSrc="/kofi_symbol.svg"
+                altText="Ko-fi Icon"
+                size={size}
+            />
         </div>
     );
 }

@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ReportType, reportWindowURL } from "@/constants";
+import Image from "next/image";
 
 export default function AboutComponent() {
     return (
@@ -78,7 +79,7 @@ export default function AboutComponent() {
                         We’re also keeping site costs low to make sure we can run this site for ARMY forever.
                     </p>
                     <p>
-                        We plan to eventually set up a Ko-fi purely to offset the cost of operating the site, but it’s
+                        We've set up a Ko-fi purely to offset the cost of operating the site, but it’s
                         completely optional, and we are able to comfortably run the site out-of-pocket without any
                         financial contributions from ARMY whatsoever. If our proceeds from Ko-fi ever exceed the cost of
                         running the site, it will be rolled over to cover the release of more costly features (we have
@@ -117,6 +118,11 @@ export default function AboutComponent() {
                             </TableRow>
                         </TableFooter>
                     </Table>
+                    <Button className="mt-4" asChild>
+                        <Link href="https://ko-fi.com/btsflipthru">
+                            <Image src="/kofi_logo.svg" alt="Ko-fi Icon" width={738} height={202} className="size-20" />
+                        </Link>
+                    </Button>
                 </div>
                 <div className="page-section">
                     <h2>Flipthru’s code is open-source</h2>
