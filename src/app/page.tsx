@@ -74,7 +74,7 @@ export default function Home() {
     return (
         <div className="page gap-4">
             <div className="flex flex-row gap-8 items-stretch">
-                <BigProgressBar progress={70} description="% V1 features implemented" />
+                <BigProgressBar progress={80} description="% V1 features implemented" />
                 <div className="flex flex-col gap-8">
                     <CountdownClock />
                     <div className="flex flex-row gap-4 justify-center">

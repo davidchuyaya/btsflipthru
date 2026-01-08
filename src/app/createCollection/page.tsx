@@ -13,6 +13,7 @@ import {
     BackImageType,
     ExclusiveCountry,
     Role,
+    dateToString,
 } from "@/constants";
 import { useMetadata } from "@/metadata-context";
 import { generateSignedUploadUrlForPhotocards, getCollectionForEdit } from "@/actions";
@@ -482,9 +483,17 @@ function CreateCollectionInner() {
     const [isLoading, setIsLoading] = useState(false);
     const [photocardLocked, setPhotocardLocked] = useState<boolean[]>([]);
 
+    const fetchedCollectionIdRef = useRef<number | null>(null);
+
     useEffect(() => {
         const fetchCollection = async () => {
             if (!collectionId) return;
+
+            // Prevent refetching if we already have the collection loaded
+            // (e.g. on tab switch or irrelevant prop changes)
+            if (fetchedCollectionIdRef.current === Number(collectionId)) {
+                return;
+            }
 
             setIsLoading(true);
             const result = await getCollectionForEdit(Number(collectionId));
@@ -499,6 +508,8 @@ function CreateCollectionInner() {
                 setIsLoading(false);
                 return;
             }
+
+            fetchedCollectionIdRef.current = Number(collectionId);
 
             const { collections, photocards } = result.data;
             setPhotocardLocked(
@@ -536,7 +547,7 @@ function CreateCollectionInner() {
 
             form.reset({
                 collectionName: collections.name,
-                releaseDate: collections.release_date.toISOString().split("T")[0],
+                releaseDate: dateToString(collections.release_date),
                 version: collections.version || "",
                 versionOrder: collections.version_order ?? undefined,
                 collectionTypes: formCollectionTypes.length > 0 ? formCollectionTypes : [{ name: "", id: undefined }],
@@ -612,6 +623,7 @@ function CreateCollectionInner() {
             newPhotocard.cardSize = lastPhotocard.cardSize;
             newPhotocard.cardType = lastPhotocard.cardType;
             newPhotocard.exclusiveCountry = lastPhotocard.exclusiveCountry;
+            newPhotocard.effects = lastPhotocard.effects;
         }
         append(newPhotocard);
     }

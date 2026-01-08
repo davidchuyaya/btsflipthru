@@ -5,6 +5,7 @@ import { AlertDialogHeader, AlertDialogFooter } from "@/components/ui/alert-dial
 import { Button } from "@/components/ui/button";
 import {
     collectionDisplayName,
+    dateToString,
     Effects,
     ExclusiveCountry,
     fullSizeUrl,
@@ -365,7 +366,7 @@ export default function PhotocardClient({
                     <div className="flex flex-col gap-4 rounded-2xl p-8 bg-accent-light grow">
                         <div className="flex flex-row gap-4 items-center">
                             <h3>Release Date</h3>
-                            <p>{collection && new Date(collection.release_date).toLocaleDateString()}</p>
+                            <p>{collection && dateToString(collection.release_date)}</p>
                         </div>
                         <div className="flex flex-row gap-4 items-center">
                             <h3>Dimensions</h3>

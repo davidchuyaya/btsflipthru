@@ -12,6 +12,9 @@ export const NUM_LOAD_COLLECTIONS = 5;
 export const CLOUDFLARE_TURNSTILE_SITE_KEY = "0x4AAAAAACJg4L7-eUjaAdjN";
 export const CLOUDINARY_CLOUD_NAME = "dddxuuyxu";
 export const CLOUDINARY_API_KEY = "688582694844734";
+export const MAX_USERNAME_LENGTH = 20;
+export const MAX_DESCRIPTION_LENGTH = 100;
+export const MAX_EXTERNAL_SITE_USERNAME_LENGTH = 100;
 
 // Important: Any number used by an enum should not be reused in the future
 export const Role = {
@@ -199,10 +202,10 @@ export function generateSignedParams(createThumbnail: boolean): CloudinarySigned
 }
 
 export const SortType = {
-    ReleaseDateAsc: "Release Date ↑",
-    ReleaseDateDesc: "Release Date ↓",
-    DateAddedAsc: "Date Added ↑",
-    DateAddedDesc: "Date Added ↓",
+    ReleaseDateAsc: "Release Date (Oldest First)",
+    ReleaseDateDesc: "Release Date (Newest First)",
+    DateAddedAsc: "Date Added (Oldest First)",
+    DateAddedDesc: "Date Added (Newest First)",
 };
 export type SortType = (typeof SortType)[keyof typeof SortType];
 
@@ -227,3 +230,14 @@ export type HomeStats = {
     totalPhotocardsWithoutImages: number;
     recentlyAddedPhotocards: Selectable<Photocards>[];
 };
+
+/**
+ * Fix potential time zone issues with dates
+ * @param date 
+ * @returns 
+ */
+export function dateToString(date: Date) {
+   const dateObj = new Date(date);
+   dateObj.setUTCHours(12);
+   return dateObj.toISOString().split("T")[0];
+}
