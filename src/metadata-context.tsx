@@ -290,7 +290,10 @@ export function MetadataProvider({ children }: { children: ReactNode }) {
     async function updateUserData(newUserData: Updateable<UserData>, withImage: boolean) {
         const result = await updateUserDataInDB(newUserData, withImage);
         if (!result.error && userData) {
-            const updatedUserData: Selectable<UserData> = { ...userData, ...newUserData } as Selectable<UserData>;
+            let updatedUserData: Selectable<UserData> = { ...userData, ...newUserData } as Selectable<UserData>;
+            if (withImage) {
+                updatedUserData.image_id = result.data!.params.public_id;
+            }
             setUserData(updatedUserData);
             setToStorage(STORAGE_KEYS.userData, updatedUserData);
             setToStorage(STORAGE_KEYS.lastUpdated, Date.now());

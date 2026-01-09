@@ -21,7 +21,7 @@ import { useMetadata } from "@/metadata-context";
 import { Button } from "@/components/ui/button";
 import { Selectable, Updateable } from "kysely";
 import { UserData } from "@/db";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Input } from "@/components/ui/input";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -62,7 +62,6 @@ export default function ProfileClient({ userData: serverUserData }: { userData: 
         session,
         updateUserData,
         sessionRefetch,
-        setError,
     } = useMetadata();
     const isSelf = session?.user.id === serverUserData.user_id;
     const userData = isSelf && freshestUserData ? freshestUserData : serverUserData;
@@ -75,6 +74,21 @@ export default function ProfileClient({ userData: serverUserData }: { userData: 
             image: undefined,
         },
     });
+
+    const uniqueCollections = useMemo(() => {
+        const unique = new Map<string, (typeof collections)[number]>();
+        // Sort newest to oldest
+        const sorted = [...collections].sort(
+            (a, b) => new Date(b.release_date).getTime() - new Date(a.release_date).getTime(),
+        );
+
+        for (const col of sorted) {
+            if (!unique.has(col.name)) {
+                unique.set(col.name, col);
+            }
+        }
+        return Array.from(unique.values());
+    }, [collections]);
 
     function SocialsComponent({
         fieldName,
@@ -279,12 +293,12 @@ export default function ProfileClient({ userData: serverUserData }: { userData: 
                                 )}
                                 {isSelf &&
                                     (isEditing ? (
-                                        <Button key="save-button" type="submit">
-                                            Save Profile
-                                        </Button>
+                                        <>
+                                            <Button type="button" variant="neutral" onClick={() => setIsEditing(false)}>Cancel</Button>
+                                            <Button type="submit">Save Profile</Button>
+                                        </>
                                     ) : (
                                         <Button
-                                            key="edit-button"
                                             type="button"
                                             onClick={() => {
                                                 setIsEditing(true);
@@ -336,18 +350,11 @@ export default function ProfileClient({ userData: serverUserData }: { userData: 
                                                     </SelectTrigger>
                                                     <SelectContent className="bg-accent-light">
                                                         <SelectGroup>
-                                                            {collections
-                                                                // Sort newest to oldest
-                                                                .sort(
-                                                                    (a, b) =>
-                                                                        new Date(b.release_date).getTime() -
-                                                                        new Date(a.release_date).getTime(),
-                                                                )
-                                                                .map((col) => (
-                                                                    <SelectItem key={col.id} value={col.id.toString()}>
-                                                                        {collectionDisplayName(col)}
-                                                                    </SelectItem>
-                                                                ))}
+                                                            {uniqueCollections.map((col) => (
+                                                                <SelectItem key={col.id} value={col.id.toString()}>
+                                                                    {col.name}
+                                                                </SelectItem>
+                                                            ))}
                                                         </SelectGroup>
                                                     </SelectContent>
                                                 </Select>
@@ -356,9 +363,7 @@ export default function ProfileClient({ userData: serverUserData }: { userData: 
                                     ) : (
                                         <p>
                                             {userData.army_since
-                                                ? collectionDisplayName(
-                                                      collections.find((col) => col.id === userData.army_since),
-                                                  )
+                                                ? uniqueCollections.find((col) => col.id === userData.army_since)?.name
                                                 : "N/A"}
                                         </p>
                                     )}
