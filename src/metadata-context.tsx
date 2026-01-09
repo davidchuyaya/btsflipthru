@@ -8,9 +8,9 @@ import {
     addCollectionTypeToDB,
     getMetadataFromDB,
     updateCollectionInDB,
-    updateUserDataToDB,
+    updateUserDataInDB,
 } from "@/actions";
-import { ReportType, reportWindowURL, CACHE_DURATION_MS } from "@/constants";
+import { ReportType, reportWindowURL, CACHE_DURATION_MS, PresignedUrl, Result } from "@/constants";
 import { authClient, ClientSession, isAtLeastMod } from "@/auth-client";
 import { toast } from "sonner";
 import { Collections, CollectionTypes, CardTypes, CardSizes, Photocards, UserData } from "./db";
@@ -47,7 +47,7 @@ interface MetadataContextType {
     addCollectionType: (collectionType: Insertable<CollectionTypes>) => Promise<number | undefined>;
     addCardType: (cardType: Insertable<CardTypes>) => Promise<number | undefined>;
     addCardSize: (cardSize: Insertable<CardSizes>) => Promise<number | undefined>;
-    updateUserData: (userData: Updateable<UserData>) => Promise<boolean>;
+    updateUserData: (userData: Updateable<UserData>, withImage: boolean) => Promise<Result<PresignedUrl | null>>;
     updateCursorDisabled: (cursorDisabled: boolean) => void;
     updateEffectsDisabled: (effectsDisabled: boolean) => void;
     setError: (message: string) => void;
@@ -287,20 +287,15 @@ export function MetadataProvider({ children }: { children: ReactNode }) {
         }
     }
 
-    async function updateUserData(newUserData: Updateable<UserData>) {
-        const result = await updateUserDataToDB(newUserData);
-        if (result.error) {
-            setError(`Server error: ${result.error}`);
-            return false;
-        } else {
-            if (userData) {
-                const updatedUserData: Selectable<UserData> = { ...userData, ...newUserData } as Selectable<UserData>;
-                setUserData(updatedUserData);
-                setToStorage(STORAGE_KEYS.userData, updatedUserData);
-                setToStorage(STORAGE_KEYS.lastUpdated, Date.now());
-            }
-            return true;
+    async function updateUserData(newUserData: Updateable<UserData>, withImage: boolean) {
+        const result = await updateUserDataInDB(newUserData, withImage);
+        if (!result.error && userData) {
+            const updatedUserData: Selectable<UserData> = { ...userData, ...newUserData } as Selectable<UserData>;
+            setUserData(updatedUserData);
+            setToStorage(STORAGE_KEYS.userData, updatedUserData);
+            setToStorage(STORAGE_KEYS.lastUpdated, Date.now());
         }
+        return result;
     }
 
     async function updateCollection(

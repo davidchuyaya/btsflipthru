@@ -1,4 +1,4 @@
-import { Collections, Photocards, UserBinders, UserData } from "@/db";
+import { Collections, Photocards, UserData } from "@/db";
 import { Selectable } from "kysely";
 
 export const SEPARATOR = ","; // Used when arrays are stored as strings in the database
@@ -14,7 +14,10 @@ export const CLOUDINARY_CLOUD_NAME = "dddxuuyxu";
 export const CLOUDINARY_API_KEY = "688582694844734";
 export const MAX_USERNAME_LENGTH = 20;
 export const MAX_DESCRIPTION_LENGTH = 100;
-export const MAX_EXTERNAL_SITE_USERNAME_LENGTH = 100;
+export const MAX_EXTERNAL_SITE_USERNAME_LENGTH = 32;
+export const USERNAME_REGEX = /^[a-zA-Z0-9_]+$/;
+export const USERNAME_ERROR_TEXT = "Username can only contain letters, numbers, and underscores.";
+export const SPOTIFY_PLAYLIST_ID_LENGTH = 22;
 
 // Important: Any number used by an enum should not be reused in the future
 export const Role = {

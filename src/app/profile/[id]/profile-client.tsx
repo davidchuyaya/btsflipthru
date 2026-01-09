@@ -1,20 +1,25 @@
 "use client";
 
-import PhotocardComponent from "@/app/photocard";
+import PhotocardComponent, { PlaceholderType } from "@/app/photocard";
 import {
     collectionDisplayName,
-    dateToString,
     Effects,
     fullSizeUrl,
     MAX_DESCRIPTION_LENGTH,
     MAX_EXTERNAL_SITE_USERNAME_LENGTH,
     MAX_USERNAME_LENGTH,
+    memberIntsToName,
     MemberToInt,
+    ReportType,
+    reportWindowURL,
     Role,
+    SPOTIFY_PLAYLIST_ID_LENGTH,
+    USERNAME_ERROR_TEXT,
+    USERNAME_REGEX,
 } from "@/constants";
 import { useMetadata } from "@/metadata-context";
 import { Button } from "@/components/ui/button";
-import { Selectable } from "kysely";
+import { Selectable, Updateable } from "kysely";
 import { UserData } from "@/db";
 import { useState } from "react";
 import { Input } from "@/components/ui/input";
@@ -22,22 +27,18 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Controller, useForm } from "react-hook-form";
 import { InputGroup, InputGroupTextarea, InputGroupAddon, InputGroupText } from "@/components/ui/input-group";
-import {
-    Select,
-    SelectContent,
-    SelectGroup,
-    SelectItem,
-    SelectLabel,
-    SelectTrigger,
-    SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import Image from "next/image";
 import Link from "next/link";
+import { ImageDropzone } from "@/app/image-dropzone";
+import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
+import { uploadImage } from "@/actions-client";
+import { toast } from "sonner";
 
 const formSchema = z.object({
-    username: z.string().min(1).max(MAX_USERNAME_LENGTH).nullable(),
+    username: z.string().min(1).max(MAX_USERNAME_LENGTH).regex(USERNAME_REGEX, USERNAME_ERROR_TEXT).nullable(),
     description: z.string().min(1).max(MAX_DESCRIPTION_LENGTH).nullable(),
     army_since: z.number().nullable(),
     bias: z.enum(MemberToInt).nullable(),
@@ -46,22 +47,25 @@ const formSchema = z.object({
     twitter_id: z.string().min(1).max(MAX_EXTERNAL_SITE_USERNAME_LENGTH).nullable(),
     instagram_id: z.string().min(1).max(MAX_EXTERNAL_SITE_USERNAME_LENGTH).nullable(),
     discord_id: z.string().min(1).max(MAX_EXTERNAL_SITE_USERNAME_LENGTH).nullable(),
-    spotify_playlist: z.string().min(1).max(MAX_EXTERNAL_SITE_USERNAME_LENGTH).nullable(),
-    image: z.instanceof(File).nullable(),
+    spotify_playlist: z.string().length(SPOTIFY_PLAYLIST_ID_LENGTH).nullable(),
+    image: z.instanceof(File).nullish(),
 });
 
-export default function ProfileClient({ userData }: { userData: Selectable<UserData> }) {
+export default function ProfileClient({ userData: serverUserData }: { userData: Selectable<UserData> }) {
     const {
+        userData: freshestUserData,
         collections,
         cursorDisabled,
         updateCursorDisabled,
         effectsDisabled,
         updateEffectsDisabled,
         session,
+        updateUserData,
         sessionRefetch,
         setError,
     } = useMetadata();
-    const isSelf = session?.user.id === userData.user_id;
+    const isSelf = session?.user.id === serverUserData.user_id;
+    const userData = isSelf && freshestUserData ? freshestUserData : serverUserData;
     const [isEditing, setIsEditing] = useState<boolean>(false);
     const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
@@ -95,17 +99,21 @@ export default function ProfileClient({ userData }: { userData: Selectable<UserD
                 logo = "/discord.svg";
                 break;
         }
-        const id = userData[fieldName];
+        let id = userData[fieldName];
+        // Strip the beginning @ if it exists
+        if (id?.startsWith("@")) {
+            id = id.substring(1);
+        }
         let url = "";
         switch (fieldName) {
             case "instagram_id":
-                url = "https://www.instagram.com/" + id;
+                url = "https://www.instagram.com/";
                 break;
             case "twitter_id":
-                url = "https://x.com/" + id;
+                url = "https://x.com/";
                 break;
             case "bluesky_id":
-                url = "https://bsky.app/profile/" + id;
+                url = "https://bsky.app/profile/";
                 break;
             case "bcd_id":
             case "discord_id":
@@ -126,42 +134,124 @@ export default function ProfileClient({ userData }: { userData: Selectable<UserD
                 break;
         }
         return (
-            <div className="flex flex-col items-center" hidden={!id && !isEditing}>
-                <div className="flex flex-row items-center justify-center gap-4">
-                    <Image src={logo} alt={fieldName} width={32} height={32} className="size-8" />
-                    {isEditing ? (
-                        <Controller
-                            control={form.control}
-                            name={fieldName}
-                            render={({ field }) => (
-                                <Input value={field.value ?? ""} onChange={field.onChange} placeholder={placeholder} />
-                            )}
-                        />
-                    ) : (
-                        <Button variant="imageShadow" asChild>
-                            <Link href={url}>{id}</Link>
-                        </Button>
-                    )}
-                </div>
+            <div className="flex flex-row items-center justify-center gap-4" hidden={!id && !isEditing}>
+                <Image src={logo} alt={fieldName} width={32} height={32} className="size-8" />
+                {isEditing ? (
+                    <Controller
+                        control={form.control}
+                        name={fieldName}
+                        render={({ field }) => (
+                            <Input value={field.value ?? ""} onChange={field.onChange} placeholder={placeholder} />
+                        )}
+                    />
+                ) : (
+                    <Button variant="underline" className="-ml-4" asChild>
+                        {url === "" || id === null ? (
+                            <p>@{id}</p>
+                        ) : (
+                            <Link href={`${url}${encodeURIComponent(id)}`} target="_blank">
+                                @{id}
+                            </Link>
+                        )}
+                    </Button>
+                )}
             </div>
         );
     }
 
-    function onSubmit(values: z.infer<typeof formSchema>) {
-        console.log(values);
+    async function onSubmit(values: z.infer<typeof formSchema>) {
+        const hasImage = values.image !== undefined && values.image !== null;
+        toast.promise(
+            async () => {
+                const { image, ...rest } = values;
+                let newUserData: Updateable<UserData> = {
+                    user_id: userData.user_id,
+                };
+                for (const [key, value] of Object.entries(rest)) {
+                    if (value !== null) {
+                        // @ts-expect-error - key is string, but we know it matches UserData keys
+                        newUserData[key as keyof UserData] = value;
+                    }
+                }
+                // If the user explicitly wants to delete the image, delete it
+                if (values.image === null) {
+                    newUserData.image_id = null;
+                }
+
+                const result = await updateUserData(newUserData, hasImage);
+                if (result.error) {
+                    throw new Error(result.error);
+                }
+                if (result.data) {
+                    const uploadResult = await uploadImage(result.data, image!);
+                    if (uploadResult.error) {
+                        throw new Error(`Error uploading image: ${uploadResult.error}`);
+                    }
+                }
+            },
+            {
+                loading: "Updating profile...",
+                success: () => {
+                    setIsEditing(false);
+                    return hasImage
+                        ? "Profile updated successfully! If you updated your image, it may take a moment to load."
+                        : "Profile updated successfully!";
+                },
+                error: (error) => {
+                    return {
+                        message: "Error updating profile: " + error.message,
+                        action: {
+                            label: "Report",
+                            onClick: () => {
+                                const url = reportWindowURL(ReportType.Error, window.location.href, error.message);
+                                window.open(url, "_blank");
+                            },
+                        },
+                    };
+                },
+            },
+        );
     }
 
     return (
-        <div className="flex flex-col gap-8 items-stretch justify-center">
-            <form onSubmit={form.handleSubmit(onSubmit)}>
+        <div className="flex flex-col gap-8 items-stretch justify-center mb-8">
+            <form
+                onSubmit={form.handleSubmit(onSubmit, (error) => {
+                    console.log(error);
+                })}
+            >
                 <div className="flex flex-row gap-8 m-12">
-                    <div className="flex flex-col gap-8 items-center w-1/4 shrink-0">
-                        <PhotocardComponent
-                            src={userData.image_id ? fullSizeUrl(userData.image_id) : null}
-                            effects={Effects.Matte}
-                            large
-                        />
-                        <div className={`flex ${isEditing ? "flex-col" : "flex-row"} gap-3 items-center`}>
+                    <div className="flex flex-col gap-4 items-center w-1/4 shrink-0">
+                        {isEditing ? (
+                            <Controller
+                                control={form.control}
+                                name="image"
+                                render={({ field }) => (
+                                    <ImageDropzone
+                                        label="Profile image"
+                                        image={
+                                            field.value === undefined
+                                                ? userData.image_id
+                                                    ? fullSizeUrl(userData.image_id)
+                                                    : null
+                                                : field.value
+                                        }
+                                        onImageChanged={field.onChange}
+                                        onDelete={() => field.onChange(null)}
+                                        expand={true}
+                                        placeholderType={PlaceholderType.ARMY}
+                                    />
+                                )}
+                            />
+                        ) : (
+                            <PhotocardComponent
+                                src={userData.image_id ? fullSizeUrl(userData.image_id) : null}
+                                effects={Effects.Matte}
+                                placeholderType={PlaceholderType.ARMY}
+                                large
+                            />
+                        )}
+                        <div className="flex flex-col gap-2 items-center">
                             <SocialsComponent fieldName="bcd_id" />
                             <SocialsComponent fieldName="bluesky_id" />
                             <SocialsComponent fieldName="instagram_id" />
@@ -177,20 +267,32 @@ export default function ProfileClient({ userData }: { userData: Selectable<UserD
                                         control={form.control}
                                         name="username"
                                         render={({ field }) => (
-                                            <Input value={field.value?.toUpperCase() ?? ""} onChange={field.onChange} />
+                                            <Input
+                                                value={field.value?.toUpperCase() ?? ""}
+                                                onChange={field.onChange}
+                                                placeholder="Username"
+                                            />
                                         )}
                                     />
                                 ) : (
                                     <h2 className="grow">{userData.username ?? "N/A"}</h2>
                                 )}
-                                {isSelf && (
-                                    <Button
-                                        type={isEditing ? "submit" : "button"}
-                                        onClick={() => setIsEditing(!isEditing)}
-                                    >
-                                        {isEditing ? "Save Profile" : "Edit Profile"}
-                                    </Button>
-                                )}
+                                {isSelf &&
+                                    (isEditing ? (
+                                        <Button key="save-button" type="submit">
+                                            Save Profile
+                                        </Button>
+                                    ) : (
+                                        <Button
+                                            key="edit-button"
+                                            type="button"
+                                            onClick={() => {
+                                                setIsEditing(true);
+                                            }}
+                                        >
+                                            Edit Profile
+                                        </Button>
+                                    ))}
                             </div>
                             {isEditing ? (
                                 <Controller
@@ -226,15 +328,7 @@ export default function ProfileClient({ userData }: { userData: Selectable<UserD
                                             name="army_since"
                                             render={({ field }) => (
                                                 <Select
-                                                    defaultValue={
-                                                        field.value
-                                                            ? collectionDisplayName(
-                                                                  collections.find(
-                                                                      (col) => col.id === userData.army_since,
-                                                                  ),
-                                                              )
-                                                            : ""
-                                                    }
+                                                    defaultValue={field.value?.toString() ?? ""}
                                                     onValueChange={(value) => field.onChange(Number(value))}
                                                 >
                                                     <SelectTrigger className="w-fit bg-accent-light">
@@ -277,12 +371,8 @@ export default function ProfileClient({ userData }: { userData: Selectable<UserD
                                             name="bias"
                                             render={({ field }) => (
                                                 <Select
-                                                    defaultValue={
-                                                        field.value ? Object.keys(MemberToInt)[field.value] : ""
-                                                    }
-                                                    onValueChange={(value) =>
-                                                        field.onChange(Object.keys(MemberToInt)[Number(value)])
-                                                    }
+                                                    defaultValue={field.value ? field.value.toString() : ""}
+                                                    onValueChange={(value) => field.onChange(Number(value))}
                                                 >
                                                     <SelectTrigger className="w-fit bg-accent-light">
                                                         <SelectValue placeholder="Select your bias" />
@@ -300,7 +390,7 @@ export default function ProfileClient({ userData }: { userData: Selectable<UserD
                                             )}
                                         />
                                     ) : (
-                                        <p>{userData.bias ?? "N/A"}</p>
+                                        <p>{userData.bias ? memberIntsToName([userData.bias]) : "N/A"}</p>
                                     )}
                                 </div>
                                 <div className="flex flex-row gap-4 items-center">
@@ -330,19 +420,41 @@ export default function ProfileClient({ userData }: { userData: Selectable<UserD
                                 </div>
                             </div>
                         </div>
-                        <iframe
-                            data-testid="embed-iframe"
-                            style={{ borderRadius: "16px" }}
-                            src="https://open.spotify.com/embed/playlist/43rCH6ObxLcq6d3bhg8J0l?utm_source=generator"
-                            width="100%"
-                            height="152"
-                            allowFullScreen
-                            allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-                            loading="lazy"
-                        ></iframe>
+                        {isEditing ? (
+                            <Controller
+                                control={form.control}
+                                name="spotify_playlist"
+                                render={({ field }) => (
+                                    <Field className="gap-2">
+                                        <FieldLabel>Spotify Playlist ID</FieldLabel>
+                                        <Input
+                                            type="text"
+                                            placeholder="43rCH6ObxLcq6d3bhg8J0l"
+                                            value={field.value ?? ""}
+                                            onChange={field.onChange}
+                                        />
+                                        <FieldDescription>
+                                            Go to your Spotify playlist in the browser. Copy the text that comes after
+                                            "https://open.spotify.com/playlist/" in the URL.
+                                        </FieldDescription>
+                                    </Field>
+                                )}
+                            />
+                        ) : (
+                            <iframe
+                                data-testid="embed-iframe"
+                                style={{ borderRadius: "16px" }}
+                                src={`https://open.spotify.com/embed/playlist/${userData.spotify_playlist ?? "43rCH6ObxLcq6d3bhg8J0l"}?utm_source=generator`}
+                                width="100%"
+                                height="152"
+                                allowFullScreen
+                                allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+                                loading="lazy"
+                            ></iframe>
+                        )}
                     </div>
                     <div className="flex flex-col gap-4 w-1/4 items-left justify-center">
-                        <Label className="flex flex-row">
+                        <Label className="flex flex-row" hidden={!isSelf}>
                             <Switch
                                 defaultChecked={!cursorDisabled}
                                 onCheckedChange={(checked) => {
@@ -351,7 +463,7 @@ export default function ProfileClient({ userData }: { userData: Selectable<UserD
                             />
                             Custom cursor
                         </Label>
-                        <Label className="flex flex-row">
+                        <Label className="flex flex-row" hidden={!isSelf}>
                             <Switch
                                 defaultChecked={!effectsDisabled}
                                 onCheckedChange={(checked) => {

@@ -295,16 +295,16 @@ export default function PhotocardClient({
                 "You already have a favorite card. Are you sure you want to overwrite it?",
                 "Yes",
                 () => {
-                    updateUserData({ profile_photocard_id: photocard.id });
+                    updateUserData({ profile_photocard_id: photocard.id }, false);
                 },
             );
         } else {
             return cloneElement(children as React.ReactElement<{ onClick: () => void }>, {
                 onClick: () => {
                     if (userData?.profile_photocard_id === photocard.id) {
-                        updateUserData({ profile_photocard_id: null });
+                        updateUserData({ profile_photocard_id: null }, false);
                     } else {
-                        updateUserData({ profile_photocard_id: photocard.id });
+                        updateUserData({ profile_photocard_id: photocard.id }, false);
                     }
                 },
             });

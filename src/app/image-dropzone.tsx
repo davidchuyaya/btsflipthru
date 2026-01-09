@@ -4,7 +4,7 @@ import { useDropzone } from "react-dropzone";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Trash2Icon } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import PhotocardComponent from "./photocard";
+import PhotocardComponent, { PlaceholderType } from "./photocard";
 import { Effects } from "@/constants";
 
 export interface ImageDropzoneRef {
@@ -26,6 +26,7 @@ export const ImageDropzone = forwardRef<
         expand?: boolean;
         photocard?: boolean;
         effects?: Effects;
+        placeholderType?: PlaceholderType;
     }
 >(
     (
@@ -42,6 +43,7 @@ export const ImageDropzone = forwardRef<
             expand = true,
             photocard = true,
             effects,
+            placeholderType = PlaceholderType.BTS,
         },
         ref,
     ) => {
@@ -140,6 +142,7 @@ export const ImageDropzone = forwardRef<
                             fallbackSrc={null}
                             className={imgClassName}
                             effects={effects!}
+                            placeholderType={placeholderType}
                         />
                     ) : displayUrl ? ( // If not photocard, show normal image
                         <img

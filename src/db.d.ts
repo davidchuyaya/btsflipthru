@@ -156,8 +156,6 @@ export interface UserData {
   bluesky_id: string | null;
   contributions: Generated<number>;
   description: string | null;
-  disable_cursor: Generated<boolean>;
-  disable_effects: Generated<boolean>;
   discord_id: string | null;
   friends: Generated<string[]>;
   image_id: string | null;

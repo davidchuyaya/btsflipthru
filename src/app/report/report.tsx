@@ -20,7 +20,7 @@ import { Insertable } from "kysely";
 
 const reportSchema = z.object({
     description: z.string().max(5000, "Description must be at most 5000 characters"),
-    image: z.any().nullable(),
+    image: z.instanceof(File).nullable(),
     includeEmail: z.boolean(),
     turnstileToken: z.string().min(1, "Please verify that you are not a robot"),
 });
@@ -46,19 +46,16 @@ export default function ReportForm({ reportType, title, url }: { reportType: Rep
     );
 
     async function onSubmit(data: z.infer<typeof reportSchema>) {
-        const imageUUID = data.image ? crypto.randomUUID() : null;
-
         const report: Insertable<Reports> = {
             title: title || "No title provided",
             description: data.description,
-            image_id: imageUUID,
             user_id: session?.user.id || null,
             user_email: data.includeEmail && session?.user.email ? session.user.email : null,
             url: url || "",
             user_agent: `Browser: ${browser.name || "Unknown"} ${browser.version || ""}, OS: ${os.name || "Unknown"} ${os.version || ""}, Device: (${device.vendor || "Unknown Device"} ${device.model || ""})`,
         };
 
-        const result = await addReportToDB(report, data.image?.size || null, data.turnstileToken);
+        const result = await addReportToDB(report, data.image !== null, data.turnstileToken);
         if (result.error) {
             setError(`Error submitting report: ${result.error}`);
             resetTurnstile(ref);
@@ -66,7 +63,6 @@ export default function ReportForm({ reportType, title, url }: { reportType: Rep
         }
 
         if (result.data) {
-            // Upload image, convert, then delete the original
             const uploadResult = await uploadImage(result.data, data.image!);
             if (uploadResult.error) {
                 setError(`Error uploading image: ${uploadResult.error}`);

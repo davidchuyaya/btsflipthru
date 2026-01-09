@@ -16,6 +16,12 @@ import {
     HomeStats,
     MemberToIntWithOT7,
     MemberInts,
+    MAX_USERNAME_LENGTH,
+    MAX_DESCRIPTION_LENGTH,
+    USERNAME_REGEX,
+    USERNAME_ERROR_TEXT,
+    MAX_EXTERNAL_SITE_USERNAME_LENGTH,
+    SPOTIFY_PLAYLIST_ID_LENGTH,
 } from "@/constants";
 import { v2 as cloudinary } from "cloudinary";
 import { sql, type Selectable, type Insertable, Updateable } from "kysely";
@@ -47,28 +53,6 @@ export async function addUserDataToDB(user_data: Insertable<UserData>): Promise<
             },
             (reason) => ({
                 error: "Could not add user data",
-            }),
-        );
-}
-
-export async function updateUserDataToDB(user_data: Updateable<UserData>): Promise<Result<boolean>> {
-    const session = await getSession();
-    const userId = session?.data?.user.id;
-    if (!userId) {
-        return { error: "User not logged in" };
-    }
-
-    return await db
-        .updateTable("user_data")
-        .set(user_data)
-        .where("user_id", "=", userId)
-        .executeTakeFirstOrThrow()
-        .then(
-            (result) => {
-                return { data: true };
-            },
-            (reason) => ({
-                error: `Could not update user data: ${reason}`,
             }),
         );
 }
@@ -393,13 +377,13 @@ async function verifyTurnstile(token: string): Promise<Result<boolean>> {
 /**
  * Verifies the user with a captcha, then adds a report to the database, optionally generating a pre-signed URL for image upload.
  * @param report Report to submit to DB
- * @param imageSize Size of the image to submit. Null if none provided
+ * @param withImage Whether to submit an image
  * @param turnstileToken Captcha
  * @returns If an image was provided, returns the pre-signed URL and image ID for uploading. Null if no image was provided.
  */
 export async function addReportToDB(
     report: Insertable<Reports>,
-    imageSize: number | null,
+    withImage: boolean,
     turnstileToken: string,
 ): Promise<Result<PresignedUrl | null>> {
     // Check captcha
@@ -410,7 +394,7 @@ export async function addReportToDB(
 
     // Fetch the pre-signed URL
     let presignUrl: PresignedUrl | null = null;
-    if (imageSize !== null) {
+    if (withImage) {
         const { signature, params } = generateSignedUploadUrl(false);
         report.image_id = params.public_id;
         presignUrl = { signature, params };
@@ -619,8 +603,7 @@ export async function getPhotocardsInDB(
         if (query.members.includes(MemberToIntWithOT7.OT7) && query.members.length === 1) {
             // If only asked for OT7, include group cards only
             queryBuilder = queryBuilder.where(sql<boolean>`members @> ARRAY[${sql.join(MemberInts)}]::integer[]`);
-        }
-        else {
+        } else {
             // Otherwise, include cards with any of the members
             const remainingMembers = query.members.filter((member) => member !== MemberToIntWithOT7.OT7);
             queryBuilder = queryBuilder.where(sql<boolean>`members && ARRAY[${sql.join(remainingMembers)}]::integer[]`);
@@ -672,7 +655,7 @@ export async function getUserProfileDataFromDB(id: string): Promise<Result<Selec
         );
 }
 
-export async function updateUserDataInDB(userData: Selectable<UserData>): Promise<Result<boolean>> {
+export async function updateUserDataInDB(userData: Updateable<UserData>, withImage: boolean): Promise<Result<PresignedUrl | null>> {
     const session = await getSession();
     if (session.error) {
         return { error: session.error };
@@ -681,15 +664,61 @@ export async function updateUserDataInDB(userData: Selectable<UserData>): Promis
         return { error: "You do not have permission to update this user's data." };
     }
 
-    return await db
+    // Check formatting
+    if (userData.username) {
+        if (userData.username.length > MAX_USERNAME_LENGTH) {
+            return { error: `Username exceeds ${MAX_USERNAME_LENGTH} characters.` };
+        }
+        if (!USERNAME_REGEX.test(userData.username)) {
+            return { error: USERNAME_ERROR_TEXT };
+        }
+    } 
+    if (userData.description && userData.description.length > MAX_DESCRIPTION_LENGTH) {
+        return { error: `Description exceeds ${MAX_DESCRIPTION_LENGTH} characters.` };
+    }
+    if (userData.bcd_id && userData.bcd_id.length > MAX_EXTERNAL_SITE_USERNAME_LENGTH) {
+        return { error: `BCD ID exceeds ${MAX_EXTERNAL_SITE_USERNAME_LENGTH} characters.` };
+    }
+    if (userData.bluesky_id && userData.bluesky_id.length > MAX_EXTERNAL_SITE_USERNAME_LENGTH) {
+        return { error: `Bluesky ID exceeds ${MAX_EXTERNAL_SITE_USERNAME_LENGTH} characters.` };
+    }
+    if (userData.twitter_id && userData.twitter_id.length > MAX_EXTERNAL_SITE_USERNAME_LENGTH) {
+        return { error: `Twitter ID exceeds ${MAX_EXTERNAL_SITE_USERNAME_LENGTH} characters.` };
+    }
+    if (userData.instagram_id && userData.instagram_id.length > MAX_EXTERNAL_SITE_USERNAME_LENGTH) {
+        return { error: `Instagram ID exceeds ${MAX_EXTERNAL_SITE_USERNAME_LENGTH} characters.` };
+    }
+    if (userData.discord_id && userData.discord_id.length > MAX_EXTERNAL_SITE_USERNAME_LENGTH) {
+        return { error: `Discord ID exceeds ${MAX_EXTERNAL_SITE_USERNAME_LENGTH} characters.` };
+    }
+    if (userData.spotify_playlist && userData.spotify_playlist.length !== SPOTIFY_PLAYLIST_ID_LENGTH) {
+        return { error: `Spotify playlist ID must be ${SPOTIFY_PLAYLIST_ID_LENGTH} characters.` };
+    }
+
+    // Fetch the pre-signed URL
+    let presignUrl: PresignedUrl | null = null;
+    if (withImage) {
+        const { signature, params } = generateSignedUploadUrl(false);
+        userData.image_id = params.public_id;
+        presignUrl = { signature, params };
+    }
+
+    const result: Result<null> = await db
         .updateTable("user_data")
         .set(userData)
         .where("user_id", "=", userData.user_id)
         .executeTakeFirstOrThrow()
         .then(
-            (data) => ({ data: true }),
+            (data) => ({ data: null }),
             (reason) => ({ error: "Could not update user data: " + reason }),
         );
+
+    if (result.error || !presignUrl) {
+        return result;
+    }
+
+    // Return the pre-signed URL
+    return { data: presignUrl };
 }
 
 export async function doesUserOwnPhotocard(photocardId: number): Promise<Result<boolean>> {
