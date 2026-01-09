@@ -1,7 +1,7 @@
 "use client";
 
 import { getPhotocardsInDB } from "@/actions";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import {
     collectionDisplayName,
     ExclusiveCountry,
@@ -151,16 +151,81 @@ type VisibleOptions = {
 
 export default function SearchComponent() {
     const { collections, collectionTypes, cardTypes, cardSizes, session, setError } = useMetadata();
-    const [collectionsHierarchy, setCollectionsHierarchy] = useState<
-        Map<
+    const { hierarchy: collectionsHierarchy, allSearchableCols } = useMemo(() => {
+        const newHierarchy = new Map<
             number,
             { tops: Array<{ collection: Selectable<Collections>; hasSub: boolean }>; subs: Selectable<Collections>[] }
-        >
-    >(new Map());
-    const [allSearchableCols, setAllSearchableCols] = useState<{
-        tops: Array<{ collection: Selectable<Collections>; hasSub: boolean }>;
-        subs: Selectable<Collections>[];
-    }>({ tops: [], subs: [] });
+        >();
+        const globalTops = new Map<number, { collection: Selectable<Collections>; hasSub: boolean }>();
+        const globalSubs = new Map<number, Selectable<Collections>>();
+
+        for (const type of collectionTypes) {
+            const colsInType = collections.filter((c) => c.collection_types.includes(type.id!));
+            const groupedByName = new Map<string, Selectable<Collections>[]>();
+
+            for (const col of colsInType) {
+                const existing = groupedByName.get(col.name) || [];
+                existing.push(col);
+                groupedByName.set(col.name, existing);
+            }
+
+            const tops: Array<{ collection: Selectable<Collections>; hasSub: boolean }> = [];
+            const subs: Selectable<Collections>[] = [];
+
+            for (const [name, group] of groupedByName) {
+                if (group.length > 1) {
+                    // Multiple versions -> Subs. Need a Top.
+                    // Top's release date = the release date of the earliest sub collection
+                    const earliestSub = group.reduce((prev, curr) =>
+                        new Date(prev.release_date).getTime() < new Date(curr.release_date).getTime() ? prev : curr,
+                    );
+                    const parentCol = {
+                        collection: {
+                            ...earliestSub,
+                            version: null, // Virtual top has no version
+                            version_order: null,
+                        },
+                        hasSub: true,
+                    };
+                    tops.push(parentCol);
+
+                    // Add all as subs
+                    for (const sub of group) {
+                        subs.push(sub);
+                        globalSubs.set(sub.id!, sub);
+                    }
+
+                    globalTops.set(parentCol.collection.id!, parentCol);
+                } else {
+                    // Single item -> Top
+                    const col = group[0];
+                    const topItem = { collection: col, hasSub: false };
+                    tops.push(topItem);
+                    globalTops.set(col.id!, topItem);
+                }
+            }
+
+            // Sort
+            tops.sort(
+                (a, b) => new Date(b.collection.release_date).getTime() - new Date(a.collection.release_date).getTime(),
+            );
+            subs.sort((a, b) => new Date(b.release_date).getTime() - new Date(a.release_date).getTime());
+
+            newHierarchy.set(type.id!, { tops, subs });
+        }
+
+        const allTops = Array.from(globalTops.values()).sort(
+            (a, b) => new Date(b.collection.release_date).getTime() - new Date(a.collection.release_date).getTime(),
+        );
+        const allSubs = Array.from(globalSubs.values()).sort(
+            (a, b) => new Date(b.release_date).getTime() - new Date(a.release_date).getTime(),
+        );
+
+        return {
+            hierarchy: newHierarchy,
+            allSearchableCols: { tops: allTops, subs: allSubs },
+        };
+    }, [collections, collectionTypes]);
     const [photocards, setPhotocards] = useState<Array<Selectable<Photocards>>>([]);
     const [filters, setFilters] = useState<Filters>({
         query: "",
@@ -177,42 +242,29 @@ export default function SearchComponent() {
     const [prevSearch, setPrevSearch] = useState<{
         fullQuery: SearchQuery;
         coveredCollectionIds: number[];
+        wasEmpty: boolean;
     } | null>(null);
     const [showFront, setShowFront] = useState<boolean>(true);
     const [isLoading, setIsLoading] = useState<boolean>(false);
     const [dontLoad, setDontLoad] = useState<boolean>(false);
     const [searchInput, setSearchInput] = useState<string>("");
-    const [visibleOptions, setVisibleOptions] = useState<VisibleOptions>({
-        collectionTypes: new Set(),
-        topCollections: new Set(),
-        subCollections: new Set(),
-        members: new Set(Object.values(MemberToIntWithOT7)),
-        exclusiveCountries: new Set(Object.values(ExclusiveCountry)),
-        cardTypes: new Set<Selectable<CardTypes>>(),
-        cardSizes: new Set<Selectable<CardSizes>>(),
-    });
 
-    // Run on launch
-    useEffect(() => {
-        calculateCollectionsHierarchy();
-        trySearch(filters);
-    }, [collections, collectionTypes, cardTypes, cardSizes]);
-
-    useEffect(() => {
+    const searchResult = useMemo(() => {
         if (!searchInput.trim()) {
             const topColsSet = new Set(allSearchableCols.tops.map((c) => c.collection.id!));
             const subColsSet = new Set(allSearchableCols.subs.map((c) => c.id!));
-            onClearAll();
-            setVisibleOptions({
-                collectionTypes: new Set(collectionTypes.map((type) => type.id!)),
-                topCollections: topColsSet,
-                subCollections: subColsSet,
-                members: new Set(Object.values(MemberToIntWithOT7)),
-                exclusiveCountries: new Set(Object.values(ExclusiveCountry)),
-                cardTypes: new Set(cardTypes),
-                cardSizes: new Set(cardSizes),
-            });
-            return;
+            return {
+                visibleOptions: {
+                    collectionTypes: new Set(collectionTypes.map((type) => type.id!)),
+                    topCollections: topColsSet,
+                    subCollections: subColsSet,
+                    members: new Set(Object.values(MemberToIntWithOT7)),
+                    exclusiveCountries: new Set(Object.values(ExclusiveCountry)),
+                    cardTypes: new Set(cardTypes),
+                    cardSizes: new Set(cardSizes),
+                },
+                proposedFilters: null,
+            };
         }
 
         const allTerms = searchInput
@@ -373,107 +425,46 @@ export default function SearchComponent() {
                 ? new Set(Array.from(winningCountries).map(([_, v]) => v))
                 : new Set(Object.values(ExclusiveCountry));
 
-        setVisibleOptions({
-            members: nextVisibleMembers,
-            cardTypes: nextVisibleCardTypes,
-            cardSizes: nextVisibleCardSizes,
-            exclusiveCountries: nextVisibleCountries,
-            subCollections: finalVisibleSubIds,
-            topCollections: finalVisibleTopIds,
-            collectionTypes: finalVisibleTypeIds,
-        });
-
-        setFilters((prev) => ({
-            ...prev,
-            members: nextVisibleMembers,
-            cardTypes: nextVisibleCardTypes,
-            cardSizes: nextVisibleCardSizes,
-            exclusiveCountries: nextVisibleCountries,
-            topCollections: finalVisibleTopIds,
-            subCollections: finalVisibleSubIds,
-            collectionTypes: finalVisibleTypeIds,
-        }));
+        return {
+            visibleOptions: {
+                members: nextVisibleMembers,
+                cardTypes: nextVisibleCardTypes,
+                cardSizes: nextVisibleCardSizes,
+                exclusiveCountries: nextVisibleCountries,
+                subCollections: finalVisibleSubIds,
+                topCollections: finalVisibleTopIds,
+                collectionTypes: finalVisibleTypeIds,
+            },
+            proposedFilters: {
+                members: nextVisibleMembers,
+                cardTypes: nextVisibleCardTypes,
+                cardSizes: nextVisibleCardSizes,
+                exclusiveCountries: nextVisibleCountries,
+                topCollections: finalVisibleTopIds,
+                subCollections: finalVisibleSubIds,
+                collectionTypes: finalVisibleTypeIds,
+            },
+        };
     }, [searchInput, collections, collectionTypes, cardTypes, cardSizes, allSearchableCols]);
 
-    /**
-     * Group collections by type.
-     * Within each type, group by name.
-     * If multiple collections share the same name within a type -> they are Subs, need a Top.
-     * If only one collection with that name within a type -> it is Top.
-     */
-    function calculateCollectionsHierarchy() {
-        const newHierarchy = new Map<
-            number,
-            { tops: Array<{ collection: Selectable<Collections>; hasSub: boolean }>; subs: Selectable<Collections>[] }
-        >();
-        const globalTops = new Map<number, { collection: Selectable<Collections>; hasSub: boolean }>();
-        const globalSubs = new Map<number, Selectable<Collections>>();
+    // Run on launch
+    useEffect(() => {
+        trySearch(filters);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [collections, collectionTypes, cardTypes, cardSizes]);
 
-        for (const type of collectionTypes) {
-            const colsInType = collections.filter((c) => c.collection_types.includes(type.id!));
-            const groupedByName = new Map<string, Selectable<Collections>[]>();
+    const visibleOptions: VisibleOptions = searchResult.visibleOptions;
 
-            for (const col of colsInType) {
-                const existing = groupedByName.get(col.name) || [];
-                existing.push(col);
-                groupedByName.set(col.name, existing);
-            }
-
-            const tops: Array<{ collection: Selectable<Collections>; hasSub: boolean }> = [];
-            const subs: Selectable<Collections>[] = [];
-
-            for (const [name, group] of groupedByName) {
-                if (group.length > 1) {
-                    // Multiple versions -> Subs. Need a Top.
-                    // Top's release date = the release date of the earliest sub collection
-                    const earliestSub = group.reduce((prev, curr) =>
-                        new Date(prev.release_date).getTime() < new Date(curr.release_date).getTime() ? prev : curr,
-                    );
-                    const parentCol = {
-                        collection: {
-                            ...earliestSub,
-                            version: null, // Virtual top has no version
-                            version_order: null,
-                        },
-                        hasSub: true,
-                    };
-                    tops.push(parentCol);
-
-                    // Add all as subs
-                    for (const sub of group) {
-                        subs.push(sub);
-                        globalSubs.set(sub.id!, sub);
-                    }
-
-                    globalTops.set(parentCol.collection.id!, parentCol);
-                } else {
-                    // Single item -> Top
-                    const col = group[0];
-                    const topItem = { collection: col, hasSub: false };
-                    tops.push(topItem);
-                    globalTops.set(col.id!, topItem);
-                }
-            }
-
-            // Sort
-            tops.sort(
-                (a, b) => new Date(b.collection.release_date).getTime() - new Date(a.collection.release_date).getTime(),
-            );
-            subs.sort((a, b) => new Date(b.release_date).getTime() - new Date(a.release_date).getTime());
-
-            newHierarchy.set(type.id!, { tops, subs });
+    useEffect(() => {
+        if (searchResult.proposedFilters) {
+            setFilters((prev) => ({
+                ...prev,
+                ...searchResult.proposedFilters!,
+            }));
+        } else {
+            onClearAll();
         }
-
-        setCollectionsHierarchy(newHierarchy);
-        setAllSearchableCols({
-            tops: Array.from(globalTops.values()).sort(
-                (a, b) => new Date(b.collection.release_date).getTime() - new Date(a.collection.release_date).getTime(),
-            ),
-            subs: Array.from(globalSubs.values()).sort(
-                (a, b) => new Date(b.release_date).getTime() - new Date(a.release_date).getTime(),
-            ),
-        });
-    }
+    }, [searchResult]);
 
     function onClearAll() {
         const newFilters: Filters = {
@@ -747,7 +738,7 @@ export default function SearchComponent() {
             .slice(0, NUM_LOAD_COLLECTIONS);
     }
 
-    function limitSearchDate(): Date | null {
+    function limitSearchId(): number | null {
         if (!prevSearch) {
             return null;
         }
@@ -756,7 +747,7 @@ export default function SearchComponent() {
             case SortType.DateAddedAsc:
             case SortType.DateAddedDesc:
                 const lastPhotocard = photocards[photocards.length - 1];
-                return lastPhotocard ? new Date(lastPhotocard.updated_at) : null;
+                return lastPhotocard ? lastPhotocard.id : null;
             default:
                 return null;
         }
@@ -822,15 +813,15 @@ export default function SearchComponent() {
         // If selectedSort is by updated date, then fetch the next NUM_LOAD_PHOTOCARDS photocards (using the updateDate parameter)
         // Nothing to do here because we don't have ANY photocards yet
 
-        // Insert the unmodified search (so we can compare)
-        setPrevSearch({ fullQuery: searchQuery, coveredCollectionIds: newCollectionIds });
-
         const queryToSend = {
             ...searchQuery,
             collectionIds: newCollectionIds,
         };
 
-        await sendQuery(queryToSend, null, false);
+        const numResults = await sendQuery(queryToSend, null, false);
+
+        // Insert the unmodified search (so we can compare)
+        setPrevSearch({ fullQuery: searchQuery, coveredCollectionIds: newCollectionIds, wasEmpty: numResults === 0 });
     }
 
     /**
@@ -849,9 +840,7 @@ export default function SearchComponent() {
             topAndSubToSelectedCollections(filters.topCollections, filters.subCollections),
             false,
         );
-        const updateDate = limitSearchDate();
-        console.log("Limit collection IDs for next search:", searchQuery.collectionIds);
-        console.log("Limit update date for next search:", updateDate);
+        const lastId = limitSearchId();
 
         // Stop when there is nothing left to search
         switch (filters.sort) {
@@ -860,24 +849,31 @@ export default function SearchComponent() {
                 if (searchQuery.collectionIds.length === 0) {
                     return;
                 }
+                break;
+            case SortType.DateAddedAsc:
+            case SortType.DateAddedDesc:
+                if (prevSearch.wasEmpty) {
+                    return;
+                }
         }
+
+        const numResults = await sendQuery(searchQuery, lastId, true);
 
         // Update the prevSearch to include the newly covered collections
         setPrevSearch({
             fullQuery: prevSearch.fullQuery, // Unchanged
             coveredCollectionIds: prevSearch.coveredCollectionIds.concat(searchQuery.collectionIds),
+            wasEmpty: numResults === 0,
         });
-
-        await sendQuery(searchQuery, updateDate, true);
     }
 
-    async function sendQuery(searchQuery: SearchQuery, updateDate: Date | null, append: boolean) {
+    async function sendQuery(searchQuery: SearchQuery, lastId: number | null, append: boolean): Promise<number> {
         setIsLoading(true);
 
-        const results = await getPhotocardsInDB(searchQuery, updateDate);
+        const results = await getPhotocardsInDB(searchQuery, lastId);
         if (results.error) {
             setError(results.error);
-            return;
+            return 0;
         }
 
         console.log("Search results:", results.data);
@@ -891,6 +887,7 @@ export default function SearchComponent() {
         }
 
         setIsLoading(false);
+        return results.data!.cards.length;
     }
 
     // Selection Mode Logic

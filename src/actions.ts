@@ -578,7 +578,7 @@ export async function getPhotocardsInCollection(collectionId: number): Promise<R
 
 export async function getPhotocardsInDB(
     query: SearchQuery,
-    updateDate: Date | null,
+    lastId: number | null = null,
 ): Promise<Result<{ cards: Selectable<Photocards>[]; query: string }>> {
     let queryBuilder = db.selectFrom("photocards").selectAll();
 
@@ -624,16 +624,16 @@ export async function getPhotocardsInDB(
             }
             break;
         case SortType.DateAddedAsc:
-            if (updateDate !== null) {
-                queryBuilder = queryBuilder.where("updated_at", ">", updateDate);
+            if (lastId !== null) {
+                queryBuilder = queryBuilder.where("id", ">", lastId);
             }
-            queryBuilder = queryBuilder.orderBy("updated_at", "asc").limit(NUM_LOAD_PHOTOCARDS);
+            queryBuilder = queryBuilder.orderBy("id", "asc").limit(NUM_LOAD_PHOTOCARDS);
             break;
         case SortType.DateAddedDesc:
-            if (updateDate !== null) {
-                queryBuilder = queryBuilder.where("updated_at", "<", updateDate);
+            if (lastId !== null) {
+                queryBuilder = queryBuilder.where("id", "<", lastId);
             }
-            queryBuilder = queryBuilder.orderBy("updated_at", "desc").limit(NUM_LOAD_PHOTOCARDS);
+            queryBuilder = queryBuilder.orderBy("id", "desc").limit(NUM_LOAD_PHOTOCARDS);
             break;
         default:
             return { error: "Invalid sort type." };
@@ -655,7 +655,10 @@ export async function getUserProfileDataFromDB(id: string): Promise<Result<Selec
         );
 }
 
-export async function updateUserDataInDB(userData: Updateable<UserData>, withImage: boolean): Promise<Result<PresignedUrl | null>> {
+export async function updateUserDataInDB(
+    userData: Updateable<UserData>,
+    withImage: boolean,
+): Promise<Result<PresignedUrl | null>> {
     const session = await getSession();
     if (session.error) {
         return { error: session.error };
@@ -672,7 +675,7 @@ export async function updateUserDataInDB(userData: Updateable<UserData>, withIma
         if (!USERNAME_REGEX.test(userData.username)) {
             return { error: USERNAME_ERROR_TEXT };
         }
-    } 
+    }
     if (userData.description && userData.description.length > MAX_DESCRIPTION_LENGTH) {
         return { error: `Description exceeds ${MAX_DESCRIPTION_LENGTH} characters.` };
     }
