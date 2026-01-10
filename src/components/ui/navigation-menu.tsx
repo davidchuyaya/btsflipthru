@@ -193,12 +193,18 @@ export default function NavigationComponent() {
         <>
             <div className="flex flex-row m-4 items-center justify-between">
                 <Link href="/" className="flex flex-row items-center">
-                    <Image src="/logo_border.svg" alt="Flip Thru Logo" width={200} height={200} />
-                    <p className="text-5xl! font-heading text-main-light pl-8 pr-8">
+                    <Image
+                        src="/logo_border.svg"
+                        alt="Flip Thru Logo"
+                        width={200}
+                        height={200}
+                        className="size-20 lg:size-50"
+                    />
+                    <p className="text-3xl lg:text-5xl! font-heading text-main-light px-4 lg:px-8">
                         For <span className="text-main">BTS</span> Photocard Collectors
                     </p>
                 </Link>
-                <SocialButtonsComponent />
+                <SocialButtonsComponent className="max-lg:hidden" />
             </div>
             <NavigationMenu className="z-5 w-svw max-w-svw">
                 <NavigationMenuList className="flex-wrap">
@@ -206,7 +212,11 @@ export default function NavigationComponent() {
                         <MenuItemComponent key={index} title={item.title} href={item.href} middle={item.middle} />
                     ))}
                     {session === null ? (
-                        <MenuItemComponent title="Sign In" onClick={() => signInGoogle(window.location.href)} middle={false} />
+                        <MenuItemComponent
+                            title="Sign In"
+                            onClick={() => signInGoogle(window.location.href)}
+                            middle={false}
+                        />
                     ) : (
                         <MenuItemComponent title="Profile" href={`/profile/${session.user.id}`} middle={false} />
                     )}

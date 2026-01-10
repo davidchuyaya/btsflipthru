@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-export default function BigProgressBar({ progress, description }: { progress: number; description?: string }) {
+export default function BigProgressBar({ progress, description, className }: { progress: number; description?: string; className?: string }) {
     const [displayProgress, setDisplayProgress] = useState(0);
 
     useEffect(() => {
@@ -38,7 +38,7 @@ export default function BigProgressBar({ progress, description }: { progress: nu
     }, [progress]);
 
     return (
-        <div className="flex flex-col justify-stretch items-stretch gap-6 w-48">
+        <div className={`flex flex-col justify-stretch items-stretch gap-6 w-48 ${className}`}>
             <div className="h-full rounded-full bg-accent-light flex flex-col justify-end">
                 <div
                     className="rounded-full bg-main font-heading text-5xl! text-accent flex items-center justify-center transition-all duration-1000 ease-out"

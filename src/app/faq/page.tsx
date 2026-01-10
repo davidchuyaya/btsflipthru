@@ -45,7 +45,7 @@ export default function FaqComponent() {
                 </p>
             </div>
             <div className="page-body">
-                <h1>What make Flipthru unique?</h1>
+                <h1>What makes Flipthru unique?</h1>
                 <p>
                     Flipthru is a space made by ARMY for other ARMY. First and foremost, we are dedicated to BTS only,
                     and all of our energy and effort on this site goes into supporting them. We’re doing this entirely
@@ -207,7 +207,7 @@ export default function FaqComponent() {
                     Our ideal upload would be a <b>high-quality color scan</b> (600dpi) that is <b>close-cropped</b>{" "}
                     with a transparent background. For it to upload successfully and display the transparent background
                     correctly, your upload should be no more than <b>{MAX_IMAGE_SIZE_BYTES / (1024 * 1024)}MB</b> and in{" "}
-                    <b>PNG</b>
+                    <b>PNG</b>{" "}
                     format.
                 </p>
                 <p>

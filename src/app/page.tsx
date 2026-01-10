@@ -13,9 +13,9 @@ import { Effects, memberIntsToName } from "@/constants";
 import { Selectable } from "kysely";
 import { getHomeStats } from "@/actions";
 
-function HomeButton({ text, href }: { text: string; href: string }) {
+function HomeButton({ text, href, className }: { text: string; href: string; className?: string }) {
     return (
-        <Button variant="big" asChild>
+        <Button variant="big" asChild className={className}>
             <Link href={href}>{text}</Link>
         </Button>
     );
@@ -33,7 +33,7 @@ function PhotocardLeaderboard({
     description: string;
 }) {
     return (
-        <div className="flex flex-col items-center">
+        <div className="flex flex-col items-center justify-center text-center">
             <PhotocardComponent src={photoSrc} fallbackSrc={fallbackSrc} effects={Effects.Matte} />
             <h3 className="mt-4">{title}</h3>
             <p>{description}</p>
@@ -74,13 +74,13 @@ export default function Home() {
     return (
         <div className="page gap-4">
             <div className="flex flex-row gap-8 items-stretch">
-                <BigProgressBar progress={80} description="% V1 features implemented" />
+                <BigProgressBar progress={80} description="% V1 features implemented" className="max-xl:hidden" />
                 <div className="flex flex-col gap-8">
                     <CountdownClock />
                     <div className="flex flex-row gap-4 justify-center">
-                        <HomeButton text="About Flipthru" href="/about" />
+                        <HomeButton text="About Flipthru" href="/about" className="max-lg:hidden" />
                         <HomeButton text="Search Archive" href="/search" />
-                        <HomeButton text="Make a Binder" href="/binder" />
+                        <HomeButton text="Make a Binder" href="/binder" className="max-lg:hidden" />
                     </div>
                     <div className="bg-accent-light rounded-2xl pt-4 pb-4 pl-8 pr-8 text-left">
                         <h2 className="mb-4">News</h2>
@@ -101,11 +101,12 @@ export default function Home() {
                             : Math.round(((totalPhotocards - photocardsWithoutImages) / totalPhotocards) * 100)
                     }
                     description="% of photocards with images uploaded on Flipthru"
+                    className="max-xl:hidden"
                 />
             </div>
-            <div className="bg-third-lightest rounded-2xl pt-4 pb-8 pl-8 pr-8 self-stretch text-left">
+            <div className="bg-third-lightest rounded-2xl pt-4 pb-8 px-8 self-stretch text-center lg:text-left">
                 <h2>Leaderboard</h2>
-                <div className="flex flex-row gap-16 justify-center mt-2">
+                <div className="flex flex-row flex-wrap gap-16 justify-center mt-2">
                     <PhotocardLeaderboard
                         title="Most Contributions"
                         photoSrc={mostContributionsUser?.image_id ?? null}
