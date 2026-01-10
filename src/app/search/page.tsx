@@ -26,6 +26,8 @@ import {
     SidebarMenuSubButton,
     SidebarMenuSubItem,
     SidebarProvider,
+    SidebarTrigger,
+    useSidebar,
 } from "@/components/ui/sidebar";
 import { cardSizeToString } from "@/actions-client";
 import { Input } from "@/components/ui/input";
@@ -34,6 +36,7 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectVa
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import {
     ChevronDown,
+    FilterIcon,
     FlipHorizontal,
     FlipHorizontal2,
     PlusIcon,
@@ -125,6 +128,15 @@ function CheckMenuButton({
             </SidebarMenuSubItem>
         );
     }
+}
+
+function CustomSidebarTrigger() {
+    const { toggleSidebar } = useSidebar();
+    return (
+        <Button onClick={toggleSidebar} className="lg:hidden w-fit self-center">
+            <FilterIcon /> Filters
+        </Button>
+    );
 }
 
 type Filters = {
@@ -1117,6 +1129,7 @@ export default function SearchComponent() {
                     </div>
                 </Sidebar>
                 <div className="flex flex-col mt-4 mb-4 gap-4 grow">
+                    <CustomSidebarTrigger />
                     <Button hidden={!isAtLeastMod(session)} className="w-fit self-center" asChild>
                         <Link href="/createCollection">Add a Missing Collection</Link>
                     </Button>

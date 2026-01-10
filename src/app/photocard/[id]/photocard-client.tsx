@@ -350,7 +350,7 @@ export default function PhotocardClient({
                 <div className="flex flex-col gap">
                     <div className="flex flex-row gap-2">
                         <h2 className="grow">{collectionDisplayName(collection)}</h2>
-                        <Button hidden={session?.user.role === Role.USER}>
+                        <Button hidden={session?.user.role === Role.USER || session === null}>
                             <Link href={`/createCollection?collectionId=${collection?.id}`}>Edit Collection</Link>
                         </Button>
                         <Button onClick={() => {
