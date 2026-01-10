@@ -180,7 +180,7 @@ export default function AboutComponent() {
             </div>
             <div className="page-section">
                 <h2>Kate</h2>
-                <div className="flex flex-row gap-8 items-start">
+                <div className="flex flex-col lg:flex-row gap-8 items-center lg:items-start">
                     <PhotocardComponent src="/aboutkate.png" fallbackSrc={null} effects={Effects.Glossy} manualRadius />
                     <div className="page-body text-start items-start!">
                         <p>
@@ -209,7 +209,7 @@ export default function AboutComponent() {
             </div>
             <div className="page-section">
                 <h2>David</h2>
-                <div className="flex flex-row gap-8 items-start">
+                <div className="flex flex-col lg:flex-row gap-8 items-center lg:items-start">
                     <PhotocardComponent src="/aboutdavid.png" fallbackSrc={null} effects={Effects.Shiny} manualRadius />
                     <div className="page-body text-start items-start!">
                         <p>
