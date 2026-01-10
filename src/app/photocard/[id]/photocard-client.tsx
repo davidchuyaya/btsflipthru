@@ -10,8 +10,10 @@ import {
     ExclusiveCountry,
     fullSizeUrl,
     memberIntsToName,
+    PresignedUrl,
     ReportType,
     reportWindowURL,
+    Result,
     Role,
 } from "@/constants";
 import { useMetadata } from "@/metadata-context";
@@ -28,8 +30,8 @@ import Link from "next/link";
 import { useState, cloneElement } from "react";
 import { ClientSession, signInGoogle } from "@/auth-client";
 import PhotocardGrid from "@/app/photocard-grid";
-import { Selectable } from "kysely";
-import { Photocards, UserData } from "@/db";
+import { Selectable, Updateable } from "kysely";
+import { CardSizes, CardTypes, Collections, Photocards, UserData } from "@/db";
 import { cardSizeToString, uploadImage } from "@/actions-client";
 import { DialogHeader, DialogFooter } from "@/components/ui/dialog";
 import {
@@ -56,6 +58,7 @@ import {
 } from "@/actions";
 import { toast } from "sonner";
 import { Share2Icon } from "lucide-react";
+import { Title } from "@radix-ui/react-dialog";
 
 function AlertDialogTriggerButton({
     title,
@@ -231,24 +234,149 @@ function SubmitAltImageDialog({ id }: { id: number }) {
     );
 }
 
-export default function PhotocardClient({
+function TitleComponent({
     photocard,
-    imageContributor,
-    relatedPhotocards,
-    wasOwned,
-    wasWishlisted,
+    collection,
+    session,
+    className,
 }: {
     photocard: Selectable<Photocards>;
+    collection: Selectable<Collections> | undefined;
+    session: ClientSession | null;
+    className?: string;
+}) {
+    return (
+        <div className={`flex flex-col gap ${className}`}>
+            <div className="flex flex-row gap-2">
+                <h2 className="grow">{collectionDisplayName(collection)}</h2>
+                <Button hidden={session?.user.role === Role.USER || session === null}>
+                    <Link href={`/createCollection?collectionId=${collection?.id}`}>Edit Collection</Link>
+                </Button>
+                <Button
+                    onClick={() => {
+                        navigator.clipboard.writeText(window.location.href);
+                        toast.success("Copied to clipboard");
+                    }}
+                    size="icon"
+                >
+                    <Share2Icon />
+                </Button>
+            </div>
+            <p className="text-2xl">{photocard && memberIntsToName(photocard.members)}</p>
+        </div>
+    );
+}
+
+function PhotocardAndButtonsComponent({
+    photocard,
+    className,
+}: {
+    photocard: Selectable<Photocards>;
+    className?: string;
+}) {
+    const [flipped, setFlipped] = useState(false);
+
+    return (
+        <div className={`flex flex-col gap-2 items-center shrink-0 ${className}`}>
+            <PhotocardComponent
+                src={
+                    flipped
+                        ? photocard?.back_image_id
+                            ? fullSizeUrl(photocard.back_image_id)
+                            : null
+                        : photocard?.image_id
+                          ? fullSizeUrl(photocard.image_id)
+                          : null
+                }
+                fallbackSrc={
+                    flipped
+                        ? photocard?.image_id
+                            ? fullSizeUrl(photocard.image_id)
+                            : null
+                        : photocard?.back_image_id
+                          ? fullSizeUrl(photocard.back_image_id)
+                          : null
+                }
+                effects={photocard?.effects ?? Effects.Matte}
+                large
+            />
+            <Button className="w-fit mt-4" onClick={() => setFlipped(!flipped)}>
+                Flip
+            </Button>
+            {photocard?.mod_temporary && <SubmitAltImageDialog id={photocard.id} />}
+            <Button asChild className="w-fit">
+                <Link href={reportWindowURL(ReportType.Error, "/photocard/" + photocard.id, "Photocard error")}>
+                    Report an Error
+                </Link>
+            </Button>
+        </div>
+    );
+}
+
+function CardDataComponent({
+    photocard,
+    cardSize,
+    cardType,
+    collection,
+    imageContributor,
+    className,
+}: {
+    photocard: Selectable<Photocards>;
+    cardSize: Selectable<CardSizes> | undefined;
+    cardType: Selectable<CardTypes> | undefined;
+    collection: Selectable<Collections> | undefined;
     imageContributor: Selectable<UserData>;
-    relatedPhotocards: Selectable<Photocards>[];
+    className?: string;
+}) {
+    return (
+        <div className={`flex flex-col gap-4 rounded-2xl p-8 pb-6 bg-accent-light grow ${className}`}>
+            <div className="flex flex-row gap-4 items-center">
+                <h3>Release Date</h3>
+                <p>{collection && dateToString(collection.release_date)}</p>
+            </div>
+            <div className="flex flex-row gap-4 items-center">
+                <h3>Dimensions</h3>
+                <p>{cardSize && cardSizeToString(cardSize)}</p>
+            </div>
+            <div className="flex flex-row gap-4 items-center">
+                <h3>Appearance</h3>
+                <p>{Object.keys(Effects)[photocard?.effects ?? Effects.Matte]}</p>
+            </div>
+            <div className="flex flex-row gap-4 items-center">
+                <h3>Type</h3>
+                <p>{cardType?.name}</p>
+            </div>
+            <div className="flex flex-row gap-4 items-center">
+                <h3>Country</h3>
+                <p>{Object.keys(ExclusiveCountry)[photocard?.exclusive_country ?? ExclusiveCountry.Global]}</p>
+            </div>
+            <div className="flex flex-row gap-4 items-center">
+                <h3>Image Submission</h3>
+                <Button variant="underline" asChild>
+                    <Link href={"/profile/" + imageContributor.user_id}>@{imageContributor.username}</Link>
+                </Button>
+            </div>
+        </div>
+    );
+}
+
+function CardActionsComponent({
+    session,
+    photocard,
+    userData,
+    updateUserData,
+    wasOwned,
+    wasWishlisted,
+    className,
+}: {
+    session: ClientSession | null;
+    photocard: Selectable<Photocards>;
+    userData: Selectable<UserData> | null;
+    updateUserData: (userData: Updateable<UserData>, withImage: boolean) => Promise<Result<PresignedUrl | null>>;
     wasOwned: boolean;
     wasWishlisted: boolean;
+    className?: string;
 }) {
-    const { collections, cardTypes, cardSizes, userData, updateUserData, session } = useMetadata();
-    const [flipped, setFlipped] = useState(false);
-    const collection = collections.find((c) => c.id === photocard.collection_id);
-    const cardType = cardTypes.find((c) => c.id === photocard.card_type);
-    const cardSize = cardSizes.find((c) => c.id === photocard.size_id);
     const [owned, setOwned] = useState(wasOwned);
     const [wishlisted, setWishlisted] = useState(wasWishlisted);
 
@@ -312,143 +440,131 @@ export default function PhotocardClient({
     }
 
     return (
-        <div className="flex flex-row gap-8 m-12">
-            <div className="flex flex-col gap-2 items-center w-1/3 shrink-0">
-                <PhotocardComponent
-                    src={
-                        flipped
-                            ? photocard?.back_image_id
-                                ? fullSizeUrl(photocard.back_image_id)
-                                : null
-                            : photocard?.image_id
-                              ? fullSizeUrl(photocard.image_id)
-                              : null
-                    }
-                    fallbackSrc={
-                        flipped
-                            ? photocard?.image_id
-                                ? fullSizeUrl(photocard.image_id)
-                                : null
-                            : photocard?.back_image_id
-                              ? fullSizeUrl(photocard.back_image_id)
-                              : null
-                    }
-                    effects={photocard?.effects ?? Effects.Matte}
-                    large
+        <div className={`flex flex-col gap-4 justify-center ${className}`}>
+            {DialogIfNotSignedIn(
+                <Button
+                    onClick={() => {
+                        if (session === null) {
+                            return;
+                        }
+                        if (owned) {
+                            removePhotocardFromOwned(photocard.id);
+                            setOwned(false);
+                        } else {
+                            addPhotocardToOwned(photocard.id);
+                            setOwned(true);
+                            // Also removes it from the wishlist
+                            setWishlisted(false);
+                        }
+                    }}
+                    className={`${owned ? "bg-third" : ""} pl-2 pr-3 w-fit`}
+                >
+                    <img src="/flipthru_addtobinder.svg" className="size-8" />
+                    {owned ? "Remove from Owned" : "Add to Owned"}
+                </Button>,
+            )}
+            {DialogIfNotSignedIn(
+                <Button
+                    onClick={() => {
+                        if (session === null) {
+                            return;
+                        }
+                        if (wishlisted) {
+                            removePhotocardFromWishlist(photocard.id);
+                            setWishlisted(false);
+                        } else {
+                            addPhotocardToWishlist(photocard.id);
+                            setWishlisted(true);
+                        }
+                    }}
+                    disabled={owned}
+                    className={`${wishlisted ? "bg-third" : ""} pl-2 pr-3 w-fit`}
+                >
+                    <img src="/flipthru_addtowishlist.svg" className="size-8" />
+                    {wishlisted ? "Remove from Wishlist" : "Add to Wishlist"}
+                </Button>,
+            )}
+            {MarkFavoriteDialog(
+                <Button
+                    className={`pl-2 pr-3 w-fit ${userData?.profile_photocard_id === photocard.id ? "bg-third" : ""}`}
+                >
+                    <img src="/flipthru_addtocollection.svg" className="size-8" />
+                    {userData?.profile_photocard_id === photocard.id ? "Remove as Favorite" : "Mark as Favorite"}
+                </Button>,
+            )}
+        </div>
+    );
+}
+
+export default function PhotocardClient({
+    photocard,
+    imageContributor,
+    relatedPhotocards,
+    wasOwned,
+    wasWishlisted,
+}: {
+    photocard: Selectable<Photocards>;
+    imageContributor: Selectable<UserData>;
+    relatedPhotocards: Selectable<Photocards>[];
+    wasOwned: boolean;
+    wasWishlisted: boolean;
+}) {
+    const { collections, cardTypes, cardSizes, userData, updateUserData, session } = useMetadata();
+    const collection = collections.find((c) => c.id === photocard.collection_id);
+    const cardType = cardTypes.find((c) => c.id === photocard.card_type);
+    const cardSize = cardSizes.find((c) => c.id === photocard.size_id);
+
+    return (
+        <div className="flex flex-col lg:flex-row gap-8 m-12">
+            <TitleComponent photocard={photocard} collection={collection} session={session} className="lg:hidden" />
+            <PhotocardAndButtonsComponent photocard={photocard} className="lg:w-1/3" />
+            <div className="flex flex-col gap-4 lg:w-2/3">
+                <TitleComponent
+                    photocard={photocard}
+                    collection={collection}
+                    session={session}
+                    className="max-lg:hidden"
                 />
-                <Button className="w-fit mt-4" onClick={() => setFlipped(!flipped)}>
-                    Flip
-                </Button>
-                {photocard?.mod_temporary && <SubmitAltImageDialog id={photocard.id} />}
-                <Button asChild className="w-fit">
-                    <Link href={reportWindowURL(ReportType.Error, "/photocard/" + photocard.id, "Photocard error")}>
-                        Report an Error
-                    </Link>
-                </Button>
-            </div>
-            <div className="flex flex-col gap-4 w-2/3">
-                <div className="flex flex-col gap">
-                    <div className="flex flex-row gap-2">
-                        <h2 className="grow">{collectionDisplayName(collection)}</h2>
-                        <Button hidden={session?.user.role === Role.USER || session === null}>
-                            <Link href={`/createCollection?collectionId=${collection?.id}`}>Edit Collection</Link>
-                        </Button>
-                        <Button onClick={() => {
-                            navigator.clipboard.writeText(window.location.href);
-                            toast.success("Copied to clipboard");
-                        }} size="icon">
-                            <Share2Icon />
-                        </Button>
-                    </div>
-                    <p className="text-2xl">{photocard && memberIntsToName(photocard.members)}</p>
+                <div className="flex flex-row gap-8 max-lg:hidden">
+                    <CardDataComponent
+                        photocard={photocard}
+                        cardSize={cardSize}
+                        cardType={cardType}
+                        collection={collection}
+                        imageContributor={imageContributor}
+                    />
+                    <CardActionsComponent
+                        session={session}
+                        photocard={photocard}
+                        userData={userData}
+                        updateUserData={updateUserData}
+                        wasOwned={wasOwned}
+                        wasWishlisted={wasWishlisted}
+                    />
                 </div>
-                <div className="flex flex-row gap-8">
-                    <div className="flex flex-col gap-4 rounded-2xl p-8 bg-accent-light grow">
-                        <div className="flex flex-row gap-4 items-center">
-                            <h3>Release Date</h3>
-                            <p>{collection && dateToString(collection.release_date)}</p>
-                        </div>
-                        <div className="flex flex-row gap-4 items-center">
-                            <h3>Dimensions</h3>
-                            <p>{cardSize && cardSizeToString(cardSize)}</p>
-                        </div>
-                        <div className="flex flex-row gap-4 items-center">
-                            <h3>Appearance</h3>
-                            <p>{Object.keys(Effects)[photocard?.effects ?? Effects.Matte]}</p>
-                        </div>
-                        <div className="flex flex-row gap-4 items-center">
-                            <h3>Type</h3>
-                            <p>{cardType?.name}</p>
-                        </div>
-                        <div className="flex flex-row gap-4 items-center">
-                            <h3>Country</h3>
-                            <p>
-                                {Object.keys(ExclusiveCountry)[photocard?.exclusive_country ?? ExclusiveCountry.Global]}
-                            </p>
-                        </div>
-                        <div className="flex flex-row gap-4 items-center">
-                            <h3>Image Submission</h3>
-                            <Button variant="underline" asChild>
-                                <Link href={"/profile/" + imageContributor.user_id}>@{imageContributor.username}</Link>
-                            </Button>
-                        </div>
-                    </div>
-                    <div className="flex flex-col gap-4 items-end justify-center">
-                        {DialogIfNotSignedIn(
-                            <Button
-                                onClick={() => {
-                                    if (owned) {
-                                        removePhotocardFromOwned(photocard.id);
-                                        setOwned(false);
-                                    } else {
-                                        addPhotocardToOwned(photocard.id);
-                                        setOwned(true);
-                                        // Also removes it from the wishlist
-                                        setWishlisted(false);
-                                    }
-                                }}
-                                className={`${owned ? "bg-third" : ""} pl-2 pr-3 w-fit`}
-                            >
-                                <img src="/flipthru_addtobinder.svg" className="size-8" />
-                                {owned ? "Remove from Owned" : "Add to Owned"}
-                            </Button>,
-                        )}
-                        {DialogIfNotSignedIn(
-                            <Button
-                                onClick={() => {
-                                    if (wishlisted) {
-                                        removePhotocardFromWishlist(photocard.id);
-                                        setWishlisted(false);
-                                    } else {
-                                        addPhotocardToWishlist(photocard.id);
-                                        setWishlisted(true);
-                                    }
-                                }}
-                                disabled={owned}
-                                className={`${wishlisted ? "bg-third" : ""} pl-2 pr-3 w-fit`}
-                            >
-                                <img src="/flipthru_addtowishlist.svg" className="size-8" />
-                                {wishlisted ? "Remove from Wishlist" : "Add to Wishlist"}
-                            </Button>,
-                        )}
-                        {MarkFavoriteDialog(
-                            <Button
-                                className={`pl-2 pr-3 w-fit ${userData?.profile_photocard_id === photocard.id ? "bg-third" : ""}`}
-                            >
-                                <img src="/flipthru_addtocollection.svg" className="size-8" />
-                                {userData?.profile_photocard_id === photocard.id
-                                    ? "Remove as Favorite"
-                                    : "Mark as Favorite"}
-                            </Button>,
-                        )}
-                    </div>
-                </div>
-                <div className="flex flex-col gap-4 mt-4">
+                <CardDataComponent
+                    photocard={photocard}
+                    cardSize={cardSize}
+                    cardType={cardType}
+                    collection={collection}
+                    imageContributor={imageContributor}
+                    className="lg:hidden"
+                />
+                <CardActionsComponent
+                    session={session}
+                    photocard={photocard}
+                    userData={userData}
+                    updateUserData={updateUserData}
+                    wasOwned={wasOwned}
+                    wasWishlisted={wasWishlisted}
+                    className="items-center lg:items-end lg:hidden"
+                />
+                <div className="flex flex-col gap-4 mt-4 max-lg:text-center">
                     <h2>Related Photocards</h2>
                     <PhotocardGrid
                         photocards={relatedPhotocards}
                         collections={collection ? [collection] : []}
-                        className="justify-start"
+                        className="lg:justify-start"
                     />
                 </div>
             </div>

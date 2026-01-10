@@ -183,7 +183,7 @@ export default function PhotocardComponent({
           }
         : {
               height: `${THUMBNAIL_DISPLAY_HEIGHT_PX}px`,
-              maxWidth: "auto",
+              maxWidth: "none",
           };
 
     if (manualRadius) {
