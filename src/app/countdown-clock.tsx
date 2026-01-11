@@ -1,7 +1,7 @@
-export default function CountdownClock() {
+export default function CountdownClock({ today }: { today: Date }) {
     const endDate = new Date("2026-03-20T00:00:00+09:00").getTime();
     function getDaysLeft() {
-        const now = Date.now();
+        const now = today.getTime();
         const diff = endDate - now;
         if (diff <= 0) {
             return 0;

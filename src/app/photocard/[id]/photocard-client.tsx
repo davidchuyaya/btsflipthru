@@ -27,7 +27,7 @@ import {
     AlertDialogAction,
 } from "@/components/ui/alert-dialog";
 import Link from "next/link";
-import { useState, cloneElement } from "react";
+import { useState, cloneElement, useMemo, useEffect } from "react";
 import { ClientSession, signInGoogle } from "@/auth-client";
 import PhotocardGrid from "@/app/photocard-grid";
 import { Selectable, Updateable } from "kysely";
@@ -51,6 +51,8 @@ import { FieldError } from "@/components/ui/field";
 import {
     addPhotocardToOwned,
     addPhotocardToWishlist,
+    didUserWishlistPhotocard,
+    doesUserOwnPhotocard,
     generateSignedUploadUrlForPhotocards,
     removePhotocardFromOwned,
     removePhotocardFromWishlist,
@@ -58,7 +60,6 @@ import {
 } from "@/actions";
 import { toast } from "sonner";
 import { Share2Icon } from "lucide-react";
-import { Title } from "@radix-ui/react-dialog";
 
 function AlertDialogTriggerButton({
     title,
@@ -498,21 +499,34 @@ function CardActionsComponent({
 
 export default function PhotocardClient({
     photocard,
+    collection,
+    cardType,
+    cardSize,
     imageContributor,
     relatedPhotocards,
-    wasOwned,
-    wasWishlisted,
 }: {
     photocard: Selectable<Photocards>;
+    collection: Selectable<Collections>;
+    cardType: Selectable<CardTypes>;
+    cardSize: Selectable<CardSizes>;
     imageContributor: Selectable<UserData>;
     relatedPhotocards: Selectable<Photocards>[];
-    wasOwned: boolean;
-    wasWishlisted: boolean;
 }) {
-    const { collections, cardTypes, cardSizes, userData, updateUserData, session } = useMetadata();
-    const collection = collections.find((c) => c.id === photocard.collection_id);
-    const cardType = cardTypes.find((c) => c.id === photocard.card_type);
-    const cardSize = cardSizes.find((c) => c.id === photocard.size_id);
+    const { userData, updateUserData, session } = useMetadata();
+    const [wasOwned, setWasOwned] = useState(false);
+    const [wasWishlisted, setWasWishlisted] = useState(false);
+    useEffect(() => {
+        const checkOwnership = async () => {
+            const owned = await doesUserOwnPhotocard(photocard.id);
+            const wishlisted = await didUserWishlistPhotocard(photocard.id);
+            if (owned.error || wishlisted.error) {
+                return;
+            }
+            setWasOwned(owned.data!);
+            setWasWishlisted(wishlisted.data!);
+        };
+        checkOwnership();
+    }, [photocard.id]);
 
     return (
         <div className="flex flex-col lg:flex-row gap-8 m-12">

@@ -2,7 +2,6 @@
 
 import PhotocardComponent, { PlaceholderType } from "@/app/photocard";
 import {
-    collectionDisplayName,
     Effects,
     fullSizeUrl,
     MAX_DESCRIPTION_LENGTH,
@@ -20,7 +19,7 @@ import {
 import { useMetadata } from "@/metadata-context";
 import { Button } from "@/components/ui/button";
 import { Selectable, Updateable } from "kysely";
-import { UserData } from "@/db";
+import { Collections, UserData } from "@/db";
 import { useState, useMemo } from "react";
 import { Input } from "@/components/ui/input";
 import { z } from "zod";
@@ -33,7 +32,7 @@ import { Label } from "@/components/ui/label";
 import Image from "next/image";
 import Link from "next/link";
 import { ImageDropzone } from "@/app/image-dropzone";
-import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
+import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field";
 import { uploadImage } from "@/actions-client";
 import { toast } from "sonner";
 
@@ -51,10 +50,9 @@ const formSchema = z.object({
     image: z.instanceof(File).nullish(),
 });
 
-export default function ProfileClient({ userData: serverUserData }: { userData: Selectable<UserData> }) {
+export default function ProfileClient({ userData: serverUserData, collections }: { userData: Selectable<UserData>; collections: Selectable<Collections>[] }) {
     const {
         userData: freshestUserData,
-        collections,
         cursorDisabled,
         updateCursorDisabled,
         effectsDisabled,
@@ -154,8 +152,11 @@ export default function ProfileClient({ userData: serverUserData }: { userData: 
                     <Controller
                         control={form.control}
                         name={fieldName}
-                        render={({ field }) => (
-                            <Input value={field.value ?? ""} onChange={field.onChange} placeholder={placeholder} />
+                        render={({ field, fieldState }) => (
+                            <>
+                                <Input value={field.value ?? ""} onChange={field.onChange} placeholder={placeholder} />
+                                {fieldState.error && <FieldError errors={[fieldState.error]} />}
+                            </>
                         )}
                     />
                 ) : (
@@ -240,21 +241,24 @@ export default function ProfileClient({ userData: serverUserData }: { userData: 
                             <Controller
                                 control={form.control}
                                 name="image"
-                                render={({ field }) => (
-                                    <ImageDropzone
-                                        label="Profile image"
-                                        image={
-                                            field.value === undefined
-                                                ? userData.image_id
-                                                    ? fullSizeUrl(userData.image_id)
-                                                    : null
-                                                : field.value
-                                        }
-                                        onImageChanged={field.onChange}
-                                        onDelete={() => field.onChange(null)}
-                                        expand={true}
-                                        placeholderType={PlaceholderType.ARMY}
-                                    />
+                                render={({ field, fieldState }) => (
+                                    <>
+                                        <ImageDropzone
+                                            label="Profile image"
+                                            image={
+                                                field.value === undefined
+                                                    ? userData.image_id
+                                                        ? fullSizeUrl(userData.image_id)
+                                                        : null
+                                                    : field.value
+                                            }
+                                            onImageChanged={field.onChange}
+                                            onDelete={() => field.onChange(null)}
+                                            expand={true}
+                                            placeholderType={PlaceholderType.ARMY}
+                                        />
+                                        {fieldState.error && <FieldError errors={[fieldState.error]} />}
+                                    </>
                                 )}
                             />
                         ) : (
@@ -280,12 +284,15 @@ export default function ProfileClient({ userData: serverUserData }: { userData: 
                                     <Controller
                                         control={form.control}
                                         name="username"
-                                        render={({ field }) => (
-                                            <Input
-                                                value={field.value?.toUpperCase() ?? ""}
-                                                onChange={field.onChange}
-                                                placeholder="Username"
-                                            />
+                                        render={({ field, fieldState }) => (
+                                            <>
+                                                <Input
+                                                    value={field.value?.toUpperCase() ?? ""}
+                                                    onChange={field.onChange}
+                                                    placeholder="Username"
+                                                />
+                                                {fieldState.error && <FieldError errors={[fieldState.error]} />}
+                                            </>
                                         )}
                                     />
                                 ) : (
@@ -294,7 +301,9 @@ export default function ProfileClient({ userData: serverUserData }: { userData: 
                                 {isSelf &&
                                     (isEditing ? (
                                         <>
-                                            <Button type="button" variant="neutral" onClick={() => setIsEditing(false)}>Cancel</Button>
+                                            <Button type="button" variant="neutral" onClick={() => setIsEditing(false)}>
+                                                Cancel
+                                            </Button>
                                             <Button type="submit">Save Profile</Button>
                                         </>
                                     ) : (
@@ -312,7 +321,7 @@ export default function ProfileClient({ userData: serverUserData }: { userData: 
                                 <Controller
                                     control={form.control}
                                     name="description"
-                                    render={({ field }) => (
+                                    render={({ field, fieldState }) => (
                                         <InputGroup className="mt-2">
                                             <InputGroupTextarea
                                                 placeholder="Enter your description"
@@ -325,6 +334,7 @@ export default function ProfileClient({ userData: serverUserData }: { userData: 
                                                     left
                                                 </InputGroupText>
                                             </InputGroupAddon>
+                                            {fieldState.error && <FieldError errors={[fieldState.error]} />}
                                         </InputGroup>
                                     )}
                                 />
@@ -340,24 +350,27 @@ export default function ProfileClient({ userData: serverUserData }: { userData: 
                                         <Controller
                                             control={form.control}
                                             name="army_since"
-                                            render={({ field }) => (
-                                                <Select
-                                                    defaultValue={field.value?.toString() ?? ""}
-                                                    onValueChange={(value) => field.onChange(Number(value))}
-                                                >
-                                                    <SelectTrigger className="w-fit bg-accent-light">
-                                                        <SelectValue placeholder="Select a collection" />
-                                                    </SelectTrigger>
-                                                    <SelectContent className="bg-accent-light">
-                                                        <SelectGroup>
-                                                            {uniqueCollections.map((col) => (
-                                                                <SelectItem key={col.id} value={col.id.toString()}>
-                                                                    {col.name}
-                                                                </SelectItem>
-                                                            ))}
-                                                        </SelectGroup>
-                                                    </SelectContent>
-                                                </Select>
+                                            render={({ field, fieldState }) => (
+                                                <>
+                                                    <Select
+                                                        defaultValue={field.value?.toString() ?? ""}
+                                                        onValueChange={(value) => field.onChange(Number(value))}
+                                                    >
+                                                        <SelectTrigger className="w-fit bg-accent-light">
+                                                            <SelectValue placeholder="Select a collection" />
+                                                        </SelectTrigger>
+                                                        <SelectContent className="bg-accent-light">
+                                                            <SelectGroup>
+                                                                {uniqueCollections.map((col) => (
+                                                                    <SelectItem key={col.id} value={col.id.toString()}>
+                                                                        {col.name}
+                                                                    </SelectItem>
+                                                                ))}
+                                                            </SelectGroup>
+                                                        </SelectContent>
+                                                    </Select>
+                                                    {fieldState.error && <FieldError errors={[fieldState.error]} />}
+                                                </>
                                             )}
                                         />
                                     ) : (
@@ -374,24 +387,27 @@ export default function ProfileClient({ userData: serverUserData }: { userData: 
                                         <Controller
                                             control={form.control}
                                             name="bias"
-                                            render={({ field }) => (
-                                                <Select
-                                                    defaultValue={field.value ? field.value.toString() : ""}
-                                                    onValueChange={(value) => field.onChange(Number(value))}
-                                                >
-                                                    <SelectTrigger className="w-fit bg-accent-light">
-                                                        <SelectValue placeholder="Select your bias" />
-                                                    </SelectTrigger>
-                                                    <SelectContent className="bg-accent-light">
-                                                        <SelectGroup>
-                                                            {Object.entries(MemberToInt).map(([key, value]) => (
-                                                                <SelectItem key={key} value={value.toString()}>
-                                                                    {key}
-                                                                </SelectItem>
-                                                            ))}
-                                                        </SelectGroup>
-                                                    </SelectContent>
-                                                </Select>
+                                            render={({ field, fieldState }) => (
+                                                <>
+                                                    <Select
+                                                        defaultValue={field.value ? field.value.toString() : ""}
+                                                        onValueChange={(value) => field.onChange(Number(value))}
+                                                    >
+                                                        <SelectTrigger className="w-fit bg-accent-light">
+                                                            <SelectValue placeholder="Select your bias" />
+                                                        </SelectTrigger>
+                                                        <SelectContent className="bg-accent-light">
+                                                            <SelectGroup>
+                                                                {Object.entries(MemberToInt).map(([key, value]) => (
+                                                                    <SelectItem key={key} value={value.toString()}>
+                                                                        {key}
+                                                                    </SelectItem>
+                                                                ))}
+                                                            </SelectGroup>
+                                                        </SelectContent>
+                                                    </Select>
+                                                    {fieldState.error && <FieldError errors={[fieldState.error]} />}
+                                                </>
                                             )}
                                         />
                                     ) : (

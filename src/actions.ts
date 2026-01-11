@@ -38,18 +38,27 @@ import {
     ViewMostOwnedPhotocards,
     ViewMostWishlistedPhotocards,
 } from "./db";
+import { cacheTag, updateTag } from "next/cache";
 
-export async function addUserDataToDB(user_data: Insertable<UserData>): Promise<Result<bigint>> {
+const CACHE_TAG_COLLECTIONS = "collections";
+const CACHE_TAG_COLLECTION_TYPES = "collection-types";
+const CACHE_TAG_CARD_TYPES = "card-types";
+const CACHE_TAG_CARD_SIZES = "card-sizes";
+const CACHE_TAG_HOME_STATS = "home-stats";
+
+export async function getDate(): Promise<Date> {
+    "use cache";
+    return new Date();
+}
+
+export async function addUserDataToDB(user_data: Insertable<UserData>): Promise<Result<boolean>> {
     return await db
         .insertInto("user_data")
         .values(user_data)
         .executeTakeFirstOrThrow()
         .then(
             (result) => {
-                if (result.insertId === undefined) {
-                    return { error: "User data conflicts with existing entry" };
-                }
-                return { data: result.insertId };
+                return { data: true };
             },
             (reason) => ({
                 error: "Could not add user data",
@@ -76,24 +85,41 @@ export async function getUserDataFromDB(userId: string): Promise<Result<Selectab
  * @param collectionType Only the name field is used
  * @returns The auto-assigned ID of the collection type.
  */
-export async function addCollectionTypeToDB(collectionType: Insertable<CollectionTypes>): Promise<Result<bigint>> {
-    const result = await isAtLeastMod<bigint>();
+export async function addCollectionTypeToDB(collectionType: Insertable<CollectionTypes>): Promise<Result<number>> {
+    const result = await isAtLeastMod<number>();
     if (result.error) {
         return result;
     }
     return await db
         .insertInto("collection_types")
         .values({ name: collectionType.name })
+        .returning("id")
         .executeTakeFirstOrThrow()
         .then(
             (result) => {
-                if (result.insertId === undefined) {
+                if (result.id === undefined) {
                     return { error: "Collection type conflicts with existing entry" };
                 }
-                return { data: result.insertId };
+                updateTag(CACHE_TAG_COLLECTION_TYPES);
+                return { data: result.id };
             },
             (reason) => ({
                 error: "Could not add collection type",
+            }),
+        );
+}
+
+export async function getCollectionTypesFromDB(): Promise<Result<Selectable<CollectionTypes>[]>> {
+    "use cache";
+    cacheTag(CACHE_TAG_COLLECTION_TYPES);
+    return await db
+        .selectFrom("collection_types")
+        .selectAll()
+        .execute()
+        .then(
+            (data) => ({ data }),
+            (reason) => ({
+                error: `Could not get collection types: ${reason}`,
             }),
         );
 }
@@ -103,24 +129,41 @@ export async function addCollectionTypeToDB(collectionType: Insertable<Collectio
  * @param cardType Only the name field is used
  * @returns The auto-assigned ID of the card type.
  */
-export async function addCardTypeToDB(cardType: Insertable<CardTypes>): Promise<Result<bigint>> {
-    const result = await isAtLeastMod<bigint>();
+export async function addCardTypeToDB(cardType: Insertable<CardTypes>): Promise<Result<number>> {
+    const result = await isAtLeastMod<number>();
     if (result.error) {
         return result;
     }
     return await db
         .insertInto("card_types")
         .values({ name: cardType.name })
+        .returning("id")
         .executeTakeFirstOrThrow()
         .then(
             (result) => {
-                if (result.insertId === undefined) {
+                if (result.id === undefined) {
                     return { error: "Card type conflicts with existing entry" };
                 }
-                return { data: result.insertId };
+                updateTag(CACHE_TAG_CARD_TYPES);
+                return { data: result.id };
             },
             (reason) => ({
                 error: "Could not add card type",
+            }),
+        );
+}
+
+export async function getCardTypesFromDB(): Promise<Result<Selectable<CardTypes>[]>> {
+    "use cache";
+    cacheTag(CACHE_TAG_CARD_TYPES);
+    return await db
+        .selectFrom("card_types")
+        .selectAll()
+        .execute()
+        .then(
+            (data) => ({ data }),
+            (reason) => ({
+                error: `Could not get card types: ${reason}`,
             }),
         );
 }
@@ -130,8 +173,8 @@ export async function addCardTypeToDB(cardType: Insertable<CardTypes>): Promise<
  * @param cardSize The name, width, and height fields are used
  * @returns The auto-assigned ID of the card size.
  */
-export async function addCardSizeToDB(cardSize: Insertable<CardSizes>): Promise<Result<bigint>> {
-    const result = await isAtLeastMod<bigint>();
+export async function addCardSizeToDB(cardSize: Insertable<CardSizes>): Promise<Result<number>> {
+    const result = await isAtLeastMod<number>();
     if (result.error) {
         return result;
     }
@@ -142,13 +185,15 @@ export async function addCardSizeToDB(cardSize: Insertable<CardSizes>): Promise<
             width: cardSize.width,
             height: cardSize.height,
         })
+        .returning("id")
         .executeTakeFirstOrThrow()
         .then(
             (result) => {
-                if (result.insertId === undefined) {
+                if (result.id === undefined) {
                     return { error: "Card size conflicts with existing entry" };
                 }
-                return { data: result.insertId };
+                updateTag(CACHE_TAG_CARD_SIZES);
+                return { data: result.id };
             },
             (reason) => ({
                 error: "Could not add card size",
@@ -156,31 +201,34 @@ export async function addCardSizeToDB(cardSize: Insertable<CardSizes>): Promise<
         );
 }
 
-export async function getMetadataFromDB(): Promise<{
-    cardSizes: Selectable<CardSizes>[];
-    collectionTypes: Selectable<CollectionTypes>[];
-    cardTypes: Selectable<CardTypes>[];
-    collections: Selectable<Collections>[];
-    userData: Result<Selectable<UserData>>;
-}> {
-    const session = await getSession();
-    const userId = session?.data?.user?.id;
+export async function getCardSizesFromDB(): Promise<Result<Selectable<CardSizes>[]>> {
+    "use cache";
+    cacheTag(CACHE_TAG_CARD_SIZES);
+    return await db
+        .selectFrom("card_sizes")
+        .selectAll()
+        .execute()
+        .then(
+            (data) => ({ data }),
+            (reason) => ({
+                error: `Could not get card sizes: ${reason}`,
+            }),
+        );
+}
 
-    const [cardSizes, collectionTypes, cardTypes, collections, userData] = await Promise.all([
-        db.selectFrom("card_sizes").selectAll().execute(),
-        db.selectFrom("collection_types").selectAll().execute(),
-        db.selectFrom("card_types").selectAll().execute(),
-        db.selectFrom("collections").selectAll().execute(),
-        userId ? getUserDataFromDB(userId) : Promise.resolve({ error: "User not logged in" }),
-    ]);
-
-    return {
-        cardSizes,
-        collectionTypes,
-        cardTypes,
-        collections,
-        userData,
-    };
+export async function getCollectionsFromDB(): Promise<Result<Selectable<Collections>[]>> {
+    "use cache";
+    cacheTag(CACHE_TAG_COLLECTIONS);
+    return await db
+        .selectFrom("collections")
+        .selectAll()
+        .execute()
+        .then(
+            (data) => ({ data }),
+            (reason) => ({
+                error: `Could not get collections: ${reason}`,
+            }),
+        );
 }
 
 /**
@@ -254,6 +302,8 @@ export async function addCollectionToDB(
             return { error: "Stored procedure executed but returned no ID." };
         }
 
+        updateTag(CACHE_TAG_COLLECTIONS);
+        updateTag(CACHE_TAG_HOME_STATS);
         return { data: newCollectionId };
     } catch (e) {
         return { error: `Could not add collection: ${e}` };
@@ -317,6 +367,7 @@ export async function updateCollectionInDB(
             )
         `.execute(db);
 
+        updateTag(CACHE_TAG_COLLECTIONS);
         return { data: true };
     } catch (e) {
         return { error: `Could not update collection: ${e}` };
@@ -348,7 +399,10 @@ export async function updatePhotocardInDB(id: number, imageId: string, backImage
         .where("mod_temporary", "=", true) // Only if the photocard is marked temporary
         .executeTakeFirstOrThrow()
         .then(
-            () => ({ data: true }),
+            () => {
+                updateTag(CACHE_TAG_HOME_STATS);
+                return { data: true };
+            },
             (reason) => ({
                 error: "Could not update photocard: " + reason,
             }),
@@ -403,10 +457,11 @@ export async function addReportToDB(
     const result = await db
         .insertInto("reports")
         .values(report)
+        .returning("id")
         .executeTakeFirstOrThrow()
         .then(
             (result) => {
-                if (result.insertId === undefined) {
+                if (result.id === undefined) {
                     return { error: "Could not add report to database." };
                 }
                 return { data: null };
@@ -543,6 +598,8 @@ async function getRecentlyAddedPhotocardsInDB(): Promise<Result<Selectable<Photo
 }
 
 export async function getHomeStats(): Promise<Result<HomeStats>> {
+    "use cache";
+    cacheTag(CACHE_TAG_HOME_STATS);
     const results = await Promise.all([
         getMostContributionsUser(),
         getTotalPhotocards(),
