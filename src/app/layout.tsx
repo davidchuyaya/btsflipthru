@@ -12,13 +12,20 @@ const title = "BTS Flipthru";
 const description =
     "Flipthru is a BTS photocard archive, binder planning tool, and personal wishlist tracker all in one!";
 const image = "https://btsflipthru.com/icon.png";
+const url = "https://btsflipthru.com";
 
 export const metadata: Metadata = {
     title,
     description,
+    metadataBase: new URL(url),
+    applicationName: title,
+    appleWebApp: {
+        title,
+    },
     openGraph: {
         title,
         description,
+        siteName: title,
         images: [
             {
                 url: image,
@@ -46,9 +53,19 @@ export default function RootLayout({
         <html lang="en">
             <head>
                 <link rel="stylesheet" href="https://use.typekit.net/gpm8jeo.css"></link>
-                <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png"></link>
-                <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png"></link>
-                <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png"></link>
+                <script
+                    type="application/ld+json"
+                    dangerouslySetInnerHTML={{
+                        __html: JSON.stringify({
+                            "@context": "https://schema.org",
+                            "@type": "WebSite",
+                            name: title,
+                            description,
+                            url,
+                            image,
+                        }),
+                    }}
+                />
             </head>
             <body className="antialiased">
                 <MetadataProvider>

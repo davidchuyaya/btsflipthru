@@ -259,6 +259,7 @@ function TitleComponent({
                         toast.success("Copied to clipboard");
                     }}
                     size="icon"
+                    className="px-3"
                 >
                     <Share2Icon />
                 </Button>
