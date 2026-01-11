@@ -6,6 +6,7 @@ const nextConfig: NextConfig = {
         serverActions: {
             bodySizeLimit: "80mb", // Slightly more than MAX_IMAGE_SIZE_BYTES in constants.ts
         },
+        useCache: true,
     },
     cacheComponents: true,
 };
