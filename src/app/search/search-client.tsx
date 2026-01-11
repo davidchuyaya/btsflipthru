@@ -32,12 +32,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
-import {
-    ChevronDown,
-    FilterIcon,
-    SquareCheckBigIcon,
-    SquareIcon,
-} from "lucide-react";
+import { ChevronDown, FilterIcon, SquareCheckBigIcon, SquareIcon } from "lucide-react";
 import { useMetadata } from "@/metadata-context";
 import React from "react";
 import { Button } from "@/components/ui/button";
@@ -232,8 +227,10 @@ export default function SearchClient({
         const allTops = Array.from(globalTops.values()).sort(
             (a, b) => new Date(b.collection.release_date).getTime() - new Date(a.collection.release_date).getTime(),
         );
-        const allSubs = Array.from(globalSubs.values()).sort(
-            (a, b) => new Date(b.release_date).getTime() - new Date(a.release_date).getTime(),
+        const allSubs = Array.from(globalSubs.values()).sort((a, b) =>
+            a.version_order !== null && b.version_order !== null
+                ? a.version_order - b.version_order
+                : new Date(b.release_date).getTime() - new Date(a.release_date).getTime(),
         );
 
         return {
