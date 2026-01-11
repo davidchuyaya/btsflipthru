@@ -22,3 +22,8 @@ export default async function SearchPage() {
         />
     );
 }
+
+export const metadata = {
+    title: "Photocard Archive | BTS Flipthru",
+    description: "Search for photocards.",
+};

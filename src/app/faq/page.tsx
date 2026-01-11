@@ -1,10 +1,13 @@
-"use client";
-
 import { Button } from "@/components/ui/button";
 import { MAX_IMAGE_SIZE_BYTES, ReportType, reportWindowURL } from "@/constants";
 import Link from "next/link";
 import SocialButtonsComponent from "../social-buttons";
 import Image from "next/image";
+
+export const metadata = {
+    title: "FAQ | BTS Flipthru",
+    description: "Frequently asked questions.",
+};
 
 export default function FaqComponent() {
     return (

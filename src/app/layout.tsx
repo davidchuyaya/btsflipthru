@@ -8,9 +8,33 @@ import FooterComponent from "./footer";
 import { GoogleAnalytics } from "@next/third-parties/google";
 import BodyWrapper from "./body-wrapper";
 
+const title = "BTS Flipthru";
+const description =
+    "Flipthru is a BTS photocard archive, binder planning tool, and personal wishlist tracker all in one!";
+const image = "https://btsflipthru.com/icon.png";
+
 export const metadata: Metadata = {
-    title: "BTS Flipthru",
-    description: "Flipthru is a BTS photocard archive, binder planning tool, and personal wishlist tracker all in one!",
+    title,
+    description,
+    openGraph: {
+        title,
+        description,
+        images: [
+            {
+                url: image,
+            },
+        ],
+    },
+    twitter: {
+        title,
+        description,
+        card: "summary_large_image",
+        images: [
+            {
+                url: image,
+            },
+        ],
+    },
 };
 
 export default function RootLayout({

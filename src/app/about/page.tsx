@@ -1,5 +1,3 @@
-"use client";
-
 import { Effects } from "@/constants";
 import PhotocardComponent, { PlaceholderType } from "../photocard";
 import Link from "next/link";
@@ -7,6 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ReportType, reportWindowURL } from "@/constants";
 import Image from "next/image";
+
+export const metadata = {
+    title: "About | BTS Flipthru",
+    description: "The people behind BTS Flipthru, and why we do what we do.",
+};
 
 export default function AboutComponent() {
     return (

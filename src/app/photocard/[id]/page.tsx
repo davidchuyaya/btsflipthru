@@ -1,4 +1,4 @@
-import { Suspense } from "react";
+import { Suspense, cache } from "react";
 import {
     getCardSizesFromDB,
     getCardTypesFromDB,
@@ -9,6 +9,11 @@ import {
 } from "@/actions";
 import PhotocardClient from "./photocard-client";
 import { notFound } from "next/navigation";
+import { collectionDisplayName, memberIntsToName, thumbnailUrl } from "@/constants";
+import { Metadata } from "next";
+
+const getPhotocard = cache(getPhotocardFromDB);
+const getCollections = cache(getCollectionsFromDB);
 
 async function PhotocardContent({ idPromise }: { idPromise: Promise<{ id: string }> }) {
     const { id: idStr } = await idPromise;
@@ -17,7 +22,7 @@ async function PhotocardContent({ idPromise }: { idPromise: Promise<{ id: string
         notFound();
     }
 
-    const photocardResult = await getPhotocardFromDB(id);
+    const photocardResult = await getPhotocard(id);
     if (photocardResult.error || !photocardResult.data) {
         notFound();
     }
@@ -25,7 +30,7 @@ async function PhotocardContent({ idPromise }: { idPromise: Promise<{ id: string
 
     const [relatedResult, collectionsResult, cardTypesResult, cardSizesResult, contributorResult] = await Promise.all([
         getPhotocardsInCollection(photocard.collection_id),
-        getCollectionsFromDB(),
+        getCollections(),
         getCardTypesFromDB(),
         getCardSizesFromDB(),
         getUserDataFromDB(photocard.image_contributor_id),
@@ -55,4 +60,46 @@ export default function PhotocardPage({ params }: { params: Promise<{ id: string
             <PhotocardContent idPromise={params} />
         </Suspense>
     );
+}
+
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+    const { id } = await params;
+    const photocardResult = await getPhotocard(Number(id));
+    const description = "Find other BTS photocards at BTS Flipthru.";
+    if (photocardResult.error || !photocardResult.data) {
+        return {
+            title: "Photocard | BTS Flipthru",
+            description,
+        };
+    }
+    const collectionsResult = await getCollections();
+    const collection = collectionsResult.data?.find((c) => c.id === photocardResult.data!.collection_id);
+    const title = `${memberIntsToName(photocardResult.data.members)} - ${collectionDisplayName(collection)} | BTS Flipthru`;
+    const image = photocardResult.data.image_id
+        ? thumbnailUrl(photocardResult.data.image_id)
+        : "https://btsflipthru.com/icon.png";
+
+    return {
+        title,
+        description,
+        openGraph: {
+            title,
+            description,
+            images: [
+                {
+                    url: image,
+                },
+            ],
+        },
+        twitter: {
+            title,
+            description,
+            card: "summary_large_image",
+            images: [
+                {
+                    url: image,
+                },
+            ],
+        },
+    };
 }

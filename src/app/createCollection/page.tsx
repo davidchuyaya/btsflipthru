@@ -36,3 +36,8 @@ export default function CreateCollectionPage() {
         </Suspense>
     );
 }
+
+export const metadata = {
+    title: "Create Collection | BTS Flipthru",
+    description: "Add a missing photocard collection to BTS Flipthru.",
+};

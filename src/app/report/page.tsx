@@ -5,6 +5,11 @@ import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import ReportForm from "./report";
 
+export const metadata = {
+    title: "Report Feedback | BTS Flipthru",
+    description: "Let us know if something's wrong with BTS Flipthru.",
+};
+
 function ReportPageSuspenseWrapper() {
     const params = useSearchParams();
     const reportType = params.get("reportType") as ReportType;
