@@ -1,4 +1,4 @@
-import PhotocardComponent from "./photocard";
+import PhotocardComponent, { DraggablePhotocard } from "./photocard";
 import { collectionDisplayName, memberIntsToName, thumbnailUrl } from "@/constants";
 import React from "react";
 import { Button } from "@/components/ui/button";
@@ -14,52 +14,64 @@ function PhotocardGridWithoutCollections({
     isSelectionMode,
     selectedIds,
     onToggleSelection,
+    draggable,
 }: {
     photocards: Selectable<Photocards>[];
     className?: string;
-    showFront?: boolean;
+    showFront: boolean;
     collections?: Selectable<Collections>[];
     isSelectionMode?: boolean;
     selectedIds?: Set<number>;
     onToggleSelection?: (id: number) => void;
+    draggable?: boolean;
 }) {
     return (
         <div className={`flex flex-row flex-wrap gap-4 justify-center ${className}`}>
-            {photocards.map((photocard) => (
-                <PhotocardComponent
-                    key={photocard.id}
-                    src={
-                        showFront
-                            ? photocard.image_id
-                                ? thumbnailUrl(photocard.image_id)
-                                : null
-                            : photocard.back_image_id
-                              ? thumbnailUrl(photocard.back_image_id)
-                              : null
-                    }
-                    fallbackSrc={
-                        showFront
-                            ? photocard.back_image_id
-                                ? thumbnailUrl(photocard.back_image_id)
-                                : null
-                            : photocard.image_id
-                              ? thumbnailUrl(photocard.image_id)
-                              : null
-                    }
-                    effects={photocard.effects}
-                    selectable={isSelectionMode}
-                    isSelected={selectedIds?.has(photocard.id!)}
-                    onToggle={() => onToggleSelection?.(photocard.id!)}
-                    onClick={() => window.open(`/photocard/${photocard.id}`, "_blank")}
-                >
-                    {collections && (
-                        <>
-                            <p>{collectionDisplayName(collections?.find((c) => c.id === photocard.collection_id))}</p>
-                            <p>{photocard.members && memberIntsToName(photocard.members)}</p>
-                        </>
-                    )}
-                </PhotocardComponent>
-            ))}
+            {photocards.map((photocard) =>
+                draggable ? (
+                    <DraggablePhotocard
+                        key={photocard.id}
+                        photocard={photocard}
+                        showFront={showFront}
+                    />
+                ) : (
+                    <PhotocardComponent
+                        key={photocard.id}
+                        src={
+                            showFront
+                                ? photocard.image_id
+                                    ? thumbnailUrl(photocard.image_id)
+                                    : null
+                                : photocard.back_image_id
+                                  ? thumbnailUrl(photocard.back_image_id)
+                                  : null
+                        }
+                        fallbackSrc={
+                            showFront
+                                ? photocard.back_image_id
+                                    ? thumbnailUrl(photocard.back_image_id)
+                                    : null
+                                : photocard.image_id
+                                  ? thumbnailUrl(photocard.image_id)
+                                  : null
+                        }
+                        effects={photocard.effects}
+                        selectable={isSelectionMode}
+                        isSelected={selectedIds?.has(photocard.id!)}
+                        onToggle={() => onToggleSelection?.(photocard.id!)}
+                        onClick={() => window.open(`/photocard/${photocard.id}`, "_blank")}
+                    >
+                        {collections && (
+                            <>
+                                <p>
+                                    {collectionDisplayName(collections?.find((c) => c.id === photocard.collection_id))}
+                                </p>
+                                <p>{photocard.members && memberIntsToName(photocard.members)}</p>
+                            </>
+                        )}
+                    </PhotocardComponent>
+                ),
+            )}
         </div>
     );
 }
@@ -74,6 +86,7 @@ export default function PhotocardGrid({
     selectedIds,
     onToggleSelection,
     showEditButton = false,
+    draggable = false,
 }: {
     photocards: Selectable<Photocards>[]; // Will be displayed in order provided
     collections?: Selectable<Collections>[]; // Will be displayed in order provided
@@ -84,6 +97,7 @@ export default function PhotocardGrid({
     selectedIds?: Set<number>;
     onToggleSelection?: (id: number) => void;
     showEditButton?: boolean;
+    draggable?: boolean;
 }) {
     return displayCollections ? (
         <div className={`flex flex-col gap-4 justify-center items-center ${className}`}>
@@ -107,6 +121,7 @@ export default function PhotocardGrid({
                             isSelectionMode={isSelectionMode}
                             selectedIds={selectedIds}
                             onToggleSelection={onToggleSelection}
+                            draggable={draggable}
                         />
                     </React.Fragment>
                 );
@@ -121,6 +136,7 @@ export default function PhotocardGrid({
             isSelectionMode={isSelectionMode}
             selectedIds={selectedIds}
             onToggleSelection={onToggleSelection}
+            draggable={draggable}
         />
     );
 }

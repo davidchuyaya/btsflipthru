@@ -912,3 +912,39 @@ export async function markPhotocardAsFavorite(photocardId: number): Promise<Resu
             (reason) => ({ error: "Could not mark photocard as favorite: " + reason }),
         );
 }
+
+export async function getOwnedPhotocards(): Promise<Result<Selectable<Photocards>[]>> {
+    const session = await getSession();
+    if (session.error) {
+        return { error: session.error };
+    }
+
+    return await db
+        .selectFrom("user_photocards")
+        .innerJoin("photocards", "photocards.id", "user_photocards.photocard_id")
+        .where("user_photocards.user_id", "=", session.data!.user.id)
+        .selectAll("photocards")
+        .execute()
+        .then(
+            (data) => ({ data }),
+            (reason) => ({ error: "Could not get owned photocards: " + reason }),
+        );
+}
+
+export async function getWishlistedPhotocards(): Promise<Result<Selectable<Photocards>[]>> {
+    const session = await getSession();
+    if (session.error) {
+        return { error: session.error };
+    }
+
+    return await db
+        .selectFrom("user_wishlists")
+        .innerJoin("photocards", "photocards.id", "user_wishlists.photocard_id")
+        .where("user_wishlists.user_id", "=", session.data!.user.id)
+        .selectAll("photocards")
+        .execute()
+        .then(
+            (data) => ({ data }),
+            (reason) => ({ error: "Could not get wishlisted photocards: " + reason }),
+        );
+}

@@ -244,3 +244,126 @@ export function dateToString(date: Date) {
    dateObj.setUTCHours(12);
    return dateObj.toISOString().split("T")[0];
 }
+
+// See https://docs.google.com/spreadsheets/d/1lYh2wVfYnzr_Qk15vJ5XNiGNDf914r-I5LBklYK7PFc/edit?usp=sharing
+export const BinderPage = {
+    Standard9PP: {
+        id: 0,
+        name: "Standard 9PP",
+        xPerforations: [69, 139, 208],
+        yPerforations: [97, 192, 290],
+    },
+    MiniPC9PP: {
+        id: 1,
+        name: "Mini PC 9PP",
+        xPerforations: [79, 158, 237],
+        yPerforations: [104, 212, 318],
+    },
+    PostcardHorizontal: {
+        id: 2,
+        name: "Postcard (horizontal)",
+        xPerforations: [28, 189, 221],
+        yPerforations: [32, 140, 173, 284],
+    },
+    PostcardVertical: {
+        id: 3,
+        name: "Postcard (vertical)",
+        xPerforations: [107, 213],
+        yPerforations: [159, 319],
+    },
+    Cash: {
+        id: 4,
+        name: "Cash",
+        xPerforations: [169, 212],
+        yPerforations: [72, 145, 218, 290],
+    },
+    Stamp: {
+        id: 5,
+        name: "Stamp",
+        xPerforations: [54, 109, 169, 219],
+        yPerforations: [57, 114, 171, 230, 287],
+    },
+    BusinessCard: {
+        id: 6,
+        name: "Business Card",
+        xPerforations: [100, 199],
+        yPerforations: [57, 114, 170, 227, 284],
+    },
+    SingleForMiniBinderNTH: {
+        id: 7,
+        name: "Single for Mini Binder (NTH)",
+        xPerforations: [63.5],
+        yPerforations: [88.9],
+    },
+    FullPage: {
+        id: 8,
+        name: "Full page",
+        xPerforations: [224],
+        yPerforations: [290],
+    }
+};
+export type BinderPage = (typeof BinderPage)[keyof typeof BinderPage];
+
+export const BinderType = {
+    OneInch: {
+        id: 0,
+        name: "1 inch",
+        numPages: 250,
+        coverWidth: 288.925,
+        coverHeight: 295.529,
+        spineWidth: 25.4,
+        maxPageWidth: 215.9,
+        maxPageHeight: 279.4,   
+    },
+    OnePointFiveInch: {
+        id: 1,
+        name: "1.5 inch (NTH)",
+        numPages: 375,
+        coverWidth: 288.925,
+        coverHeight: 295.529,
+        spineWidth: 38.1,
+        maxPageWidth: 215.9,
+        maxPageHeight: 279.4,
+    },
+    TwoInch: {
+        id: 2,
+        name: "2 inch (NTH)",
+        numPages: 500,
+        coverWidth: 288.925,
+        coverHeight: 295.529,
+        spineWidth: 50.8,
+        maxPageWidth: 215.9,
+        maxPageHeight: 279.4,
+    },
+    ThreeInch: {
+        id: 3,
+        name: "3 inch",
+        numPages: 650,
+        coverWidth: 288.925,
+        coverHeight: 295.529,
+        spineWidth: 76.2,
+        maxPageWidth: 215.9,
+        maxPageHeight: 279.4,
+    },
+    FourInch: {
+        id: 4,
+        name: "4 inch (NTH)",
+        numPages: 800,
+        coverWidth: 288.925,
+        coverHeight: 295.529,
+        spineWidth: 101.6,
+        maxPageWidth: 215.9,
+        maxPageHeight: 279.4,
+    },
+    FiveInch: {
+        id: 5,
+        name: "5 inch",
+        numPages: 950,
+        coverWidth: 288.925,
+        coverHeight: 295.529,
+        spineWidth: 127,
+        maxPageWidth: 215.9,
+        maxPageHeight: 279.4,
+    },
+}
+export type BinderType = (typeof BinderType)[keyof typeof BinderType];

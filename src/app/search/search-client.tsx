@@ -27,7 +27,7 @@ import {
     SidebarProvider,
     useSidebar,
 } from "@/components/ui/sidebar";
-import { cardSizeToString } from "@/actions-client";
+import { cardSizeToString, executeSearchLogic } from "@/actions-client";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -220,7 +220,7 @@ export default function SearchClient({
                 (a, b) => new Date(b.collection.release_date).getTime() - new Date(a.collection.release_date).getTime(),
             );
             subs.sort((a, b) =>
-                (a.version_order !== null && b.version_order !== null)
+                a.version_order !== null && b.version_order !== null
                     ? a.version_order - b.version_order
                     : new Date(b.release_date).getTime() - new Date(a.release_date).getTime(),
             );
@@ -283,181 +283,62 @@ export default function SearchClient({
             };
         }
 
-        const allTerms = searchInput
-            .toLowerCase()
-            .split(/\s+/)
-            .filter((t) => t.length > 0);
+        const { winningMembers, winningTopCols, winningSubCols, winningCardTypes, winningCardSizes, winningCountries } =
+            executeSearchLogic(
+                searchInput,
+                {
+                    tops: allSearchableCols.tops,
+                    subs: allSearchableCols.subs,
+                    cardTypes,
+                    cardSizes,
+                },
+                {
+                    topName: (c: { collection: Selectable<Collections>; hasSub: boolean }) =>
+                        collectionDisplayName(c.collection),
+                    subName: (c: Selectable<Collections>) => collectionDisplayName(c),
+                    cardTypeName: (ct: Selectable<CardTypes>) => ct.name,
+                    cardSizeName: (cs: Selectable<CardSizes>) => cardSizeToString(cs),
+                },
+            );
 
-        function getWinnersFromTerms<T>(
-            items: T[],
-            textFn: (item: T) => string,
-            availableTerms: string[],
-        ): { winners: Set<T>; maxScore: number; matchedTerms: Set<string> } {
-            let maxScore = 0;
-            const scores = new Map<T, { score: number; matched: Set<string> }>();
-
-            for (const item of items) {
-                const { matches, matchedTerms } = countMatches(textFn(item), availableTerms);
-                if (matches > 0) {
-                    scores.set(item, { score: matches, matched: matchedTerms });
-                    if (matches > maxScore) maxScore = matches;
-                }
+        // Include parents of visible subs
+        winningSubCols.forEach((sub) => {
+            for (const colType of sub.collection_types) {
+                winningTopCols.add({
+                    collection: getTopCollectionForSub(sub, colType),
+                    hasSub: true,
+                });
             }
-
-            const winners = new Set<T>();
-            const aggregatedMatchedTerms = new Set<string>();
-
-            if (maxScore > 0) {
-                for (const [item, data] of scores) {
-                    if (data.score === maxScore) {
-                        winners.add(item);
-                        data.matched.forEach((t) => aggregatedMatchedTerms.add(t));
-                    }
-                }
-            }
-            return { winners, maxScore, matchedTerms: aggregatedMatchedTerms };
-        }
-
-        function countMatches(text: string, searchTerms: string[]): { matches: number; matchedTerms: Set<string> } {
-            const lowerText = text.toLowerCase();
-            let matches = 0;
-            const matchedTerms = new Set<string>();
-            for (const term of searchTerms) {
-                if (lowerText.includes(term)) {
-                    matches++;
-                    matchedTerms.add(term);
-                }
-            }
-            return { matches, matchedTerms };
-        }
-
-        // Logic for each category with Term Consumption
-        // 1. Members (Priority 1)
-        const memberEntries = Object.entries(MemberToIntWithOT7);
-        const {
-            winners: winningMembers,
-            maxScore: memberScore,
-            matchedTerms: memberMatchedTerms,
-        } = getWinnersFromTerms(memberEntries, ([name, _]) => name, allTerms);
-
-        // Filter out terms used by Members
-        const termsAfterMembers = allTerms.filter((term) => !memberMatchedTerms.has(term));
-
-        // 2. Collections (Priority 2)
-        // Check Top Collections
-        const {
-            winners: winningTopCols,
-            maxScore: topColScore,
-            matchedTerms: topColMatchedTerms,
-        } = getWinnersFromTerms(allSearchableCols.tops, (c) => c.collection.name, termsAfterMembers);
-
-        // Check Sub Collections
-        const {
-            winners: winningSubCols,
-            maxScore: subColScore,
-            matchedTerms: subColMatchedTerms,
-        } = getWinnersFromTerms(
-            allSearchableCols.subs,
-            (c) => (c.version ? `${c.name} ${c.version}` : c.name),
-            termsAfterMembers,
-        );
-
-        // Filter out terms used by Collections
-        const termsAfterCollections = termsAfterMembers.filter(
-            (term) => !topColMatchedTerms.has(term) && !subColMatchedTerms.has(term),
-        );
-
-        // 3. Others (Priority 3)
-        // Card Types
-        const { winners: winningCardTypes, maxScore: cardTypeScore } = getWinnersFromTerms(
-            cardTypes,
-            (ct) => ct.name,
-            termsAfterCollections,
-        );
-
-        // Card Sizes
-        const { winners: winningCardSizes, maxScore: cardSizeScore } = getWinnersFromTerms(
-            cardSizes,
-            (cs) => cardSizeToString(cs),
-            termsAfterCollections,
-        );
-
-        // Exclusive Countries
-        const countryEntries = Object.entries(ExclusiveCountry);
-        const { winners: winningCountries, maxScore: countryScore } = getWinnersFromTerms(
-            countryEntries,
-            ([name, _]) => name,
-            termsAfterCollections,
-        );
-
-        let finalVisibleSubIds = new Set<number>();
-        let finalVisibleTopIds = new Set<number>();
-
-        if (topColScore > 0 || subColScore > 0) {
-            // Filter mode
-            if (topColScore > 0) {
-                winningTopCols.forEach((c) => finalVisibleTopIds.add(c.collection.id!));
-            }
-            if (subColScore > 0) {
-                winningSubCols.forEach((c) => finalVisibleSubIds.add(c.id!));
-            }
-
-            // Include parents of visible subs
-            finalVisibleSubIds.forEach((subId) => {
-                const sub = allSearchableCols.subs.find((c) => c.id === subId);
-                if (sub) {
-                    for (const colType of sub.collection_types) {
-                        const parent = getTopCollectionForSub(sub, colType);
-                        if (parent) finalVisibleTopIds.add(parent.id!);
-                    }
-                }
-            });
-        } else {
-            // Show all
-            finalVisibleTopIds = new Set(allSearchableCols.tops.map((c) => c.collection.id!));
-            finalVisibleSubIds = new Set(allSearchableCols.subs.map((c) => c.id!));
-        }
+        });
 
         // Collection Types visibility
         const finalVisibleTypeIds = new Set<number>();
-        for (const type of collectionTypes) {
-            const topCols = getTopCollectionsForType(type.id!);
-            for (const topId of topCols) {
-                if (finalVisibleTopIds.has(topId)) {
-                    finalVisibleTypeIds.add(type.id!);
-                    break;
-                }
+        for (const topCol of winningTopCols) {
+            for (const colType of topCol.collection.collection_types) {
+                finalVisibleTypeIds.add(colType);
             }
         }
 
-        const nextVisibleMembers =
-            memberScore > 0
-                ? new Set(Array.from(winningMembers).map(([_, v]) => v))
-                : new Set(Object.values(MemberToIntWithOT7));
-        const nextVisibleCardTypes = cardTypeScore > 0 ? winningCardTypes : new Set(cardTypes);
-        const nextVisibleCardSizes = cardSizeScore > 0 ? winningCardSizes : new Set(cardSizes);
-        const nextVisibleCountries =
-            countryScore > 0
-                ? new Set(Array.from(winningCountries).map(([_, v]) => v))
-                : new Set(Object.values(ExclusiveCountry));
+        const topColIds = new Set([...winningTopCols].map((c) => c.collection.id!));
+        const subColIds = new Set([...winningSubCols].map((c) => c.id!));
 
         return {
             visibleOptions: {
-                members: nextVisibleMembers,
-                cardTypes: nextVisibleCardTypes,
-                cardSizes: nextVisibleCardSizes,
-                exclusiveCountries: nextVisibleCountries,
-                subCollections: finalVisibleSubIds,
-                topCollections: finalVisibleTopIds,
+                members: winningMembers,
+                cardTypes: winningCardTypes,
+                cardSizes: winningCardSizes,
+                exclusiveCountries: winningCountries,
+                subCollections: subColIds,
+                topCollections: topColIds,
                 collectionTypes: finalVisibleTypeIds,
             },
             proposedFilters: {
-                members: nextVisibleMembers,
-                cardTypes: nextVisibleCardTypes,
-                cardSizes: nextVisibleCardSizes,
-                exclusiveCountries: nextVisibleCountries,
-                topCollections: finalVisibleTopIds,
-                subCollections: finalVisibleSubIds,
+                members: winningMembers,
+                cardTypes: winningCardTypes,
+                cardSizes: winningCardSizes,
+                exclusiveCountries: winningCountries,
+                topCollections: topColIds,
+                subCollections: subColIds,
                 collectionTypes: finalVisibleTypeIds,
             },
         };

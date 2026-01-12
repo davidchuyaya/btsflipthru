@@ -1,9 +1,12 @@
 "use client";
 
-import { THUMBNAIL_DISPLAY_HEIGHT_PX, Effects } from "@/constants";
+import { THUMBNAIL_DISPLAY_HEIGHT_PX, Effects, thumbnailUrl } from "@/constants";
 import { CheckboxWithoutLabel } from "@/components/ui/checkbox";
 import { useEffect, useState } from "react";
 import { useMetadata } from "@/metadata-context";
+import { Photocards } from "@/db";
+import { useDraggable } from "@dnd-kit/core";
+import { Selectable } from "kysely";
 
 const DEFAULT_ASPECT_RATIO = "11 / 17"; // Standard photocard aspect ratio 55mm x 85mm
 
@@ -117,6 +120,7 @@ export default function PhotocardComponent({
     onToggle,
     onClick,
     large = false,
+    tiltFactor = "0.7",
 }: {
     className?: string;
     src: string | null;
@@ -130,6 +134,7 @@ export default function PhotocardComponent({
     onToggle?: () => void;
     onClick?: () => void;
     large?: boolean;
+    tiltFactor?: string;
 }) {
     const { effectsDisabled } = useMetadata();
     const [borderRadius, setBorderRadius] = useState<number>(16);
@@ -174,7 +179,7 @@ export default function PhotocardComponent({
     }
 
     // If effects are disabled, use a div instead so the props don't actually do anything
-    const HoverTilt = effectsDisabled ? "div" : "hover-tilt" as any;
+    const HoverTilt = effectsDisabled ? "div" : ("hover-tilt" as any);
 
     const imgStyle: React.CSSProperties = large
         ? {
@@ -201,7 +206,7 @@ export default function PhotocardComponent({
             >
                 <HoverTilt
                     glare-intensity={glareIntensity}
-                    tilt-factor="0.7"
+                    tilt-factor={tiltFactor}
                     scale-factor="1"
                     className={`${effects === Effects.Shiny ? "shiny" : ""} ${large ? "block w-full" : ""}`}
                 >
@@ -224,6 +229,94 @@ export default function PhotocardComponent({
                     <CheckboxWithoutLabel checked={isSelected} className="w-8 h-8 border-2 pointer-events-none" />
                 </div>
             )}
+        </div>
+    );
+}
+
+export function PhotocardWithSize({
+    photocard,
+    showFront,
+    width,
+    height,
+}: {
+    photocard: Selectable<Photocards>;
+    showFront: boolean;
+    width?: number;
+    height?: number;
+}) {
+    return (
+        <div
+            style={{
+                width,
+                height,
+            }}
+        >
+            <PhotocardComponent
+                src={
+                    showFront
+                        ? photocard.image_id
+                            ? thumbnailUrl(photocard.image_id)
+                            : null
+                        : photocard.back_image_id
+                          ? thumbnailUrl(photocard.back_image_id)
+                          : null
+                }
+                fallbackSrc={
+                    showFront
+                        ? photocard.back_image_id
+                            ? thumbnailUrl(photocard.back_image_id)
+                            : null
+                        : photocard.image_id
+                          ? thumbnailUrl(photocard.image_id)
+                          : null
+                }
+                effects={photocard.effects}
+                tiltFactor="0"
+                large={true}
+            />
+        </div>
+    );
+}
+
+export function DraggablePhotocard({
+    photocard,
+    showFront,
+    width,
+    height,
+}: {
+    photocard: Selectable<Photocards>;
+    showFront: boolean;
+    width?: number;
+    height?: number;
+}) {
+    const { attributes, listeners, setNodeRef } = useDraggable({
+        id: photocard.id,
+        data: { photocard },
+    });
+
+    return (
+        <div ref={setNodeRef} {...listeners} {...attributes} style={{ width, height }}>
+            <PhotocardComponent
+                src={
+                    showFront
+                        ? photocard.image_id
+                            ? thumbnailUrl(photocard.image_id)
+                            : null
+                        : photocard.back_image_id
+                          ? thumbnailUrl(photocard.back_image_id)
+                          : null
+                }
+                fallbackSrc={
+                    showFront
+                        ? photocard.back_image_id
+                            ? thumbnailUrl(photocard.back_image_id)
+                            : null
+                        : photocard.image_id
+                          ? thumbnailUrl(photocard.image_id)
+                          : null
+                }
+                effects={photocard.effects}
+            />
         </div>
     );
 }
