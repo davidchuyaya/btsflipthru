@@ -238,17 +238,20 @@ export function PhotocardWithSize({
     showFront,
     width,
     height,
+    style,
 }: {
     photocard: Selectable<Photocards>;
     showFront: boolean;
     width?: number;
     height?: number;
+    style?: React.CSSProperties;
 }) {
     return (
         <div
             style={{
                 width,
                 height,
+                ...style,
             }}
         >
             <PhotocardComponent

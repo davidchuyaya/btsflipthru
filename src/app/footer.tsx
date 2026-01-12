@@ -46,7 +46,7 @@ export default function FooterComponent() {
 
             <div className="flex flex-col justify-center items-center lg:justify-end lg:items-end grow">
                 <FooterButton text="Terms of Service" href="/" />
-                <FooterButton text="Privacy Policy" href="/" />
+                <FooterButton text="Privacy Policy" href="/privacyPolicy" />
                 <FooterButton text="Contact" href="/contact" />
                 <SocialButtonsComponent size={6} className="mr-2" />
             </div>

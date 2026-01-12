@@ -18,6 +18,7 @@ export const MAX_EXTERNAL_SITE_USERNAME_LENGTH = 32;
 export const USERNAME_REGEX = /^[a-zA-Z0-9_]+$/;
 export const USERNAME_ERROR_TEXT = "Username can only contain letters, numbers, and underscores.";
 export const SPOTIFY_PLAYLIST_ID_LENGTH = 22;
+export const BINDER_PERFORATION_DOT_SIZE = 2;
 
 // Important: Any number used by an enum should not be reused in the future
 export const Role = {

@@ -4,7 +4,7 @@ import { getCardSizesFromDB, getOwnedPhotocards, getWishlistedPhotocards } from 
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { BinderPage, BinderType } from "@/constants";
+import { BINDER_PERFORATION_DOT_SIZE, BinderPage, BinderType } from "@/constants";
 import { CardSizes, Photocards } from "@/db";
 import { useMetadata } from "@/metadata-context";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -78,17 +78,22 @@ function BinderPageComponent({
         return null;
     }
 
-    const width = pageType.xPerforations[pageType.xPerforations.length - 1];
-    const height = pageType.yPerforations[pageType.yPerforations.length - 1];
+    const width = pageType.xPerforations[pageType.xPerforations.length - 1] + BINDER_PERFORATION_DOT_SIZE;
+    const height = pageType.yPerforations[pageType.yPerforations.length - 1] + BINDER_PERFORATION_DOT_SIZE;
     const widthPercent = (width / binderType.coverWidth) * 100;
 
     const xPerfs = [0, ...pageType.xPerforations];
     const yPerfs = [0, ...pageType.yPerforations];
 
-    const colWidths = xPerfs.slice(1).map((x, i) => x - xPerfs[i]);
+    const colWidths = xPerfs.slice(1).map((x, i) => {
+        // Last column gets needs extra space to draw the rightmost perforations
+        if (i === xPerfs.length - 1) {
+            return x - xPerfs[i] + BINDER_PERFORATION_DOT_SIZE;
+        }
+        return x - xPerfs[i];
+    });
     const rowHeights = yPerfs.slice(1).map((y, i) => y - yPerfs[i]);
 
-    const dotSize = 2; // mm
     const gradient = "radial-gradient(circle, transparent 40%, white 40%, white 50%, transparent 50%)";
 
     return (
@@ -103,8 +108,8 @@ function BinderPageComponent({
         >
             {rowHeights.map((h, rIndex) =>
                 colWidths.map((w, cIndex) => {
-                    const dotPctX = (dotSize / w) * 100;
-                    const dotPctY = (dotSize / h) * 100;
+                    const dotPctX = (BINDER_PERFORATION_DOT_SIZE / w) * 100;
+                    const dotPctY = (BINDER_PERFORATION_DOT_SIZE / h) * 100;
                     const isLastCol = cIndex === colWidths.length - 1;
                     const key = `${rIndex}-${cIndex}`;
                     return (
@@ -112,6 +117,8 @@ function BinderPageComponent({
                             key={key}
                             id={key}
                             currentPage={index}
+                            width={w}
+                            height={h}
                             gradient={gradient}
                             isLastCol={isLastCol}
                             dotPctX={dotPctX}
@@ -129,11 +136,15 @@ function BinderSlot({
     isLastCol,
     dotPctX,
     dotPctY,
+    width,
+    height,
     id,
     currentPage,
 }: {
     gradient: string;
     isLastCol: boolean;
+    width: number;
+    height: number;
     dotPctX: number;
     dotPctY: number;
     id: string;
@@ -142,49 +153,49 @@ function BinderSlot({
     const { control } = useFormContext();
     const { setNodeRef, isOver } = useDroppable({
         id,
+        // To tell the DndContext what size this slot is, so it can calculate the photocard's position
+        // It seems like even though binder perforations are only 2px, the gradient extends 1px on each side
+        data: {
+            width: width - (isLastCol ? BINDER_PERFORATION_DOT_SIZE * 2 : BINDER_PERFORATION_DOT_SIZE) - 1,
+            height: height - BINDER_PERFORATION_DOT_SIZE - 1,
+        },
     });
     // Left border for every cell
     // Right border only for the last column
     // Bottom border for every cell
     return (
-        <div
-            ref={setNodeRef}
-            className={isOver ? "bg-white/50" : ""}
-            style={{
-                backgroundImage: `${gradient}, ${gradient} ${isLastCol ? ", " + gradient : ""}`,
-                backgroundPosition: `left bottom, left top ${isLastCol ? ", right top" : ""}`,
-                backgroundSize: `${dotPctX}% ${dotPctY}%, ${dotPctX}% ${dotPctY}% ${isLastCol ? `, ${dotPctX}% ${dotPctY}%` : ""}`,
-                backgroundRepeat: `repeat-x, repeat-y ${isLastCol ? ", repeat-y" : ""}`,
-            }}
-        >
-            <Controller
-                name={`pages.${currentPage}.slots.${id}`}
-                control={control}
-                render={({ field }) =>
-                    field.value && (
+        <Controller
+            name={`pages.${currentPage}.slots.${id}`}
+            control={control}
+            render={({ field }) => (
+                <div
+                    ref={setNodeRef}
+                    className={`${isOver ? "bg-white/50" : ""} relative`}
+                    style={{
+                        backgroundImage: `${gradient}, ${gradient} ${isLastCol ? ", " + gradient : ""}`,
+                        backgroundPosition: `left bottom, left top ${isLastCol ? ", right top" : ""}`,
+                        backgroundSize: `${dotPctX}% ${dotPctY}%, ${dotPctX}% ${dotPctY}% ${isLastCol ? `, ${dotPctX}% ${dotPctY}%` : ""}`,
+                        backgroundRepeat: `repeat-x, repeat-y ${isLastCol ? ", repeat-y" : ""}`,
+                    }}
+                >
+                    {field.value && (
                         <PhotocardWithSize
                             photocard={field.value.photocard}
                             showFront={true}
                             width={field.value.width}
                             height={field.value.height}
+                            style={{
+                                position: "absolute",
+                                // Padding bottom is double the dot size; not sure why this is required
+                                bottom: `calc(${field.value.y}px + ${dotPctY*2}%)`,
+                                left: `calc(${field.value.x}px + ${dotPctX}%)`,
+                            }}
                         />
-                    )
-                }
-            />
-        </div>
+                    )}
+                </div>
+            )}
+        />
     );
-}
-
-enum SearchType {
-    Owned = "Owned",
-    Wishlisted = "Wishlisted",
-}
-
-enum SnapToGrid {
-    BottomLeft,
-    BottomRight,
-    Center,
-    Manual,
 }
 
 function SearchComponent({ cardSizes }: { cardSizes: Selectable<CardSizes>[] }) {
@@ -246,39 +257,39 @@ function SearchComponent({ cardSizes }: { cardSizes: Selectable<CardSizes>[] }) 
     );
 }
 
+enum SearchType {
+    Owned = "Owned",
+    Wishlisted = "Wishlisted",
+}
+
+enum SnapToGrid {
+    BottomLeft,
+    BottomRight,
+    Center,
+    Manual,
+}
+
 const formSchema = z.object({
-    binderType: z.object({
-        id: z.number(),
-        name: z.string(),
-        numPages: z.number(),
-        coverWidth: z.number(),
-        coverHeight: z.number(),
-        spineWidth: z.number(),
-        maxPageWidth: z.number(),
-        maxPageHeight: z.number(),
-    }),
+    binderType: z.custom<BinderType>(),
     name: z.string(),
     description: z.string().optional(),
     pages: z.array(
         z.object({
-            pageType: z.object({
-                id: z.number(),
-                name: z.string(),
-                xPerforations: z.array(z.number()),
-                yPerforations: z.array(z.number()),
-            }),
+            pageType: z.custom<BinderPage>(),
             slots: z.record(
                 z.string(), // Slot ID
-                z.object({
-                    photocard: z.custom<Selectable<Photocards>>(),
-                    showFront: z.boolean(),
-                    rotation: z.number(),
-                    width: z.number(),
-                    height: z.number(),
-                    x: z.number(),
-                    y: z.number(),
-                    z: z.number(),
-                }),
+                z
+                    .object({
+                        photocard: z.custom<Selectable<Photocards>>(),
+                        showFront: z.boolean(),
+                        rotation: z.number(),
+                        width: z.number(),
+                        height: z.number(),
+                        x: z.number(),
+                        y: z.number(),
+                        z: z.number(),
+                    })
+                    .optional(),
             ),
         }),
     ),
@@ -347,15 +358,37 @@ export default function BinderClient() {
 
     function onDragEnd(event: DragEndEvent) {
         if (!event.over) return;
+
+        const slotWidth = event.over.data.current!.width * scale;
+        const slotHeight = event.over.data.current!.height * scale;
+        const width = activeCardSize!.width * scale;
+        const height = activeCardSize!.height * scale;
+        let x = 0;
+        const y = 0;
+        const z = 0;
+        switch (snapToGrid) {
+            case SnapToGrid.BottomLeft:
+                x = 0;
+                break;
+            case SnapToGrid.BottomRight:
+                x = slotWidth - width;
+                break;
+            case SnapToGrid.Center:
+                x = (slotWidth - width) / 2;
+                break;
+            case SnapToGrid.Manual:
+                x = event.active.rect.current.translated!.left;
+                break;
+        }
         form.setValue(`pages.${currentPage}.slots.${event.over.id}`, {
             photocard: activePhotocard!,
             showFront: true,
             rotation: 0,
-            width: activeCardSize!.width * scale,
-            height: activeCardSize!.height * scale,
-            x: 0,
-            y: 0,
-            z: 0,
+            width,
+            height,
+            x,
+            y,
+            z,
         });
         setNeedsSaving(true);
         setActivePhotocard(null);
@@ -372,6 +405,7 @@ export default function BinderClient() {
     return (
         <DndContext onDragStart={onDragStart} onDragEnd={onDragEnd}>
             <div className="flex flex-col gap-4 m-16 items-center">
+                <h1>Work in Progress!</h1>
                 <FormProvider {...form}>
                     <form
                         className="w-full flex flex-col gap-4"
