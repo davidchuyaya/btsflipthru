@@ -219,7 +219,11 @@ export default function SearchClient({
             tops.sort(
                 (a, b) => new Date(b.collection.release_date).getTime() - new Date(a.collection.release_date).getTime(),
             );
-            subs.sort((a, b) => new Date(b.release_date).getTime() - new Date(a.release_date).getTime());
+            subs.sort((a, b) =>
+                (a.version_order !== null && b.version_order !== null)
+                    ? a.version_order - b.version_order
+                    : new Date(b.release_date).getTime() - new Date(a.release_date).getTime(),
+            );
 
             newHierarchy.set(type.id!, { tops, subs });
         }
