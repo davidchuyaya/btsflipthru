@@ -1025,14 +1025,14 @@ export default function CreateCollectionClient({
                                 onCreateCardType={onCreateCardType}
                                 onRemovePhotocard={() => onRemovePhotocard(index)}
                                 expandImages={expandImages}
-                                isLocked={photocardLocked[index] ?? false}
+                                isLocked={photocardLocked[index] ?? isSubmitting}
                             />
                         ))}
                     </TableBody>
                     <TableFooter>
                         <TableRow>
                             <TableCell colSpan={9} className="text-center bg-none!">
-                                <Button size="icon" type="button" onClick={onAddPhotocard}>
+                                <Button size="icon" type="button" onClick={onAddPhotocard} disabled={isSubmitting}>
                                     <PlusIcon className="inline-block" />
                                 </Button>
                             </TableCell>
@@ -1040,7 +1040,7 @@ export default function CreateCollectionClient({
                     </TableFooter>
                 </Table>
 
-                <Button type="submit" className="mb-16">
+                <Button type="submit" className="mb-16" disabled={isSubmitting}>
                     Upload
                 </Button>
             </form>
