@@ -127,6 +127,19 @@ function CustomSidebarTrigger() {
     );
 }
 
+function CustomSearchButton({ searchFunction }: { searchFunction: () => Promise<boolean> }) {
+    const { toggleSidebar } = useSidebar();
+    return (
+        <Button onClick={() => searchFunction().then((success) => {
+            if (success) {
+                toggleSidebar();
+            }
+        })} className="w-full">
+            Search
+        </Button>
+    );
+}
+
 type Filters = {
     query: string;
     collectionTypes: Set<number>;
@@ -680,17 +693,17 @@ export default function SearchClient({
     /**
      * Attempt a brand new search query
      */
-    async function trySearch(currentFilters: Filters) {
+    async function trySearch(currentFilters: Filters): Promise<boolean> {
         if (!canSearch()) {
             console.log("Cannot search yet, missing parameters.");
-            return;
+            return false;
         }
 
         const searchQuery = filtersToQuery(currentFilters);
         // Avoid duplicate searches
         if (!hasFiltersChanged(searchQuery)) {
             console.log("Duplicate search query, aborting.");
-            return;
+            return false;
         }
 
         // If selectedSort is by release date, modify the actual search query so we don't fetch more than NUM_LOAD_COLLECTIONS collections
@@ -719,6 +732,7 @@ export default function SearchClient({
 
         // Insert the unmodified search (so we can compare)
         setPrevSearch({ fullQuery: searchQuery, coveredCollectionIds: newCollectionIds, wasEmpty: numResults === 0 });
+        return true;
     }
 
     /**
@@ -1008,9 +1022,7 @@ export default function SearchClient({
                         </CollapsibleGroup>
                     </SidebarContent>
                     <div className="fixed w-[25vw] bottom-4 px-4">
-                        <Button disabled={isSelectionMode} onClick={() => trySearch(filters)} className="w-full">
-                            Search
-                        </Button>
+                        <CustomSearchButton searchFunction={() => trySearch(filters)} />
                     </div>
                 </Sidebar>
                 <div className="flex flex-col mt-4 mb-4 gap-4 grow">
