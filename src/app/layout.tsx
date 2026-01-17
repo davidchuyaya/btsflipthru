@@ -63,7 +63,7 @@ export default function RootLayout({
                             description,
                             url,
                             image,
-                        }),
+                        }).replace(/</g, '\\u003c'),
                     }}
                 />
             </head>
