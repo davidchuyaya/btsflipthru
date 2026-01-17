@@ -1,7 +1,7 @@
 "use client";
 
 import PhotocardComponent from "@/app/photocard";
-import { AlertDialogHeader, AlertDialogFooter } from "@/components/ui/alert-dialog";
+import { AlertDialogHeader, AlertDialogFooter, AlertDialogWithButton } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import {
     collectionDisplayName,
@@ -60,36 +60,6 @@ import {
 } from "@/actions";
 import { toast } from "sonner";
 import { Share2Icon } from "lucide-react";
-
-function AlertDialogTriggerButton({
-    title,
-    description,
-    submit,
-    onSubmit,
-    children,
-}: {
-    title: string;
-    description: string;
-    submit: string;
-    onSubmit: () => void;
-    children: React.ReactNode;
-}) {
-    return (
-        <AlertDialog>
-            <AlertDialogTrigger asChild>{children}</AlertDialogTrigger>
-            <AlertDialogContent>
-                <AlertDialogHeader>
-                    <AlertDialogTitle>{title}</AlertDialogTitle>
-                    <AlertDialogDescription>{description}</AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={onSubmit}>{submit}</AlertDialogAction>
-                </AlertDialogFooter>
-            </AlertDialogContent>
-        </AlertDialog>
-    );
-}
 
 const formSchema = z.object({
     frontImage: z
@@ -392,9 +362,9 @@ function CardActionsComponent({
     ) {
         if (show) {
             return (
-                <AlertDialogTriggerButton title={title} description={description} submit={submit} onSubmit={onSubmit}>
+                <AlertDialogWithButton title={title} description={description} submit={submit} onSubmit={onSubmit}>
                     {children}
-                </AlertDialogTriggerButton>
+                </AlertDialogWithButton>
             );
         }
         return children;

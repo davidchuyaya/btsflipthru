@@ -144,6 +144,36 @@ function AlertDialogCancel({
   )
 }
 
+function AlertDialogWithButton({
+    title,
+    description,
+    submit,
+    onSubmit,
+    children,
+}: {
+    title: string;
+    description: string;
+    submit: string;
+    onSubmit: () => void;
+    children: React.ReactNode;
+}) {
+    return (
+        <AlertDialog>
+            <AlertDialogTrigger asChild>{children}</AlertDialogTrigger>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>{title}</AlertDialogTitle>
+                    <AlertDialogDescription>{description}</AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction className="bg-third" onClick={onSubmit}>{submit}</AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+    );
+}
+
 export {
   AlertDialog,
   AlertDialogPortal,
@@ -156,4 +186,5 @@ export {
   AlertDialogDescription,
   AlertDialogAction,
   AlertDialogCancel,
+  AlertDialogWithButton,
 }

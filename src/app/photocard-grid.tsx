@@ -5,6 +5,9 @@ import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { Collections, Photocards } from "@/db";
 import { Selectable } from "kysely";
+import { Trash2Icon } from "lucide-react";
+import { AlertDialogWithButton } from "@/components/ui/alert-dialog";
+import { deleteCollection } from "@/actions";
 
 function PhotocardGridWithoutCollections({
     photocards,
@@ -29,11 +32,7 @@ function PhotocardGridWithoutCollections({
         <div className={`flex flex-row flex-wrap gap-4 justify-center ${className}`}>
             {photocards.map((photocard) =>
                 draggable ? (
-                    <DraggablePhotocard
-                        key={photocard.id}
-                        photocard={photocard}
-                        showFront={showFront}
-                    />
+                    <DraggablePhotocard key={photocard.id} photocard={photocard} showFront={showFront} />
                 ) : (
                     <PhotocardComponent
                         key={photocard.id}
@@ -110,9 +109,21 @@ export default function PhotocardGrid({
                         <h2 hidden={hidden} className="mt-4">
                             {collection.version ? `${collection.name} (${collection.version})` : collection.name}
                         </h2>
-                        <Button hidden={!showEditButton || hidden} className="self-center" asChild>
-                            <Link href={`/createCollection?collectionId=${collection.id}`}>Edit Collection</Link>
-                        </Button>
+                        <div className="flex flex-row gap-2" hidden={!showEditButton || hidden}>
+                            <Button className="self-center" asChild>
+                                <Link href={`/createCollection?collectionId=${collection.id}`}>Edit Collection</Link>
+                            </Button>
+                            <AlertDialogWithButton
+                                title="Delete Collection"
+                                description="Are you sure you want to delete this collection? This will also delete all photocards in this collection."
+                                submit="Delete"
+                                onSubmit={() => deleteCollection(collection.id!)}
+                            >
+                                <Button className="self-center bg-third" size="icon">
+                                    <Trash2Icon />
+                                </Button>
+                            </AlertDialogWithButton>
+                        </div>
                         <PhotocardGridWithoutCollections
                             photocards={children}
                             showFront={showFront}

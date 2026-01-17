@@ -1,6 +1,6 @@
 "use server";
 
-import { getSession, isAtLeastMod } from "@/auth";
+import { getSession, isAdmin, isAtLeastMod } from "@/auth";
 import {
     Result,
     generateSignedParams,
@@ -372,6 +372,23 @@ export async function updateCollectionInDB(
     } catch (e) {
         return { error: `Could not update collection: ${e}` };
     }
+}
+
+export async function deleteCollection(id: number): Promise<Result<boolean>> {
+    const session = await getSession();
+    if (session.error) {
+        return { error: session.error };
+    }
+    const result = await isAdmin<boolean>(session);
+    if (result.error) {
+        return result;
+    }
+
+    await db.deleteFrom("collections").where("id", "=", id).execute();
+    // Delete all photocards with that collection ID
+    await db.deleteFrom("photocards").where("collection_id", "=", id).execute();
+    updateTag(CACHE_TAG_COLLECTIONS);
+    return { data: true };
 }
 
 export async function getPhotocardFromDB(id: number): Promise<Result<Selectable<Photocards>>> {
