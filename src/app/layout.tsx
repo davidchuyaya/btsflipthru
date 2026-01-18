@@ -53,6 +53,7 @@ export default function RootLayout({
         <html lang="en">
             <head>
                 <link rel="stylesheet" href="https://use.typekit.net/gpm8jeo.css"></link>
+                <link rel="icon" href="/icon.png"></link>
                 <script
                     type="application/ld+json"
                     dangerouslySetInnerHTML={{
