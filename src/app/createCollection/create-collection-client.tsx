@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect, useRef, Suspense } from "react";
+import { useState, useMemo, useEffect, useRef, Suspense, KeyboardEvent } from "react";
 import {
     MemberToInt,
     PresignedUrl,
@@ -16,7 +16,15 @@ import {
     dateToString,
 } from "@/constants";
 import { useMetadata } from "@/metadata-context";
-import { addCardSizeToDB, addCardTypeToDB, addCollectionToDB, addCollectionTypeToDB, generateSignedUploadUrlForPhotocards, getCollectionForEdit, updateCollectionInDB } from "@/actions";
+import {
+    addCardSizeToDB,
+    addCardTypeToDB,
+    addCollectionToDB,
+    addCollectionTypeToDB,
+    generateSignedUploadUrlForPhotocards,
+    getCollectionForEdit,
+    updateCollectionInDB,
+} from "@/actions";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import Combobox from "@/components/ui/combobox";
@@ -450,8 +458,7 @@ export default function CreateCollectionClient({
     serverCardTypes: Selectable<CardTypes>[];
     serverCardSizes: Selectable<CardSizes>[];
 }) {
-    const { setError, session } =
-        useMetadata();
+    const { setError, session } = useMetadata();
 
     const searchParams = useSearchParams();
     const collectionId = searchParams.get("collectionId");
@@ -479,7 +486,7 @@ export default function CreateCollectionClient({
     const [cardSizes, setCardSizes] = useState<Selectable<CardSizes>[]>(serverCardSizes);
     const [sameBackImage, setSameBackImage] = useState<File | null>(null);
     const [expandImages, setExpandImages] = useState<boolean>(false);
-    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [hasSubmitted, setHasSubmitted] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [photocardLocked, setPhotocardLocked] = useState<boolean[]>([]);
 
@@ -659,8 +666,8 @@ export default function CreateCollectionClient({
      * Converts `LocalPhotocard` to `Photocard` and call `createCollectionInDB`.
      */
     async function onSubmit(data: z.infer<typeof formSchema>) {
-        if (isSubmitting) return;
-        setIsSubmitting(true);
+        if (hasSubmitted) return;
+        setHasSubmitted(true);
 
         // Separate photocards into those with new images and those without
         const photocardsWithFiles = data.photocards.filter((p) => p.frontImage != null || p.backImage != null);
@@ -679,7 +686,7 @@ export default function CreateCollectionClient({
             const uploadResult = await generateSignedUploadUrlForPhotocards(uniqueFilesToUpload.size);
             if (uploadResult.error) {
                 setError(uploadResult.error);
-                setIsSubmitting(false);
+                setHasSubmitted(false);
                 return;
             }
             signedUrls = uploadResult.data!;
@@ -792,11 +799,15 @@ export default function CreateCollectionClient({
                         },
                     };
                 },
-                finally: () => {
-                    setIsSubmitting(false);
-                },
             },
         );
+    }
+
+    // Prevent form submission on enter
+    function onKeyDown(e: KeyboardEvent<HTMLFormElement>) {
+        if (e.key === "Enter") {
+            e.preventDefault();
+        }
     }
 
     return (
@@ -805,6 +816,7 @@ export default function CreateCollectionClient({
                 onSubmit={form.handleSubmit(onSubmit, (errors) => {
                     console.error("Form validation errors:", errors);
                 })}
+                onKeyDown={(e) => onKeyDown(e)}
                 className="flex flex-col gap-4 m-4 items-center"
                 hidden={!isAtLeastMod(session)}
             >
@@ -1025,14 +1037,14 @@ export default function CreateCollectionClient({
                                 onCreateCardType={onCreateCardType}
                                 onRemovePhotocard={() => onRemovePhotocard(index)}
                                 expandImages={expandImages}
-                                isLocked={photocardLocked[index] ?? isSubmitting}
+                                isLocked={photocardLocked[index] ?? hasSubmitted}
                             />
                         ))}
                     </TableBody>
                     <TableFooter>
                         <TableRow>
                             <TableCell colSpan={9} className="text-center bg-none!">
-                                <Button size="icon" type="button" onClick={onAddPhotocard} disabled={isSubmitting}>
+                                <Button size="icon" type="button" onClick={onAddPhotocard} disabled={hasSubmitted}>
                                     <PlusIcon className="inline-block" />
                                 </Button>
                             </TableCell>
@@ -1040,7 +1052,7 @@ export default function CreateCollectionClient({
                     </TableFooter>
                 </Table>
 
-                <Button type="submit" className="mb-16" disabled={isSubmitting}>
+                <Button type="submit" className="mb-16" disabled={hasSubmitted}>
                     Upload
                 </Button>
             </form>
