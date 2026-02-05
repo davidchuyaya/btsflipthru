@@ -9,7 +9,7 @@ import { CardSizes, Photocards } from "@/db";
 import { useMetadata } from "@/metadata-context";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Selectable } from "kysely";
-import { EyeIcon, SaveIcon, Share2Icon } from "lucide-react";
+import { ChevronLeftIcon, ChevronRightIcon, ChevronsLeftIcon, ChevronsRightIcon, EyeIcon, SaveIcon, Share2Icon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Controller, FormProvider, useForm, useFormContext, useWatch } from "react-hook-form";
 import z from "zod";
@@ -186,8 +186,7 @@ function BinderSlot({
                             height={field.value.height}
                             style={{
                                 position: "absolute",
-                                // Padding bottom is double the dot size; not sure why this is required
-                                bottom: `calc(${field.value.y}px + ${dotPctY*2}%)`,
+                                bottom: `calc(${field.value.y}px + ${dotPctY}%)`,
                                 left: `calc(${field.value.x}px + ${dotPctX}%)`,
                             }}
                         />
@@ -222,7 +221,7 @@ function SearchComponent({ cardSizes }: { cardSizes: Selectable<CardSizes>[] }) 
         fetchPhotocards();
     }, []);
 
-    function onSearch() {}
+    function onSearch() { }
 
     return (
         <div className="rounded-2xl bg-third-lighter p-4 flex flex-col items-center gap-4 w-[75%]">
@@ -302,6 +301,7 @@ export default function BinderClient() {
     const [snapToGrid, setSnapToGrid] = useState<SnapToGrid>(SnapToGrid.Center);
     const [activePhotocard, setActivePhotocard] = useState<Selectable<Photocards> | null>(null);
     const [cardSizes, setCardSizes] = useState<Selectable<CardSizes>[]>([]);
+    const [numPages, setNumPages] = useState(1);
 
     const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
@@ -394,12 +394,16 @@ export default function BinderClient() {
         setActivePhotocard(null);
     }
 
-    function onPreview() {}
+    function onPreview() { }
 
-    function onShare() {}
+    function onShare() { }
 
     async function onSubmit(data: z.infer<typeof formSchema>) {
         console.log("Submitting:", data);
+    }
+
+    function setPage(page: number) {
+        setCurrentPage(page);
     }
 
     return (
@@ -444,30 +448,48 @@ export default function BinderClient() {
                                 </Field>
                             )}
                         />
-                        <Controller
-                            name="binderType"
-                            control={form.control}
-                            render={({ field }) => (
-                                <BinderCoverComponent
-                                    binderType={field.value}
-                                    binderRef={binderRef}
-                                    leftPage={
-                                        <BinderPageComponent
-                                            binderType={field.value}
-                                            index={currentPage - 1}
-                                            flipped={true}
-                                        />
-                                    }
-                                    rightPage={
-                                        <BinderPageComponent
-                                            binderType={field.value}
-                                            index={currentPage}
-                                            flipped={false}
-                                        />
-                                    }
-                                />
-                            )}
-                        />
+                        <div className="flex flex-row gap-4 items-center">
+                            <div className="flex flex-col gap-4">
+                                <Button size="icon" type="button" className="px-3" onClick={() => setPage(currentPage - 1)} disabled={currentPage === 0}>
+                                    <ChevronLeftIcon />
+                                </Button>
+                                <Button size="icon" type="button" className="px-3" onClick={() => setPage(0)} disabled={currentPage === 0}>
+                                    <ChevronsLeftIcon />
+                                </Button>
+                            </div>
+                            <Controller
+                                name="binderType"
+                                control={form.control}
+                                render={({ field }) => (
+                                    <BinderCoverComponent
+                                        binderType={field.value}
+                                        binderRef={binderRef}
+                                        leftPage={
+                                            <BinderPageComponent
+                                                binderType={field.value}
+                                                index={currentPage - 1}
+                                                flipped={true}
+                                            />
+                                        }
+                                        rightPage={
+                                            <BinderPageComponent
+                                                binderType={field.value}
+                                                index={currentPage}
+                                                flipped={false}
+                                            />
+                                        }
+                                    />
+                                )}
+                            />
+                            <div className="flex flex-col gap-4">
+                                <Button size="icon" type="button" className="px-3" onClick={() => setPage(currentPage + 1)} disabled={currentPage === numPages - 1}>
+                                    <ChevronRightIcon />
+                                </Button>
+                                <Button size="icon" type="button" className="px-3" onClick={() => setPage(numPages - 1)} disabled={currentPage === numPages - 1}>
+                                    <ChevronsRightIcon />
+                                </Button>
+                            </div>
+                        </div>
                     </form>
                 </FormProvider>
                 <SearchComponent cardSizes={cardSizes} />
