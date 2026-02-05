@@ -9,7 +9,7 @@ import { CardSizes, Photocards } from "@/db";
 import { useMetadata } from "@/metadata-context";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Selectable } from "kysely";
-import { ChevronLeftIcon, ChevronRightIcon, ChevronsLeftIcon, ChevronsRightIcon, EyeIcon, SaveIcon, Share2Icon } from "lucide-react";
+import { AlignCenterVertical, AlignCenterVerticalIcon, AlignEndVerticalIcon, AlignStartVerticalIcon, ChevronLeftIcon, ChevronRightIcon, ChevronsLeftIcon, ChevronsRightIcon, EyeIcon, FlipHorizontalIcon, PointerIcon, RotateCcwIcon, SaveIcon, Share2Icon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Controller, FormProvider, useForm, useFormContext, useWatch } from "react-hook-form";
 import z from "zod";
@@ -66,10 +66,14 @@ function BinderPageComponent({
     binderType,
     index,
     flipped,
+    onSelectSlot,
+    selectedSlotId,
 }: {
     binderType: BinderType;
     index: number;
     flipped: boolean;
+    onSelectSlot: (id: string, width: number, height: number) => void;
+    selectedSlotId?: string;
 }) {
     const { control } = useFormContext<z.infer<typeof formSchema>>();
     const pageType = useWatch({ control, name: `pages.${index}.pageType` });
@@ -123,6 +127,8 @@ function BinderPageComponent({
                             isLastCol={isLastCol}
                             dotPctX={dotPctX}
                             dotPctY={dotPctY}
+                            onSelectSlot={onSelectSlot}
+                            isSelected={selectedSlotId === key}
                         />
                     );
                 }),
@@ -140,6 +146,8 @@ function BinderSlot({
     height,
     id,
     currentPage,
+    onSelectSlot,
+    isSelected,
 }: {
     gradient: string;
     isLastCol: boolean;
@@ -149,15 +157,20 @@ function BinderSlot({
     dotPctY: number;
     id: string;
     currentPage: number;
+    onSelectSlot: (id: string, width: number, height: number) => void;
+    isSelected: boolean;
 }) {
     const { control } = useFormContext();
+    const logicalWidth = width - (isLastCol ? BINDER_PERFORATION_DOT_SIZE * 2 : BINDER_PERFORATION_DOT_SIZE) - 1;
+    const logicalHeight = height - BINDER_PERFORATION_DOT_SIZE - 1;
+
     const { setNodeRef, isOver } = useDroppable({
         id,
         // To tell the DndContext what size this slot is, so it can calculate the photocard's position
         // It seems like even though binder perforations are only 2px, the gradient extends 1px on each side
         data: {
-            width: width - (isLastCol ? BINDER_PERFORATION_DOT_SIZE * 2 : BINDER_PERFORATION_DOT_SIZE) - 1,
-            height: height - BINDER_PERFORATION_DOT_SIZE - 1,
+            width: logicalWidth,
+            height: logicalHeight,
         },
     });
     // Left border for every cell
@@ -170,6 +183,11 @@ function BinderSlot({
             render={({ field }) => (
                 <div
                     ref={setNodeRef}
+                    onClick={() => {
+                        if (field.value) {
+                            onSelectSlot(id, logicalWidth, logicalHeight)
+                        }
+                    }}
                     className={`${isOver ? "bg-white/50" : ""} relative`}
                     style={{
                         backgroundImage: `${gradient}, ${gradient} ${isLastCol ? ", " + gradient : ""}`,
@@ -181,13 +199,15 @@ function BinderSlot({
                     {field.value && (
                         <PhotocardWithSize
                             photocard={field.value.photocard}
-                            showFront={true}
+                            showFront={field.value.showFront}
                             width={field.value.width}
                             height={field.value.height}
                             style={{
                                 position: "absolute",
                                 bottom: `calc(${field.value.y}px + ${dotPctY}%)`,
                                 left: `calc(${field.value.x}px + ${dotPctX}%)`,
+                                opacity: isSelected ? 1 : 0.6,
+                                transform: `rotate(${field.value.rotation}deg)`,
                             }}
                         />
                     )}
@@ -280,6 +300,7 @@ const formSchema = z.object({
                 z
                     .object({
                         photocard: z.custom<Selectable<Photocards>>(),
+                        snap: z.custom<SnapToGrid>(),
                         showFront: z.boolean(),
                         rotation: z.number(),
                         width: z.number(),
@@ -299,7 +320,10 @@ export default function BinderClient() {
     const [currentPage, setCurrentPage] = useState(0);
     const [needsSaving, setNeedsSaving] = useState(false);
     const [snapToGrid, setSnapToGrid] = useState<SnapToGrid>(SnapToGrid.Center);
+    // The one being dragged & dropped
     const [activePhotocard, setActivePhotocard] = useState<Selectable<Photocards> | null>(null);
+    // The one in the binder that is now selected
+    const [selectedSlot, setSelectedSlot] = useState<{ id: string; width: number; height: number } | null>(null);
     const [cardSizes, setCardSizes] = useState<Selectable<CardSizes>[]>([]);
     const [numPages, setNumPages] = useState(1);
 
@@ -356,32 +380,77 @@ export default function BinderClient() {
         }
     }
 
+    function calculatePhotocardPosition(
+        snapToGrid: SnapToGrid,
+        slotWidth: number,
+        slotHeight: number,
+        cardWidth: number,
+        cardHeight: number,
+        rotation: number,
+    ): { x: number; y: number; z: number } {
+        let x = 0;
+        let y = 0;
+        const z = 0;
+
+        const isSideways = Math.abs(rotation) % 180 === 90;
+
+        if (isSideways) {
+            y = (cardWidth - cardHeight) / 2;
+
+            switch (snapToGrid) {
+                case SnapToGrid.BottomLeft:
+                    x = (cardHeight - cardWidth) / 2;
+                    break;
+                case SnapToGrid.BottomRight:
+                    x = slotWidth - (cardHeight + cardWidth) / 2;
+                    break;
+                case SnapToGrid.Center:
+                    x = (slotWidth - cardWidth) / 2;
+                    break;
+                case SnapToGrid.Manual:
+                    x = (cardHeight - cardWidth) / 2;
+                    break;
+            }
+        }
+        else {
+            switch (snapToGrid) {
+                case SnapToGrid.BottomLeft:
+                    x = 0;
+                    break;
+                case SnapToGrid.BottomRight:
+                    x = slotWidth - cardWidth;
+                    break;
+                case SnapToGrid.Center:
+                    x = (slotWidth - cardWidth) / 2;
+                    break;
+                case SnapToGrid.Manual:
+                    x = 0;
+                    break;
+            }
+        }
+
+        return { x, y, z };
+    }
+
     function onDragEnd(event: DragEndEvent) {
         if (!event.over) return;
 
         const slotWidth = event.over.data.current!.width * scale;
-        const slotHeight = event.over.data.current!.height * scale;
         const width = activeCardSize!.width * scale;
         const height = activeCardSize!.height * scale;
-        let x = 0;
-        const y = 0;
-        const z = 0;
-        switch (snapToGrid) {
-            case SnapToGrid.BottomLeft:
-                x = 0;
-                break;
-            case SnapToGrid.BottomRight:
-                x = slotWidth - width;
-                break;
-            case SnapToGrid.Center:
-                x = (slotWidth - width) / 2;
-                break;
-            case SnapToGrid.Manual:
-                x = event.active.rect.current.translated!.left;
-                break;
-        }
+
+        const { x, y, z } = calculatePhotocardPosition(
+            snapToGrid,
+            slotWidth,
+            0, // slotHeight not needed for x calculation currently, but good to have in sig if y needed later
+            width,
+            height,
+            0, // Rotation is 0 on drop
+        );
+
         form.setValue(`pages.${currentPage}.slots.${event.over.id}`, {
             photocard: activePhotocard!,
+            snap: snapToGrid,
             showFront: true,
             rotation: 0,
             width,
@@ -404,6 +473,66 @@ export default function BinderClient() {
 
     function setPage(page: number) {
         setCurrentPage(page);
+        setSelectedSlot(null);
+    }
+
+    function onSelectSlot(id: string, width: number, height: number) {
+        setSelectedSlot({ id, width, height });
+    }
+
+    function alignSelectedSlot(snapToGrid: SnapToGrid) {
+        if (selectedSlot) {
+            const slotData = form.getValues(`pages.${currentPage}.slots.${selectedSlot.id}`);
+            if (slotData) {
+                const slotWidth = selectedSlot.width * scale;
+                const slotHeight = selectedSlot.height * scale;
+                const { x, y, z } = calculatePhotocardPosition(
+                    snapToGrid,
+                    slotWidth,
+                    slotHeight,
+                    slotData.width,
+                    slotData.height,
+                    slotData.rotation
+                );
+                form.setValue(`pages.${currentPage}.slots.${selectedSlot.id}`, {
+                    ...slotData,
+                    snap: snapToGrid,
+                    x,
+                    y,
+                    z,
+                });
+                setNeedsSaving(true);
+            }
+        }
+        setSnapToGrid(snapToGrid);
+    }
+
+    function flipSelectedSlot() {
+        if (selectedSlot) {
+            const slotData = form.getValues(`pages.${currentPage}.slots.${selectedSlot.id}`);
+            if (slotData) {
+                form.setValue(`pages.${currentPage}.slots.${selectedSlot.id}`, {
+                    ...slotData,
+                    showFront: !slotData.showFront,
+                });
+                setNeedsSaving(true);
+            }
+        }
+    }
+
+    function rotateSelectedSlot() {
+        if (selectedSlot) {
+            const slotData = form.getValues(`pages.${currentPage}.slots.${selectedSlot.id}`);
+            if (slotData) {
+                // Rotate 90 degrees counter-clockwise
+                form.setValue(`pages.${currentPage}.slots.${selectedSlot.id}`, {
+                    ...slotData,
+                    rotation: (slotData.rotation - 90) % 360,
+                });
+                // Immediately realign according to existing snap
+                alignSelectedSlot(slotData.snap);
+            }
+        }
     }
 
     return (
@@ -449,6 +578,9 @@ export default function BinderClient() {
                             )}
                         />
                         <div className="flex flex-row gap-4 items-center">
+                            <div className="flex flex-col gap-4 p-4 bg-main rounded-xl">
+
+                            </div>
                             <div className="flex flex-col gap-4">
                                 <Button size="icon" type="button" className="px-3" onClick={() => setPage(currentPage - 1)} disabled={currentPage === 0}>
                                     <ChevronLeftIcon />
@@ -469,6 +601,8 @@ export default function BinderClient() {
                                                 binderType={field.value}
                                                 index={currentPage - 1}
                                                 flipped={true}
+                                                onSelectSlot={onSelectSlot}
+                                                selectedSlotId={selectedSlot?.id}
                                             />
                                         }
                                         rightPage={
@@ -476,6 +610,8 @@ export default function BinderClient() {
                                                 binderType={field.value}
                                                 index={currentPage}
                                                 flipped={false}
+                                                onSelectSlot={onSelectSlot}
+                                                selectedSlotId={selectedSlot?.id}
                                             />
                                         }
                                     />
@@ -487,6 +623,26 @@ export default function BinderClient() {
                                 </Button>
                                 <Button size="icon" type="button" className="px-3" onClick={() => setPage(numPages - 1)} disabled={currentPage === numPages - 1}>
                                     <ChevronsRightIcon />
+                                </Button>
+                            </div>
+                            <div className="flex flex-col gap-2 p-4 bg-main rounded-xl">
+                                <Button size="icon" type="button" variant="noShadow" className="px-3" onClick={flipSelectedSlot} disabled={selectedSlot === null}>
+                                    <FlipHorizontalIcon />
+                                </Button>
+                                <Button size="icon" type="button" variant="noShadow" className="px-3" onClick={rotateSelectedSlot} disabled={selectedSlot === null}>
+                                    <RotateCcwIcon />
+                                </Button>
+                                <Button size="icon" type="button" variant="noShadow" className="px-3" onClick={() => alignSelectedSlot(SnapToGrid.BottomLeft)} disabled={selectedSlot === null}>
+                                    <AlignStartVerticalIcon />
+                                </Button>
+                                <Button size="icon" type="button" variant="noShadow" className="px-3" onClick={() => alignSelectedSlot(SnapToGrid.Center)} disabled={selectedSlot === null}>
+                                    <AlignCenterVerticalIcon />
+                                </Button>
+                                <Button size="icon" type="button" variant="noShadow" className="px-3" onClick={() => alignSelectedSlot(SnapToGrid.BottomRight)} disabled={selectedSlot === null}>
+                                    <AlignEndVerticalIcon />
+                                </Button>
+                                <Button size="icon" type="button" variant="noShadow" className="px-3" onClick={() => alignSelectedSlot(SnapToGrid.Manual)} disabled={selectedSlot === null}>
+                                    <PointerIcon />
                                 </Button>
                             </div>
                         </div>
