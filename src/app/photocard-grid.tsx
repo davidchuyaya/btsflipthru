@@ -18,6 +18,8 @@ function PhotocardGridWithoutCollections({
     selectedIds,
     onToggleSelection,
     draggable,
+    ownedIds,
+    wishlistedIds,
 }: {
     photocards: Selectable<Photocards>[];
     className?: string;
@@ -27,6 +29,8 @@ function PhotocardGridWithoutCollections({
     selectedIds?: Set<number>;
     onToggleSelection?: (id: number) => void;
     draggable?: boolean;
+    ownedIds?: Set<number>;
+    wishlistedIds?: Set<number>;
 }) {
     return (
         <div className={`flex flex-row flex-wrap gap-4 justify-center ${className}`}>
@@ -57,6 +61,8 @@ function PhotocardGridWithoutCollections({
                         effects={photocard.effects}
                         selectable={isSelectionMode}
                         isSelected={selectedIds?.has(photocard.id!)}
+                        isOwned={ownedIds?.has(photocard.id!)}
+                        isWishlisted={wishlistedIds?.has(photocard.id!)}
                         onToggle={() => onToggleSelection?.(photocard.id!)}
                         onClick={() => window.open(`/photocard/${photocard.id}`, "_blank")}
                     >
@@ -86,6 +92,8 @@ export default function PhotocardGrid({
     onToggleSelection,
     showEditButton = false,
     draggable = false,
+    ownedIds,
+    wishlistedIds,
 }: {
     photocards: Selectable<Photocards>[]; // Will be displayed in order provided
     collections?: Selectable<Collections>[]; // Will be displayed in order provided
@@ -97,6 +105,8 @@ export default function PhotocardGrid({
     onToggleSelection?: (id: number) => void;
     showEditButton?: boolean;
     draggable?: boolean;
+    ownedIds?: Set<number>;
+    wishlistedIds?: Set<number>;
 }) {
     return displayCollections ? (
         <div className={`flex flex-col gap-4 justify-center items-center ${className}`}>
@@ -133,6 +143,8 @@ export default function PhotocardGrid({
                             selectedIds={selectedIds}
                             onToggleSelection={onToggleSelection}
                             draggable={draggable}
+                            ownedIds={ownedIds}
+                            wishlistedIds={wishlistedIds}
                         />
                     </React.Fragment>
                 );
@@ -148,6 +160,8 @@ export default function PhotocardGrid({
             selectedIds={selectedIds}
             onToggleSelection={onToggleSelection}
             draggable={draggable}
+            ownedIds={ownedIds}
+            wishlistedIds={wishlistedIds}
         />
     );
 }

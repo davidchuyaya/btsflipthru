@@ -653,7 +653,9 @@ export async function getPhotocardsInCollection(collectionId: number): Promise<R
 export async function getPhotocardsInDB(
     query: SearchQuery,
     lastId: number | null = null,
-): Promise<Result<{ cards: Selectable<Photocards>[]; query: string }>> {
+): Promise<Result<{ cards: Selectable<Photocards>[]; query: string; owned: number[]; wishlisted: number[] }>> {
+    const session = await getSession();
+
     let queryBuilder = db.selectFrom("photocards").selectAll();
 
     if (query.collectionIds.length > 0) {
@@ -714,7 +716,28 @@ export async function getPhotocardsInDB(
     }
 
     const queryString = queryBuilder.compile().sql;
-    return { data: { cards: await queryBuilder.execute(), query: queryString } };
+    const cards = await queryBuilder.execute();
+
+    let owned: number[] = [];
+    let wishlisted: number[] = [];
+
+    if (!session.error && session.data) {
+        try {
+            const ownedRes = await doesUserOwnPhotocard(cards.map((c) => c.id!));
+            if (!ownedRes.error) {
+                owned = ownedRes.data!;
+            }
+
+            const wishlistedRes = await didUserWishlistPhotocard(cards.map((c) => c.id!));
+            if (!wishlistedRes.error) {
+                wishlisted = wishlistedRes.data!;
+            }
+        } catch (e) {
+            return { error: "Error fetching owned/wishlisted: " + e };
+        }
+    }
+
+    return { data: { cards, query: queryString, owned, wishlisted } };
 }
 
 export async function getUserProfileDataFromDB(id: string): Promise<Result<Selectable<UserData>>> {
@@ -798,63 +821,75 @@ export async function updateUserDataInDB(
     return { data: presignUrl };
 }
 
-export async function doesUserOwnPhotocard(photocardId: number): Promise<Result<boolean>> {
+export async function doesUserOwnPhotocard(photocardIds: number[]): Promise<Result<number[]>> {
     const session = await getSession();
+    // Fine if not logged in, just return empty array
     if (session.error) {
-        return { error: session.error };
+        return { data: [] };
+    }
+
+    if (photocardIds.length === 0) {
+        return { data: [] };
     }
 
     return await db
         .selectFrom("user_photocards")
         .select("photocard_id")
         .where("user_id", "=", session.data!.user.id)
-        .where("photocard_id", "=", photocardId)
-        .executeTakeFirst()
+        .where("photocard_id", "in", photocardIds)
+        .execute()
         .then(
-            (data) => ({ data: data !== undefined }),
+            (data) => ({ data: data.map((d) => d.photocard_id) }),
             (reason) => ({ error: "Could not check if user owns photocard: " + reason }),
         );
 }
 
-export async function didUserWishlistPhotocard(photocardId: number): Promise<Result<boolean>> {
+export async function didUserWishlistPhotocard(photocardIds: number[]): Promise<Result<number[]>> {
     const session = await getSession();
+    // Fine if not logged in, just return empty array
     if (session.error) {
-        return { error: session.error };
+        return { data: [] };
+    }
+
+    if (photocardIds.length === 0) {
+        return { data: [] };
     }
 
     return await db
         .selectFrom("user_wishlists")
         .select("photocard_id")
         .where("user_id", "=", session.data!.user.id)
-        .where("photocard_id", "=", photocardId)
-        .executeTakeFirst()
+        .where("photocard_id", "in", photocardIds)
+        .execute()
         .then(
-            (data) => ({ data: data !== undefined }),
+            (data) => ({ data: data.map((d) => d.photocard_id) }),
             (reason) => ({ error: "Could not check if user wishlist photocard: " + reason }),
         );
 }
 
 /**
- * Also deletes photocard from wishlist if it exists
- * @param photocardId
+ * Also deletes photocards from wishlist if they exist
+ * @param photocardIds
  * @returns
  */
-export async function addPhotocardToOwned(photocardId: number): Promise<Result<boolean>> {
+export async function addPhotocardsToOwned(photocardIds: number[]): Promise<Result<boolean>> {
     const session = await getSession();
     if (session.error) {
         return { error: session.error };
     }
 
+    const values = photocardIds.map((id) => ({ user_id: session.data!.user.id, photocard_id: id }));
+
     const result: [Result<boolean>, Result<boolean>] = await Promise.all([
         db
             .insertInto("user_photocards")
-            .values({ user_id: session.data!.user.id, photocard_id: photocardId })
+            .values(values)
             .executeTakeFirstOrThrow()
             .then(
                 (data) => ({ data: true }),
-                (reason) => ({ error: "Could not add photocard to owned: " + reason }),
+                (reason) => ({ error: "Could not add photocards to owned: " + reason }),
             ),
-        removePhotocardFromWishlist(photocardId),
+        removePhotocardsFromWishlist(photocardIds),
     ]);
 
     if (result[0].error || result[1].error) {
@@ -863,23 +898,33 @@ export async function addPhotocardToOwned(photocardId: number): Promise<Result<b
     return { data: true };
 }
 
-export async function addPhotocardToWishlist(photocardId: number): Promise<Result<boolean>> {
+export async function addPhotocardsToWishlist(photocardIds: number[]): Promise<Result<boolean>> {
     const session = await getSession();
     if (session.error) {
         return { error: session.error };
     }
 
-    return await db
-        .insertInto("user_wishlists")
-        .values({ user_id: session.data!.user.id, photocard_id: photocardId })
-        .executeTakeFirstOrThrow()
-        .then(
-            (data) => ({ data: true }),
-            (reason) => ({ error: "Could not add photocard to wishlist: " + reason }),
-        );
+    const values = photocardIds.map((id) => ({ user_id: session.data!.user.id, photocard_id: id }));
+
+    const result: [Result<boolean>, Result<boolean>] = await Promise.all([
+        db
+            .insertInto("user_wishlists")
+            .values(values)
+            .executeTakeFirstOrThrow()
+            .then(
+                (data) => ({ data: true }),
+                (reason) => ({ error: "Could not add photocards to wishlist: " + reason }),
+            ),
+        removePhotocardsFromOwned(photocardIds),
+    ]);
+
+    if (result[0].error || result[1].error) {
+        return { error: result[0].error || result[1].error! };
+    }
+    return { data: true };
 }
 
-export async function removePhotocardFromOwned(photocardId: number): Promise<Result<boolean>> {
+export async function removePhotocardsFromOwned(photocardIds: number[]): Promise<Result<boolean>> {
     const session = await getSession();
     if (session.error) {
         return { error: session.error };
@@ -888,15 +933,15 @@ export async function removePhotocardFromOwned(photocardId: number): Promise<Res
     return await db
         .deleteFrom("user_photocards")
         .where("user_id", "=", session.data!.user.id)
-        .where("photocard_id", "=", photocardId)
+        .where("photocard_id", "in", photocardIds)
         .executeTakeFirstOrThrow()
         .then(
             (data) => ({ data: true }),
-            (reason) => ({ error: "Could not remove photocard from owned: " + reason }),
+            (reason) => ({ error: "Could not remove photocards from owned: " + reason }),
         );
 }
 
-export async function removePhotocardFromWishlist(photocardId: number): Promise<Result<boolean>> {
+export async function removePhotocardsFromWishlist(photocardIds: number[]): Promise<Result<boolean>> {
     const session = await getSession();
     if (session.error) {
         return { error: session.error };
@@ -905,11 +950,11 @@ export async function removePhotocardFromWishlist(photocardId: number): Promise<
     return await db
         .deleteFrom("user_wishlists")
         .where("user_id", "=", session.data!.user.id)
-        .where("photocard_id", "=", photocardId)
+        .where("photocard_id", "in", photocardIds)
         .executeTakeFirstOrThrow()
         .then(
             (data) => ({ data: true }),
-            (reason) => ({ error: "Could not remove photocard from wishlist: " + reason }),
+            (reason) => ({ error: "Could not remove photocards from wishlist: " + reason }),
         );
 }
 

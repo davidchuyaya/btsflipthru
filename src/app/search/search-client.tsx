@@ -1,6 +1,6 @@
 "use client";
 
-import { getPhotocardsInDB } from "@/actions";
+import { addPhotocardsToOwned, addPhotocardsToWishlist, getPhotocardsInDB } from "@/actions";
 import { useEffect, useState, useMemo } from "react";
 import {
     collectionDisplayName,
@@ -256,6 +256,8 @@ export default function SearchClient({
         };
     }, [collections, collectionTypes]);
     const [photocards, setPhotocards] = useState<Array<Selectable<Photocards>>>([]);
+    const [ownedIds, setOwnedIds] = useState<Set<number>>(new Set());
+    const [wishlistedIds, setWishlistedIds] = useState<Set<number>>(new Set());
     const [filters, setFilters] = useState<Filters>({
         query: "",
         collectionTypes: new Set<number>(),
@@ -797,6 +799,10 @@ export default function SearchClient({
             setPhotocards([...photocards, ...results.data!.cards]);
         }
 
+        // Always append owned and wishlisted IDs
+        setOwnedIds(new Set([...ownedIds, ...results.data!.owned]));
+        setWishlistedIds(new Set([...wishlistedIds, ...results.data!.wishlisted]));
+
         setIsLoading(false);
         return results.data!.cards.length;
     }
@@ -825,16 +831,30 @@ export default function SearchClient({
         setSelectedPhotocardIds(newSelected);
     }
 
-    function addToOwned() {
-        console.log("Add to owned:", Array.from(selectedPhotocardIds));
-        // Placeholder for future logic
-        exitSelectionMode();
+    async function addToOwned() {
+        let result = await addPhotocardsToOwned(Array.from(selectedPhotocardIds));
+        if (result.error) {
+            setError(result.error);
+        }
+        else {
+            setOwnedIds(new Set([...ownedIds, ...selectedPhotocardIds]));
+            // Remove these from wishlisted
+            setWishlistedIds(new Set([...wishlistedIds].filter((id) => !selectedPhotocardIds.has(id))));
+            exitSelectionMode();
+        }
     }
 
-    function addToWishlist() {
-        console.log("Add to wishlist:", Array.from(selectedPhotocardIds));
-        // Placeholder for future logic
-        exitSelectionMode();
+    async function addToWishlist() {
+        let result = await addPhotocardsToWishlist(Array.from(selectedPhotocardIds));
+        if (result.error) {
+            setError(result.error);
+        }
+        else {
+            setWishlistedIds(new Set([...wishlistedIds, ...selectedPhotocardIds]));
+            // Remove these from owned
+            setOwnedIds(new Set([...ownedIds].filter((id) => !selectedPhotocardIds.has(id))));
+            exitSelectionMode();
+        }
     }
 
     return (
@@ -1045,6 +1065,8 @@ export default function SearchClient({
                         selectedIds={selectedPhotocardIds}
                         onToggleSelection={toggleSelection}
                         showEditButton={isAtLeastMod(session)}
+                        ownedIds={ownedIds}
+                        wishlistedIds={wishlistedIds}
                     />
                     <BottomSpinnerComponent dontLoad={dontLoad} loadMore={trySearchNext} isLoading={isLoading} />
                 </div>

@@ -7,6 +7,7 @@ import { useMetadata } from "@/metadata-context";
 import { Photocards } from "@/db";
 import { useDraggable } from "@dnd-kit/core";
 import { Selectable } from "kysely";
+import { HeartIcon } from "lucide-react";
 
 const DEFAULT_ASPECT_RATIO = "11 / 17"; // Standard photocard aspect ratio 55mm x 85mm
 
@@ -117,6 +118,8 @@ export default function PhotocardComponent({
     children,
     selectable = false,
     isSelected = false,
+    isOwned = false,
+    isWishlisted = false,
     onToggle,
     onClick,
     large = false,
@@ -131,6 +134,8 @@ export default function PhotocardComponent({
     children?: React.ReactNode;
     selectable?: boolean;
     isSelected?: boolean;
+    isOwned?: boolean;
+    isWishlisted?: boolean;
     onToggle?: () => void;
     onClick?: () => void;
     large?: boolean;
@@ -228,6 +233,14 @@ export default function PhotocardComponent({
                 <div className="absolute inset-0 flex items-center justify-center z-20 cursor-pointer">
                     <CheckboxWithoutLabel checked={isSelected} className="w-8 h-8 border-2 pointer-events-none" />
                 </div>
+            )}
+            {isOwned && (
+                <div className="absolute -top-2 -right-2 z-20 pointer-events-none drop-shadow-md">
+                    <img src="/binder_done.svg" alt="Owned" className="w-8 h-8" />
+                </div>
+            )}
+            {isWishlisted && (
+                <HeartIcon className="absolute -top-2 -right-2 z-20 pointer-events-none drop-shadow-md w-6 h-6 fill-main" />
             )}
         </div>
     );

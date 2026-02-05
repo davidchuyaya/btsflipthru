@@ -49,13 +49,13 @@ import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { FieldError } from "@/components/ui/field";
 import {
-    addPhotocardToOwned,
-    addPhotocardToWishlist,
+    addPhotocardsToOwned,
+    addPhotocardsToWishlist,
     didUserWishlistPhotocard,
     doesUserOwnPhotocard,
     generateSignedUploadUrlForPhotocards,
-    removePhotocardFromOwned,
-    removePhotocardFromWishlist,
+    removePhotocardsFromOwned,
+    removePhotocardsFromWishlist,
     updatePhotocardInDB,
 } from "@/actions";
 import { toast } from "sonner";
@@ -337,20 +337,28 @@ function CardActionsComponent({
     photocard,
     userData,
     updateUserData,
-    wasOwned,
-    wasWishlisted,
     className,
 }: {
     session: ClientSession | null;
     photocard: Selectable<Photocards>;
     userData: Selectable<UserData> | null;
     updateUserData: (userData: Updateable<UserData>, withImage: boolean) => Promise<Result<PresignedUrl | null>>;
-    wasOwned: boolean;
-    wasWishlisted: boolean;
     className?: string;
 }) {
-    const [owned, setOwned] = useState(wasOwned);
-    const [wishlisted, setWishlisted] = useState(wasWishlisted);
+    const [owned, setOwned] = useState(false);
+    const [wishlisted, setWishlisted] = useState(false);
+    useEffect(() => {
+        const checkOwnership = async () => {
+            const owned = await doesUserOwnPhotocard([photocard.id]);
+            const wishlisted = await didUserWishlistPhotocard([photocard.id]);
+            if (owned.error || wishlisted.error) {
+                return;
+            }
+            setOwned(owned.data!.includes(photocard.id));
+            setWishlisted(wishlisted.data!.includes(photocard.id));
+        };
+        checkOwnership();
+    }, [photocard.id]);
 
     function OptionalDialog(
         show: boolean,
@@ -420,10 +428,10 @@ function CardActionsComponent({
                             return;
                         }
                         if (owned) {
-                            removePhotocardFromOwned(photocard.id);
+                            removePhotocardsFromOwned([photocard.id]);
                             setOwned(false);
                         } else {
-                            addPhotocardToOwned(photocard.id);
+                            addPhotocardsToOwned([photocard.id]);
                             setOwned(true);
                             // Also removes it from the wishlist
                             setWishlisted(false);
@@ -442,10 +450,10 @@ function CardActionsComponent({
                             return;
                         }
                         if (wishlisted) {
-                            removePhotocardFromWishlist(photocard.id);
+                            removePhotocardsFromWishlist([photocard.id]);
                             setWishlisted(false);
                         } else {
-                            addPhotocardToWishlist(photocard.id);
+                            addPhotocardsToWishlist([photocard.id]);
                             setWishlisted(true);
                         }
                     }}
@@ -484,20 +492,6 @@ export default function PhotocardClient({
     relatedPhotocards: Selectable<Photocards>[];
 }) {
     const { userData, updateUserData, session } = useMetadata();
-    const [wasOwned, setWasOwned] = useState(false);
-    const [wasWishlisted, setWasWishlisted] = useState(false);
-    useEffect(() => {
-        const checkOwnership = async () => {
-            const owned = await doesUserOwnPhotocard(photocard.id);
-            const wishlisted = await didUserWishlistPhotocard(photocard.id);
-            if (owned.error || wishlisted.error) {
-                return;
-            }
-            setWasOwned(owned.data!);
-            setWasWishlisted(wishlisted.data!);
-        };
-        checkOwnership();
-    }, [photocard.id]);
 
     return (
         <div className="flex flex-col lg:flex-row gap-8 m-12">
@@ -523,8 +517,6 @@ export default function PhotocardClient({
                         photocard={photocard}
                         userData={userData}
                         updateUserData={updateUserData}
-                        wasOwned={wasOwned}
-                        wasWishlisted={wasWishlisted}
                     />
                 </div>
                 <CardDataComponent
@@ -540,8 +532,6 @@ export default function PhotocardClient({
                     photocard={photocard}
                     userData={userData}
                     updateUserData={updateUserData}
-                    wasOwned={wasOwned}
-                    wasWishlisted={wasWishlisted}
                     className="items-center lg:items-end lg:hidden"
                 />
                 <div className="flex flex-col gap-4 mt-4 max-lg:text-center">
