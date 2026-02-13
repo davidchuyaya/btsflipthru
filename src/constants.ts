@@ -16,7 +16,8 @@ export const MAX_USERNAME_LENGTH = 32;
 export const MAX_DESCRIPTION_LENGTH = 100;
 export const MAX_EXTERNAL_SITE_USERNAME_LENGTH = 32;
 export const USERNAME_REGEX = /^[a-zA-Z0-9_]+$/;
-export const USERNAME_ERROR_TEXT = "Username can only contain letters, numbers, and underscores.";
+export const USERNAME_ERROR_TEXT =
+    "Username can only contain letters, numbers, and underscores.";
 export const SPOTIFY_PLAYLIST_ID_LENGTH = 22;
 export const BINDER_PERFORATION_DOT_SIZE = 2;
 
@@ -57,7 +58,8 @@ export const ExclusiveCountry = {
     "United Arab Emirates": 25,
     Vietnam: 26,
 };
-export type ExclusiveCountry = (typeof ExclusiveCountry)[keyof typeof ExclusiveCountry];
+export type ExclusiveCountry =
+    (typeof ExclusiveCountry)[keyof typeof ExclusiveCountry];
 
 export const BackImageType = {
     Image: 0,
@@ -83,11 +85,15 @@ export function thumbnailUrl(imageId: string): string {
     return `https://res.cloudinary.com/${CLOUDINARY_CLOUD_NAME}/image/upload/${THUMBNAIL_POSTFIX}/${imageId}.avif`;
 }
 
-export function collectionDisplayName(collection: Selectable<Collections> | undefined | null): string {
+export function collectionDisplayName(
+    collection: Selectable<Collections> | undefined | null,
+): string {
     if (!collection) {
         return "Unknown Collection";
     }
-    return collection.version ? `${collection.name} (${collection.version})` : collection.name;
+    return collection.version
+        ? `${collection.name} (${collection.version})`
+        : collection.name;
 }
 
 export const MemberToInt = {
@@ -108,7 +114,9 @@ export function memberIntsToName(source: number[]): string {
     if (source.length === 7) {
         return "OT7";
     }
-    return source.map((member) => Object.keys(MemberToInt)[member - 1]).join(", ");
+    return source
+        .map((member) => Object.keys(MemberToInt)[member - 1])
+        .join(", ");
 }
 
 export const MemberToIntWithOT7 = {
@@ -121,9 +129,11 @@ export const MemberToIntWithOT7 = {
     "Jung Kook": 7,
     OT7: 8,
 } as const;
-export type MemberToIntWithOT7 = (typeof MemberToIntWithOT7)[keyof typeof MemberToIntWithOT7];
+export type MemberToIntWithOT7 =
+    (typeof MemberToIntWithOT7)[keyof typeof MemberToIntWithOT7];
 
-export const MemberIntsWithOT7: MemberToIntWithOT7[] = Object.values(MemberToIntWithOT7);
+export const MemberIntsWithOT7: MemberToIntWithOT7[] =
+    Object.values(MemberToIntWithOT7);
 
 export const MEMBER_TO_EMOJI = {
     rm: "🐨",
@@ -135,7 +145,9 @@ export const MEMBER_TO_EMOJI = {
     jungkook: "🐰",
 };
 
-export type Result<T> = { data: T; error?: never } | { data?: never; error: string };
+export type Result<T> =
+    | { data: T; error?: never }
+    | { data?: never; error: string };
 
 export enum ReportType {
     Error = "error",
@@ -144,7 +156,11 @@ export enum ReportType {
     Contact = "contact",
 }
 
-export function reportWindowURL(reportType: ReportType, url: string, title: string) {
+export function reportWindowURL(
+    reportType: ReportType,
+    url: string,
+    title: string,
+) {
     return `/report?reportType=${reportType}&url=${encodeURIComponent(url)}&title=${encodeURIComponent(title)}`;
 }
 
@@ -153,28 +169,34 @@ export function reportTypeToFields(type: ReportType) {
         case ReportType.Error:
             return {
                 reportTitle: "Submit Error Report",
-                descriptionPlaceholder: 'I clicked on "Create Photocard," but nothing happened.',
+                descriptionPlaceholder:
+                    'I clicked on "Create Photocard," but nothing happened.',
                 descriptionSmallText:
                     "Include steps to reproduce the issue, what you expected to happen, and any other relevant information.",
             };
         case ReportType.AIStolenContent:
             return {
                 reportTitle: "Report AI/Stolen Content",
-                descriptionPlaceholder: "I found this photocard with my watermark on it.",
+                descriptionPlaceholder:
+                    "I found this photocard with my watermark on it.",
                 descriptionSmallText:
                     "Please provide as much detail as possible, including links to the content in question.",
             };
         case ReportType.FeatureRequest:
             return {
                 reportTitle: "Submit Feature Request",
-                descriptionPlaceholder: "It would be great to have a feature that...",
-                descriptionSmallText: "Describe the feature you'd like to see and how it would benefit users like you.",
+                descriptionPlaceholder:
+                    "It would be great to have a feature that...",
+                descriptionSmallText:
+                    "Describe the feature you'd like to see and how it would benefit users like you.",
             };
         case ReportType.Contact:
             return {
                 reportTitle: "Contact Us",
-                descriptionPlaceholder: "I would like to get in touch regarding...",
-                descriptionSmallText: "Feel free to reach out with any questions, comments, or concerns.",
+                descriptionPlaceholder:
+                    "I would like to get in touch regarding...",
+                descriptionSmallText:
+                    "Feel free to reach out with any questions, comments, or concerns.",
             };
     }
 }
@@ -192,7 +214,9 @@ export type PresignedUrl = {
     params: CloudinarySignedParams;
 };
 
-export function generateSignedParams(createThumbnail: boolean): CloudinarySignedParams {
+export function generateSignedParams(
+    createThumbnail: boolean,
+): CloudinarySignedParams {
     const params: CloudinarySignedParams = {
         timestamp: Math.floor(Date.now() / 1000),
         public_id: crypto.randomUUID(),
@@ -237,13 +261,13 @@ export type HomeStats = {
 
 /**
  * Fix potential time zone issues with dates
- * @param date 
- * @returns 
+ * @param date
+ * @returns
  */
 export function dateToString(date: Date) {
-   const dateObj = new Date(date);
-   dateObj.setUTCHours(12);
-   return dateObj.toISOString().split("T")[0];
+    const dateObj = new Date(date);
+    dateObj.setUTCHours(12);
+    return dateObj.toISOString().split("T")[0];
 }
 
 // See https://docs.google.com/spreadsheets/d/1lYh2wVfYnzr_Qk15vJ5XNiGNDf914r-I5LBklYK7PFc/edit?usp=sharing
@@ -301,7 +325,7 @@ export const BinderPage = {
         name: "Full page",
         xPerforations: [224],
         yPerforations: [290],
-    }
+    },
 };
 export type BinderPage = (typeof BinderPage)[keyof typeof BinderPage];
 
@@ -314,7 +338,7 @@ export const BinderType = {
         coverHeight: 295.529,
         spineWidth: 25.4,
         maxPageWidth: 215.9,
-        maxPageHeight: 279.4,   
+        maxPageHeight: 279.4,
     },
     OnePointFiveInch: {
         id: 1,
@@ -366,5 +390,5 @@ export const BinderType = {
         maxPageWidth: 215.9,
         maxPageHeight: 279.4,
     },
-}
+};
 export type BinderType = (typeof BinderType)[keyof typeof BinderType];

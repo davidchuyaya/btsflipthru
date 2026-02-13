@@ -52,7 +52,10 @@ export default function RootLayout({
     return (
         <html lang="en">
             <head>
-                <link rel="stylesheet" href="https://use.typekit.net/gpm8jeo.css"></link>
+                <link
+                    rel="stylesheet"
+                    href="https://use.typekit.net/gpm8jeo.css"
+                ></link>
                 <link rel="icon" href="/icon.png"></link>
                 <script
                     type="application/ld+json"
@@ -64,7 +67,7 @@ export default function RootLayout({
                             description,
                             url,
                             image,
-                        }).replace(/</g, '\\u003c'),
+                        }).replace(/</g, "\\u003c"),
                     }}
                 />
             </head>

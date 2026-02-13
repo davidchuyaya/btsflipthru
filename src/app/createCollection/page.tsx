@@ -1,4 +1,8 @@
-import { getCardSizesFromDB, getCardTypesFromDB, getCollectionTypesFromDB } from "@/actions";
+import {
+    getCardSizesFromDB,
+    getCardTypesFromDB,
+    getCollectionTypesFromDB,
+} from "@/actions";
 import CreateCollectionClient from "./create-collection-client";
 import { Suspense } from "react";
 
@@ -31,7 +35,11 @@ async function CreateCollectionContent() {
 
 export default function CreateCollectionPage() {
     return (
-        <Suspense fallback={<div className="flex justify-center p-12">Loading...</div>}>
+        <Suspense
+            fallback={
+                <div className="flex justify-center p-12">Loading...</div>
+            }
+        >
             <CreateCollectionContent />
         </Suspense>
     );

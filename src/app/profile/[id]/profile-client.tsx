@@ -25,32 +25,76 @@ import { Input } from "@/components/ui/input";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Controller, useForm } from "react-hook-form";
-import { InputGroup, InputGroupTextarea, InputGroupAddon, InputGroupText } from "@/components/ui/input-group";
-import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+    InputGroup,
+    InputGroupTextarea,
+    InputGroupAddon,
+    InputGroupText,
+} from "@/components/ui/input-group";
+import {
+    Select,
+    SelectContent,
+    SelectGroup,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import Image from "next/image";
 import Link from "next/link";
 import { ImageDropzone } from "@/app/image-dropzone";
-import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field";
+import {
+    Field,
+    FieldDescription,
+    FieldError,
+    FieldLabel,
+} from "@/components/ui/field";
 import { uploadImage } from "@/actions-client";
 import { toast } from "sonner";
 
 const formSchema = z.object({
-    username: z.string().min(1).max(MAX_USERNAME_LENGTH).regex(USERNAME_REGEX, USERNAME_ERROR_TEXT).nullable(),
+    username: z
+        .string()
+        .min(1)
+        .max(MAX_USERNAME_LENGTH)
+        .regex(USERNAME_REGEX, USERNAME_ERROR_TEXT)
+        .nullable(),
     description: z.string().min(1).max(MAX_DESCRIPTION_LENGTH).nullable(),
     army_since: z.number().nullable(),
     bias: z.enum(MemberToInt).nullable(),
     bcd_id: z.string().min(1).max(MAX_EXTERNAL_SITE_USERNAME_LENGTH).nullable(),
-    bluesky_id: z.string().min(1).max(MAX_EXTERNAL_SITE_USERNAME_LENGTH).nullable(),
-    twitter_id: z.string().min(1).max(MAX_EXTERNAL_SITE_USERNAME_LENGTH).nullable(),
-    instagram_id: z.string().min(1).max(MAX_EXTERNAL_SITE_USERNAME_LENGTH).nullable(),
-    discord_id: z.string().min(1).max(MAX_EXTERNAL_SITE_USERNAME_LENGTH).nullable(),
+    bluesky_id: z
+        .string()
+        .min(1)
+        .max(MAX_EXTERNAL_SITE_USERNAME_LENGTH)
+        .nullable(),
+    twitter_id: z
+        .string()
+        .min(1)
+        .max(MAX_EXTERNAL_SITE_USERNAME_LENGTH)
+        .nullable(),
+    instagram_id: z
+        .string()
+        .min(1)
+        .max(MAX_EXTERNAL_SITE_USERNAME_LENGTH)
+        .nullable(),
+    discord_id: z
+        .string()
+        .min(1)
+        .max(MAX_EXTERNAL_SITE_USERNAME_LENGTH)
+        .nullable(),
     spotify_playlist: z.string().length(SPOTIFY_PLAYLIST_ID_LENGTH).nullable(),
     image: z.instanceof(File).nullish(),
 });
 
-export default function ProfileClient({ userData: serverUserData, collections }: { userData: Selectable<UserData>; collections: Selectable<Collections>[] }) {
+export default function ProfileClient({
+    userData: serverUserData,
+    collections,
+}: {
+    userData: Selectable<UserData>;
+    collections: Selectable<Collections>[];
+}) {
     const {
         userData: freshestUserData,
         cursorDisabled,
@@ -62,7 +106,8 @@ export default function ProfileClient({ userData: serverUserData, collections }:
         sessionRefetch,
     } = useMetadata();
     const isSelf = session?.user.id === serverUserData.user_id;
-    const userData = isSelf && freshestUserData ? freshestUserData : serverUserData;
+    const userData =
+        isSelf && freshestUserData ? freshestUserData : serverUserData;
     const [isEditing, setIsEditing] = useState<boolean>(false);
     const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
@@ -77,7 +122,9 @@ export default function ProfileClient({ userData: serverUserData, collections }:
         const unique = new Map<string, (typeof collections)[number]>();
         // Sort newest to oldest
         const sorted = [...collections].sort(
-            (a, b) => new Date(b.release_date).getTime() - new Date(a.release_date).getTime(),
+            (a, b) =>
+                new Date(b.release_date).getTime() -
+                new Date(a.release_date).getTime(),
         );
 
         for (const col of sorted) {
@@ -91,7 +138,12 @@ export default function ProfileClient({ userData: serverUserData, collections }:
     function SocialsComponent({
         fieldName,
     }: {
-        fieldName: "bcd_id" | "bluesky_id" | "twitter_id" | "instagram_id" | "discord_id";
+        fieldName:
+            | "bcd_id"
+            | "bluesky_id"
+            | "twitter_id"
+            | "instagram_id"
+            | "discord_id";
     }) {
         let logo = "";
         switch (fieldName) {
@@ -146,16 +198,31 @@ export default function ProfileClient({ userData: serverUserData, collections }:
                 break;
         }
         return (
-            <div className="flex flex-row items-center justify-center gap-4" hidden={!id && !isEditing}>
-                <Image src={logo} alt={fieldName} width={32} height={32} className="size-8" />
+            <div
+                className="flex flex-row items-center justify-center gap-4"
+                hidden={!id && !isEditing}
+            >
+                <Image
+                    src={logo}
+                    alt={fieldName}
+                    width={32}
+                    height={32}
+                    className="size-8"
+                />
                 {isEditing ? (
                     <Controller
                         control={form.control}
                         name={fieldName}
                         render={({ field, fieldState }) => (
                             <>
-                                <Input value={field.value ?? ""} onChange={field.onChange} placeholder={placeholder} />
-                                {fieldState.error && <FieldError errors={[fieldState.error]} />}
+                                <Input
+                                    value={field.value ?? ""}
+                                    onChange={field.onChange}
+                                    placeholder={placeholder}
+                                />
+                                {fieldState.error && (
+                                    <FieldError errors={[fieldState.error]} />
+                                )}
                             </>
                         )}
                     />
@@ -164,7 +231,10 @@ export default function ProfileClient({ userData: serverUserData, collections }:
                         {url === "" || id === null ? (
                             <p>@{id}</p>
                         ) : (
-                            <Link href={`${url}${encodeURIComponent(id)}`} target="_blank">
+                            <Link
+                                href={`${url}${encodeURIComponent(id)}`}
+                                target="_blank"
+                            >
                                 @{id}
                             </Link>
                         )}
@@ -200,7 +270,9 @@ export default function ProfileClient({ userData: serverUserData, collections }:
                 if (result.data) {
                     const uploadResult = await uploadImage(result.data, image!);
                     if (uploadResult.error) {
-                        throw new Error(`Error uploading image: ${uploadResult.error}`);
+                        throw new Error(
+                            `Error uploading image: ${uploadResult.error}`,
+                        );
                     }
                 }
             },
@@ -218,7 +290,11 @@ export default function ProfileClient({ userData: serverUserData, collections }:
                         action: {
                             label: "Report",
                             onClick: () => {
-                                const url = reportWindowURL(ReportType.Error, window.location.href, error.message);
+                                const url = reportWindowURL(
+                                    ReportType.Error,
+                                    window.location.href,
+                                    error.message,
+                                );
                                 window.open(url, "_blank");
                             },
                         },
@@ -248,22 +324,36 @@ export default function ProfileClient({ userData: serverUserData, collections }:
                                             image={
                                                 field.value === undefined
                                                     ? userData.image_id
-                                                        ? fullSizeUrl(userData.image_id)
+                                                        ? fullSizeUrl(
+                                                              userData.image_id,
+                                                          )
                                                         : null
                                                     : field.value
                                             }
                                             onImageChanged={field.onChange}
-                                            onDelete={() => field.onChange(null)}
+                                            onDelete={() =>
+                                                field.onChange(null)
+                                            }
                                             expand={true}
-                                            placeholderType={PlaceholderType.ARMY}
+                                            placeholderType={
+                                                PlaceholderType.ARMY
+                                            }
                                         />
-                                        {fieldState.error && <FieldError errors={[fieldState.error]} />}
+                                        {fieldState.error && (
+                                            <FieldError
+                                                errors={[fieldState.error]}
+                                            />
+                                        )}
                                     </>
                                 )}
                             />
                         ) : (
                             <PhotocardComponent
-                                src={userData.image_id ? fullSizeUrl(userData.image_id) : null}
+                                src={
+                                    userData.image_id
+                                        ? fullSizeUrl(userData.image_id)
+                                        : null
+                                }
                                 effects={Effects.Matte}
                                 placeholderType={PlaceholderType.ARMY}
                                 large
@@ -287,24 +377,43 @@ export default function ProfileClient({ userData: serverUserData, collections }:
                                         render={({ field, fieldState }) => (
                                             <>
                                                 <Input
-                                                    value={field.value?.toUpperCase() ?? ""}
+                                                    value={
+                                                        field.value?.toUpperCase() ??
+                                                        ""
+                                                    }
                                                     onChange={field.onChange}
                                                     placeholder="Username"
                                                 />
-                                                {fieldState.error && <FieldError errors={[fieldState.error]} />}
+                                                {fieldState.error && (
+                                                    <FieldError
+                                                        errors={[
+                                                            fieldState.error,
+                                                        ]}
+                                                    />
+                                                )}
                                             </>
                                         )}
                                     />
                                 ) : (
-                                    <h2 className="grow">{userData.username ?? "N/A"}</h2>
+                                    <h2 className="grow">
+                                        {userData.username ?? "N/A"}
+                                    </h2>
                                 )}
                                 {isSelf &&
                                     (isEditing ? (
                                         <>
-                                            <Button type="button" variant="neutral" onClick={() => setIsEditing(false)}>
+                                            <Button
+                                                type="button"
+                                                variant="neutral"
+                                                onClick={() =>
+                                                    setIsEditing(false)
+                                                }
+                                            >
                                                 Cancel
                                             </Button>
-                                            <Button type="submit">Save Profile</Button>
+                                            <Button type="submit">
+                                                Save Profile
+                                            </Button>
                                         </>
                                     ) : (
                                         <Button
@@ -330,16 +439,24 @@ export default function ProfileClient({ userData: serverUserData, collections }:
                                             />
                                             <InputGroupAddon align="block-end">
                                                 <InputGroupText className="text-muted-foreground text-xs">
-                                                    {MAX_DESCRIPTION_LENGTH - (field.value?.length ?? 0)} characters
-                                                    left
+                                                    {MAX_DESCRIPTION_LENGTH -
+                                                        (field.value?.length ??
+                                                            0)}{" "}
+                                                    characters left
                                                 </InputGroupText>
                                             </InputGroupAddon>
-                                            {fieldState.error && <FieldError errors={[fieldState.error]} />}
+                                            {fieldState.error && (
+                                                <FieldError
+                                                    errors={[fieldState.error]}
+                                                />
+                                            )}
                                         </InputGroup>
                                     )}
                                 />
                             ) : (
-                                <p className="text-2xl">{userData.description ?? "No description"}</p>
+                                <p className="text-2xl">
+                                    {userData.description ?? "No description"}
+                                </p>
                             )}
                         </div>
                         <div className="flex flex-row gap-8">
@@ -353,30 +470,58 @@ export default function ProfileClient({ userData: serverUserData, collections }:
                                             render={({ field, fieldState }) => (
                                                 <>
                                                     <Select
-                                                        defaultValue={field.value?.toString() ?? ""}
-                                                        onValueChange={(value) => field.onChange(Number(value))}
+                                                        defaultValue={
+                                                            field.value?.toString() ??
+                                                            ""
+                                                        }
+                                                        onValueChange={(
+                                                            value,
+                                                        ) =>
+                                                            field.onChange(
+                                                                Number(value),
+                                                            )
+                                                        }
                                                     >
                                                         <SelectTrigger className="w-fit bg-accent-light">
                                                             <SelectValue placeholder="Select a collection" />
                                                         </SelectTrigger>
                                                         <SelectContent className="bg-accent-light">
                                                             <SelectGroup>
-                                                                {uniqueCollections.map((col) => (
-                                                                    <SelectItem key={col.id} value={col.id.toString()}>
-                                                                        {col.name}
-                                                                    </SelectItem>
-                                                                ))}
+                                                                {uniqueCollections.map(
+                                                                    (col) => (
+                                                                        <SelectItem
+                                                                            key={
+                                                                                col.id
+                                                                            }
+                                                                            value={col.id.toString()}
+                                                                        >
+                                                                            {
+                                                                                col.name
+                                                                            }
+                                                                        </SelectItem>
+                                                                    ),
+                                                                )}
                                                             </SelectGroup>
                                                         </SelectContent>
                                                     </Select>
-                                                    {fieldState.error && <FieldError errors={[fieldState.error]} />}
+                                                    {fieldState.error && (
+                                                        <FieldError
+                                                            errors={[
+                                                                fieldState.error,
+                                                            ]}
+                                                        />
+                                                    )}
                                                 </>
                                             )}
                                         />
                                     ) : (
                                         <p>
                                             {userData.army_since
-                                                ? uniqueCollections.find((col) => col.id === userData.army_since)?.name
+                                                ? uniqueCollections.find(
+                                                      (col) =>
+                                                          col.id ===
+                                                          userData.army_since,
+                                                  )?.name
                                                 : "N/A"}
                                         </p>
                                     )}
@@ -390,33 +535,71 @@ export default function ProfileClient({ userData: serverUserData, collections }:
                                             render={({ field, fieldState }) => (
                                                 <>
                                                     <Select
-                                                        defaultValue={field.value ? field.value.toString() : ""}
-                                                        onValueChange={(value) => field.onChange(Number(value))}
+                                                        defaultValue={
+                                                            field.value
+                                                                ? field.value.toString()
+                                                                : ""
+                                                        }
+                                                        onValueChange={(
+                                                            value,
+                                                        ) =>
+                                                            field.onChange(
+                                                                Number(value),
+                                                            )
+                                                        }
                                                     >
                                                         <SelectTrigger className="w-fit bg-accent-light">
                                                             <SelectValue placeholder="Select your bias" />
                                                         </SelectTrigger>
                                                         <SelectContent className="bg-accent-light">
                                                             <SelectGroup>
-                                                                {Object.entries(MemberToInt).map(([key, value]) => (
-                                                                    <SelectItem key={key} value={value.toString()}>
-                                                                        {key}
-                                                                    </SelectItem>
-                                                                ))}
+                                                                {Object.entries(
+                                                                    MemberToInt,
+                                                                ).map(
+                                                                    ([
+                                                                        key,
+                                                                        value,
+                                                                    ]) => (
+                                                                        <SelectItem
+                                                                            key={
+                                                                                key
+                                                                            }
+                                                                            value={value.toString()}
+                                                                        >
+                                                                            {
+                                                                                key
+                                                                            }
+                                                                        </SelectItem>
+                                                                    ),
+                                                                )}
                                                             </SelectGroup>
                                                         </SelectContent>
                                                     </Select>
-                                                    {fieldState.error && <FieldError errors={[fieldState.error]} />}
+                                                    {fieldState.error && (
+                                                        <FieldError
+                                                            errors={[
+                                                                fieldState.error,
+                                                            ]}
+                                                        />
+                                                    )}
                                                 </>
                                             )}
                                         />
                                     ) : (
-                                        <p>{userData.bias ? memberIntsToName([userData.bias]) : "N/A"}</p>
+                                        <p>
+                                            {userData.bias
+                                                ? memberIntsToName([
+                                                      userData.bias,
+                                                  ])
+                                                : "N/A"}
+                                        </p>
                                     )}
                                 </div>
                                 <div className="flex flex-row gap-4 items-center">
                                     <h3>Photocards Collected</h3>
-                                    <p>{userData.saved_photocards_count ?? 0}</p>
+                                    <p>
+                                        {userData.saved_photocards_count ?? 0}
+                                    </p>
                                 </div>
                                 <div className="flex flex-row gap-4 items-center">
                                     <h3>Contributions</h3>
@@ -424,12 +607,21 @@ export default function ProfileClient({ userData: serverUserData, collections }:
                                 </div>
                                 <div className="flex flex-row gap-4 items-center">
                                     <h3>Role</h3>
-                                    <p>{session && Object.keys(Role)[session.user.role]}</p>
-                                    {session && session.user.role === Role.USER && (
-                                        <Button onClick={sessionRefetch} type="button">
-                                            Activate Mod
-                                        </Button>
-                                    )}
+                                    <p>
+                                        {session &&
+                                            Object.keys(Role)[
+                                                session.user.role
+                                            ]}
+                                    </p>
+                                    {session &&
+                                        session.user.role === Role.USER && (
+                                            <Button
+                                                onClick={sessionRefetch}
+                                                type="button"
+                                            >
+                                                Activate Mod
+                                            </Button>
+                                        )}
                                 </div>
                                 <div className="flex flex-row gap-4 items-center">
                                     <h3>Following</h3>
@@ -447,7 +639,9 @@ export default function ProfileClient({ userData: serverUserData, collections }:
                                 name="spotify_playlist"
                                 render={({ field }) => (
                                     <Field className="gap-2">
-                                        <FieldLabel>Spotify Playlist ID</FieldLabel>
+                                        <FieldLabel>
+                                            Spotify Playlist ID
+                                        </FieldLabel>
                                         <Input
                                             type="text"
                                             placeholder="43rCH6ObxLcq6d3bhg8J0l"
@@ -455,8 +649,11 @@ export default function ProfileClient({ userData: serverUserData, collections }:
                                             onChange={field.onChange}
                                         />
                                         <FieldDescription>
-                                            Go to your Spotify playlist in the browser. Copy the text that comes after
-                                            "https://open.spotify.com/playlist/" in the URL.
+                                            Go to your Spotify playlist in the
+                                            browser. Copy the text that comes
+                                            after
+                                            "https://open.spotify.com/playlist/"
+                                            in the URL.
                                         </FieldDescription>
                                     </Field>
                                 )}

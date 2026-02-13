@@ -12,8 +12,10 @@ const buttonVariants = cva(
             variant: {
                 default:
                     "text-main-foreground bg-main border-2 border-border shadow-shadow hover:translate-x-boxShadowX hover:translate-y-boxShadowY hover:shadow-none",
-                textShadow: "text-main-foreground bg-transparent border-0 shadow-none btn-text-shadow",
-                imageShadow: "text-main-foreground bg-transparent border-0 shadow-none image-shadow",
+                textShadow:
+                    "text-main-foreground bg-transparent border-0 shadow-none btn-text-shadow",
+                imageShadow:
+                    "text-main-foreground bg-transparent border-0 shadow-none image-shadow",
                 noShadow: "text-main-foreground bg-main border-2 border-border",
                 neutral:
                     "bg-secondary-background text-foreground border-2 border-border shadow-shadow hover:translate-x-boxShadowX hover:translate-y-boxShadowY hover:shadow-none",
@@ -50,7 +52,13 @@ function Button({
     }) {
     const Comp = asChild ? Slot : "button";
 
-    return <Comp data-slot="button" className={cn(buttonVariants({ variant, size, className }))} {...props} />;
+    return (
+        <Comp
+            data-slot="button"
+            className={cn(buttonVariants({ variant, size, className }))}
+            {...props}
+        />
+    );
 }
 
 export { Button, buttonVariants };

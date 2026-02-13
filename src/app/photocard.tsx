@@ -1,6 +1,10 @@
 "use client";
 
-import { THUMBNAIL_DISPLAY_HEIGHT_PX, Effects, thumbnailUrl } from "@/constants";
+import {
+    THUMBNAIL_DISPLAY_HEIGHT_PX,
+    Effects,
+    thumbnailUrl,
+} from "@/constants";
 import { CheckboxWithoutLabel } from "@/components/ui/checkbox";
 import { useEffect, useState } from "react";
 import { useMetadata } from "@/metadata-context";
@@ -11,7 +15,9 @@ import { HeartIcon } from "lucide-react";
 
 const DEFAULT_ASPECT_RATIO = "11 / 17"; // Standard photocard aspect ratio 55mm x 85mm
 
-async function detectBorderRadiusAndRatio(imageUrl: string): Promise<{ borderRadius: number; aspectRatio: string }> {
+async function detectBorderRadiusAndRatio(
+    imageUrl: string,
+): Promise<{ borderRadius: number; aspectRatio: string }> {
     return new Promise((resolve) => {
         const img = new Image();
         img.crossOrigin = "anonymous";
@@ -22,7 +28,8 @@ async function detectBorderRadiusAndRatio(imageUrl: string): Promise<{ borderRad
             const aspectRatio = `${img.naturalWidth} / ${img.naturalHeight}`;
             const canvas = document.createElement("canvas");
             const ctx = canvas.getContext("2d", { willReadFrequently: true });
-            if (!ctx) return resolve({ borderRadius: 0, aspectRatio: aspectRatio });
+            if (!ctx)
+                return resolve({ borderRadius: 0, aspectRatio: aspectRatio });
 
             // We only need to sample a small corner for performance
             const sampleSize = Math.min(img.width, img.height) / 2;
@@ -30,7 +37,12 @@ async function detectBorderRadiusAndRatio(imageUrl: string): Promise<{ borderRad
             canvas.height = sampleSize;
             ctx.drawImage(img, 0, 0);
 
-            const imageData = ctx.getImageData(0, 0, sampleSize, sampleSize).data;
+            const imageData = ctx.getImageData(
+                0,
+                0,
+                sampleSize,
+                sampleSize,
+            ).data;
 
             // Scan diagonally from the top-left (0,0) towards the center
             for (let i = 0; i < sampleSize; i++) {
@@ -47,7 +59,10 @@ async function detectBorderRadiusAndRatio(imageUrl: string): Promise<{ borderRad
                     // is roughly r * (2 - √2)
                     const radius = i / (1 - Math.SQRT1_2);
                     resolve({
-                        borderRadius: Math.ceil((radius * THUMBNAIL_DISPLAY_HEIGHT_PX) / img.naturalHeight),
+                        borderRadius: Math.ceil(
+                            (radius * THUMBNAIL_DISPLAY_HEIGHT_PX) /
+                                img.naturalHeight,
+                        ),
                         aspectRatio: aspectRatio,
                     });
                     return;
@@ -143,7 +158,8 @@ export default function PhotocardComponent({
 }) {
     const { effectsDisabled } = useMetadata();
     const [borderRadius, setBorderRadius] = useState<number>(16);
-    const [aspectRatio, setAspectRatio] = useState<string>(DEFAULT_ASPECT_RATIO);
+    const [aspectRatio, setAspectRatio] =
+        useState<string>(DEFAULT_ASPECT_RATIO);
 
     // Load the web component once
     useEffect(() => {
@@ -152,15 +168,19 @@ export default function PhotocardComponent({
 
     useEffect(() => {
         if (src && !manualRadius) {
-            detectBorderRadiusAndRatio(src).then(({ borderRadius: br, aspectRatio: ar }) => {
-                setBorderRadius((prev) => (prev === br ? prev : br));
-                setAspectRatio((prev) => (prev === ar ? prev : ar));
-            });
+            detectBorderRadiusAndRatio(src).then(
+                ({ borderRadius: br, aspectRatio: ar }) => {
+                    setBorderRadius((prev) => (prev === br ? prev : br));
+                    setAspectRatio((prev) => (prev === ar ? prev : ar));
+                },
+            );
         } else if (fallbackSrc && !manualRadius) {
-            detectBorderRadiusAndRatio(fallbackSrc).then(({ borderRadius: br, aspectRatio: ar }) => {
-                setBorderRadius((prev) => (prev === br ? prev : br));
-                setAspectRatio((prev) => (prev === ar ? prev : ar));
-            });
+            detectBorderRadiusAndRatio(fallbackSrc).then(
+                ({ borderRadius: br, aspectRatio: ar }) => {
+                    setBorderRadius((prev) => (prev === br ? prev : br));
+                    setAspectRatio((prev) => (prev === ar ? prev : ar));
+                },
+            );
         }
     }, [src, fallbackSrc, manualRadius]);
 
@@ -207,7 +227,9 @@ export default function PhotocardComponent({
         >
             <div
                 className={`${large ? "w-full" : "inline-block"} transition-opacity ${selectable ? (isSelected ? "opacity-100" : "opacity-50") : ""}`}
-                style={{ "--detected-radius": radiusString } as React.CSSProperties}
+                style={
+                    { "--detected-radius": radiusString } as React.CSSProperties
+                }
             >
                 <HoverTilt
                     glare-intensity={glareIntensity}
@@ -231,12 +253,19 @@ export default function PhotocardComponent({
             </div>
             {selectable && (
                 <div className="absolute inset-0 flex items-center justify-center z-20 cursor-pointer">
-                    <CheckboxWithoutLabel checked={isSelected} className="w-8 h-8 border-2 pointer-events-none" />
+                    <CheckboxWithoutLabel
+                        checked={isSelected}
+                        className="w-8 h-8 border-2 pointer-events-none"
+                    />
                 </div>
             )}
             {isOwned && (
                 <div className="absolute -top-2 -right-2 z-20 pointer-events-none drop-shadow-md">
-                    <img src="/binder_done.svg" alt="Owned" className="w-8 h-8" />
+                    <img
+                        src="/binder_done.svg"
+                        alt="Owned"
+                        className="w-8 h-8"
+                    />
                 </div>
             )}
             {isWishlisted && (
@@ -311,7 +340,12 @@ export function DraggablePhotocard({
     });
 
     return (
-        <div ref={setNodeRef} {...listeners} {...attributes} style={{ width, height }}>
+        <div
+            ref={setNodeRef}
+            {...listeners}
+            {...attributes}
+            style={{ width, height }}
+        >
             <PhotocardComponent
                 src={
                     showFront

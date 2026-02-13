@@ -7,5 +7,11 @@ export const metadata = {
 };
 
 export default function ContactComponent() {
-    return <ReportForm reportType={ReportType.Contact} title={"Contact Us"} url="/contact" />;
+    return (
+        <ReportForm
+            reportType={ReportType.Contact}
+            title={"Contact Us"}
+            url="/contact"
+        />
+    );
 }

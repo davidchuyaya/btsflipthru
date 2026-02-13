@@ -1,5 +1,11 @@
 import { MAX_IMAGE_SIZE_BYTES, THUMBNAIL_DISPLAY_HEIGHT_PX } from "@/constants";
-import { useEffect, useState, useRef, forwardRef, useImperativeHandle } from "react";
+import {
+    useEffect,
+    useState,
+    useRef,
+    forwardRef,
+    useImperativeHandle,
+} from "react";
 import { useDropzone } from "react-dropzone";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Trash2Icon } from "lucide-react";
@@ -55,7 +61,8 @@ export const ImageDropzone = forwardRef<
 
         useEffect(() => {
             if (imageProp instanceof File) {
-                if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
+                if (objectUrlRef.current)
+                    URL.revokeObjectURL(objectUrlRef.current);
                 const url = URL.createObjectURL(imageProp);
                 objectUrlRef.current = url;
                 setDisplayUrl(url);
@@ -112,7 +119,9 @@ export const ImageDropzone = forwardRef<
         return (
             <Field className={className}>
                 {label && <FieldLabel>{label}</FieldLabel>}
-                {description && <FieldDescription>{description}</FieldDescription>}
+                {description && (
+                    <FieldDescription>{description}</FieldDescription>
+                )}
                 <div className="flex flex-row items-center gap-4">
                     <div
                         {...getRootProps({ className: "dropzone" })}
@@ -125,12 +134,20 @@ export const ImageDropzone = forwardRef<
                         ) : (
                             <>
                                 <p>Drop image here.</p>
-                                <p>Only images under {MAX_IMAGE_SIZE_BYTES / (1024 * 1024)}MB are allowed.</p>
+                                <p>
+                                    Only images under{" "}
+                                    {MAX_IMAGE_SIZE_BYTES / (1024 * 1024)}MB are
+                                    allowed.
+                                </p>
                             </>
                         )}
                     </div>
                     {displayUrl && !disableUpload && (
-                        <Button type="button" onClick={onDeleteClicked} size="icon">
+                        <Button
+                            type="button"
+                            onClick={onDeleteClicked}
+                            size="icon"
+                        >
                             <Trash2Icon />
                         </Button>
                     )}
@@ -157,7 +174,11 @@ export const ImageDropzone = forwardRef<
                     ) : null
                 ) : null}
                 {fileRejections.map(({ file, errors }) => (
-                    <p className="text-center" style={{ color: "red" }} key={file.size}>
+                    <p
+                        className="text-center"
+                        style={{ color: "red" }}
+                        key={file.size}
+                    >
                         {
                             errors.map((e) => {
                                 switch (e.code) {

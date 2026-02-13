@@ -38,7 +38,8 @@ export function isAdmin(session: ClientSession) {
 }
 
 export async function signInGoogle(callbackURL?: string | null | unknown) {
-    const finalCallbackURL = typeof callbackURL === "string" ? callbackURL : "/";
+    const finalCallbackURL =
+        typeof callbackURL === "string" ? callbackURL : "/";
     await authClient.signIn.social({
         provider: "google",
         callbackURL: finalCallbackURL,

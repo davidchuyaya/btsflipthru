@@ -1,6 +1,10 @@
 "use client";
 
-import { addPhotocardsToOwned, addPhotocardsToWishlist, getPhotocardsInDB } from "@/actions";
+import {
+    addPhotocardsToOwned,
+    addPhotocardsToWishlist,
+    getPhotocardsInDB,
+} from "@/actions";
 import { useEffect, useState, useMemo } from "react";
 import {
     collectionDisplayName,
@@ -30,16 +34,38 @@ import {
 import { cardSizeToString, executeSearchLogic } from "@/actions-client";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
-import { ChevronDown, FilterIcon, SquareCheckBigIcon, SquareIcon } from "lucide-react";
+import {
+    Select,
+    SelectContent,
+    SelectGroup,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+import {
+    Collapsible,
+    CollapsibleTrigger,
+    CollapsibleContent,
+} from "@/components/ui/collapsible";
+import {
+    ChevronDown,
+    FilterIcon,
+    SquareCheckBigIcon,
+    SquareIcon,
+} from "lucide-react";
 import { useMetadata } from "@/metadata-context";
 import React from "react";
 import { Button } from "@/components/ui/button";
 import BottomSpinnerComponent from "../bottom-spinner";
 import Link from "next/link";
 import { isAtLeastMod } from "@/auth-client";
-import { CardTypes, CardSizes, Collections, Photocards, CollectionTypes } from "@/db";
+import {
+    CardTypes,
+    CardSizes,
+    Collections,
+    Photocards,
+    CollectionTypes,
+} from "@/db";
 import { Selectable } from "kysely";
 import Image from "next/image";
 
@@ -93,7 +119,12 @@ function CheckMenuButton({
 }) {
     const content = (
         <>
-            {label} {checked ? <SquareCheckBigIcon className="ml-auto" /> : <SquareIcon className="ml-auto" />}
+            {label}{" "}
+            {checked ? (
+                <SquareCheckBigIcon className="ml-auto" />
+            ) : (
+                <SquareIcon className="ml-auto" />
+            )}
         </>
     );
 
@@ -104,14 +135,18 @@ function CheckMenuButton({
     if (type === MenuType.Regular) {
         return (
             <SidebarMenuItem hidden={hidden}>
-                <SidebarMenuButton onClick={changeChecked}>{content}</SidebarMenuButton>
+                <SidebarMenuButton onClick={changeChecked}>
+                    {content}
+                </SidebarMenuButton>
                 {children}
             </SidebarMenuItem>
         );
     } else {
         return (
             <SidebarMenuSubItem hidden={hidden}>
-                <SidebarMenuSubButton onClick={changeChecked}>{content}</SidebarMenuSubButton>
+                <SidebarMenuSubButton onClick={changeChecked}>
+                    {content}
+                </SidebarMenuSubButton>
                 {children}
             </SidebarMenuSubItem>
         );
@@ -127,14 +162,23 @@ function CustomSidebarTrigger() {
     );
 }
 
-function CustomSearchButton({ searchFunction }: { searchFunction: () => Promise<boolean> }) {
+function CustomSearchButton({
+    searchFunction,
+}: {
+    searchFunction: () => Promise<boolean>;
+}) {
     const { toggleSidebar } = useSidebar();
     return (
-        <Button onClick={() => searchFunction().then((success) => {
-            if (success) {
-                toggleSidebar();
+        <Button
+            onClick={() =>
+                searchFunction().then((success) => {
+                    if (success) {
+                        toggleSidebar();
+                    }
+                })
             }
-        })} className="w-full">
+            className="w-full"
+        >
             Search
         </Button>
     );
@@ -174,88 +218,117 @@ export default function SearchClient({
     cardSizes: Selectable<CardSizes>[];
 }) {
     const { session, setError } = useMetadata();
-    const { hierarchy: collectionsHierarchy, allSearchableCols } = useMemo(() => {
-        const newHierarchy = new Map<
-            number,
-            { tops: Array<{ collection: Selectable<Collections>; hasSub: boolean }>; subs: Selectable<Collections>[] }
-        >();
-        const globalTops = new Map<number, { collection: Selectable<Collections>; hasSub: boolean }>();
-        const globalSubs = new Map<number, Selectable<Collections>>();
-
-        for (const type of collectionTypes) {
-            const colsInType = collections.filter((c) => c.collection_types.includes(type.id!));
-            const groupedByName = new Map<string, Selectable<Collections>[]>();
-
-            for (const col of colsInType) {
-                const existing = groupedByName.get(col.name) || [];
-                existing.push(col);
-                groupedByName.set(col.name, existing);
-            }
-
-            const tops: Array<{ collection: Selectable<Collections>; hasSub: boolean }> = [];
-            const subs: Selectable<Collections>[] = [];
-
-            for (const [name, group] of groupedByName) {
-                if (group.length > 1) {
-                    // Multiple versions -> Subs. Need a Top.
-                    // Top's release date = the release date of the earliest sub collection
-                    const earliestSub = group.reduce((prev, curr) =>
-                        new Date(prev.release_date).getTime() < new Date(curr.release_date).getTime() ? prev : curr,
-                    );
-                    const parentCol = {
-                        collection: {
-                            ...earliestSub,
-                            version: null, // Virtual top has no version
-                            version_order: null,
-                        },
-                        hasSub: true,
-                    };
-                    tops.push(parentCol);
-
-                    // Add all as subs
-                    for (const sub of group) {
-                        subs.push(sub);
-                        globalSubs.set(sub.id!, sub);
-                    }
-
-                    globalTops.set(parentCol.collection.id!, parentCol);
-                } else {
-                    // Single item -> Top
-                    const col = group[0];
-                    const topItem = { collection: col, hasSub: false };
-                    tops.push(topItem);
-                    globalTops.set(col.id!, topItem);
+    const { hierarchy: collectionsHierarchy, allSearchableCols } =
+        useMemo(() => {
+            const newHierarchy = new Map<
+                number,
+                {
+                    tops: Array<{
+                        collection: Selectable<Collections>;
+                        hasSub: boolean;
+                    }>;
+                    subs: Selectable<Collections>[];
                 }
+            >();
+            const globalTops = new Map<
+                number,
+                { collection: Selectable<Collections>; hasSub: boolean }
+            >();
+            const globalSubs = new Map<number, Selectable<Collections>>();
+
+            for (const type of collectionTypes) {
+                const colsInType = collections.filter((c) =>
+                    c.collection_types.includes(type.id!),
+                );
+                const groupedByName = new Map<
+                    string,
+                    Selectable<Collections>[]
+                >();
+
+                for (const col of colsInType) {
+                    const existing = groupedByName.get(col.name) || [];
+                    existing.push(col);
+                    groupedByName.set(col.name, existing);
+                }
+
+                const tops: Array<{
+                    collection: Selectable<Collections>;
+                    hasSub: boolean;
+                }> = [];
+                const subs: Selectable<Collections>[] = [];
+
+                for (const [name, group] of groupedByName) {
+                    if (group.length > 1) {
+                        // Multiple versions -> Subs. Need a Top.
+                        // Top's release date = the release date of the earliest sub collection
+                        const earliestSub = group.reduce((prev, curr) =>
+                            new Date(prev.release_date).getTime() <
+                            new Date(curr.release_date).getTime()
+                                ? prev
+                                : curr,
+                        );
+                        const parentCol = {
+                            collection: {
+                                ...earliestSub,
+                                version: null, // Virtual top has no version
+                                version_order: null,
+                            },
+                            hasSub: true,
+                        };
+                        tops.push(parentCol);
+
+                        // Add all as subs
+                        for (const sub of group) {
+                            subs.push(sub);
+                            globalSubs.set(sub.id!, sub);
+                        }
+
+                        globalTops.set(parentCol.collection.id!, parentCol);
+                    } else {
+                        // Single item -> Top
+                        const col = group[0];
+                        const topItem = { collection: col, hasSub: false };
+                        tops.push(topItem);
+                        globalTops.set(col.id!, topItem);
+                    }
+                }
+
+                // Sort
+                tops.sort(
+                    (a, b) =>
+                        new Date(b.collection.release_date).getTime() -
+                        new Date(a.collection.release_date).getTime(),
+                );
+                subs.sort((a, b) =>
+                    a.version_order !== null && b.version_order !== null
+                        ? a.version_order - b.version_order
+                        : new Date(b.release_date).getTime() -
+                          new Date(a.release_date).getTime(),
+                );
+
+                newHierarchy.set(type.id!, { tops, subs });
             }
 
-            // Sort
-            tops.sort(
-                (a, b) => new Date(b.collection.release_date).getTime() - new Date(a.collection.release_date).getTime(),
+            const allTops = Array.from(globalTops.values()).sort(
+                (a, b) =>
+                    new Date(b.collection.release_date).getTime() -
+                    new Date(a.collection.release_date).getTime(),
             );
-            subs.sort((a, b) =>
+            const allSubs = Array.from(globalSubs.values()).sort((a, b) =>
                 a.version_order !== null && b.version_order !== null
                     ? a.version_order - b.version_order
-                    : new Date(b.release_date).getTime() - new Date(a.release_date).getTime(),
+                    : new Date(b.release_date).getTime() -
+                      new Date(a.release_date).getTime(),
             );
 
-            newHierarchy.set(type.id!, { tops, subs });
-        }
-
-        const allTops = Array.from(globalTops.values()).sort(
-            (a, b) => new Date(b.collection.release_date).getTime() - new Date(a.collection.release_date).getTime(),
-        );
-        const allSubs = Array.from(globalSubs.values()).sort((a, b) =>
-            a.version_order !== null && b.version_order !== null
-                ? a.version_order - b.version_order
-                : new Date(b.release_date).getTime() - new Date(a.release_date).getTime(),
-        );
-
-        return {
-            hierarchy: newHierarchy,
-            allSearchableCols: { tops: allTops, subs: allSubs },
-        };
-    }, [collections, collectionTypes]);
-    const [photocards, setPhotocards] = useState<Array<Selectable<Photocards>>>([]);
+            return {
+                hierarchy: newHierarchy,
+                allSearchableCols: { tops: allTops, subs: allSubs },
+            };
+        }, [collections, collectionTypes]);
+    const [photocards, setPhotocards] = useState<Array<Selectable<Photocards>>>(
+        [],
+    );
     const [ownedIds, setOwnedIds] = useState<Set<number>>(new Set());
     const [wishlistedIds, setWishlistedIds] = useState<Set<number>>(new Set());
     const [filters, setFilters] = useState<Filters>({
@@ -282,15 +355,23 @@ export default function SearchClient({
 
     const searchResult = useMemo(() => {
         if (!searchInput.trim()) {
-            const topColsSet = new Set(allSearchableCols.tops.map((c) => c.collection.id!));
-            const subColsSet = new Set(allSearchableCols.subs.map((c) => c.id!));
+            const topColsSet = new Set(
+                allSearchableCols.tops.map((c) => c.collection.id!),
+            );
+            const subColsSet = new Set(
+                allSearchableCols.subs.map((c) => c.id!),
+            );
             return {
                 visibleOptions: {
-                    collectionTypes: new Set(collectionTypes.map((type) => type.id!)),
+                    collectionTypes: new Set(
+                        collectionTypes.map((type) => type.id!),
+                    ),
                     topCollections: topColsSet,
                     subCollections: subColsSet,
                     members: new Set(Object.values(MemberToIntWithOT7)),
-                    exclusiveCountries: new Set(Object.values(ExclusiveCountry)),
+                    exclusiveCountries: new Set(
+                        Object.values(ExclusiveCountry),
+                    ),
                     cardTypes: new Set(cardTypes),
                     cardSizes: new Set(cardSizes),
                 },
@@ -298,23 +379,33 @@ export default function SearchClient({
             };
         }
 
-        const { winningMembers, winningTopCols, winningSubCols, winningCardTypes, winningCardSizes, winningCountries } =
-            executeSearchLogic(
-                searchInput,
-                {
-                    tops: allSearchableCols.tops,
-                    subs: allSearchableCols.subs,
-                    cardTypes,
-                    cardSizes,
-                },
-                {
-                    topName: (c: { collection: Selectable<Collections>; hasSub: boolean }) =>
-                        collectionDisplayName(c.collection),
-                    subName: (c: Selectable<Collections>) => collectionDisplayName(c),
-                    cardTypeName: (ct: Selectable<CardTypes>) => ct.name,
-                    cardSizeName: (cs: Selectable<CardSizes>) => cardSizeToString(cs),
-                },
-            );
+        const {
+            winningMembers,
+            winningTopCols,
+            winningSubCols,
+            winningCardTypes,
+            winningCardSizes,
+            winningCountries,
+        } = executeSearchLogic(
+            searchInput,
+            {
+                tops: allSearchableCols.tops,
+                subs: allSearchableCols.subs,
+                cardTypes,
+                cardSizes,
+            },
+            {
+                topName: (c: {
+                    collection: Selectable<Collections>;
+                    hasSub: boolean;
+                }) => collectionDisplayName(c.collection),
+                subName: (c: Selectable<Collections>) =>
+                    collectionDisplayName(c),
+                cardTypeName: (ct: Selectable<CardTypes>) => ct.name,
+                cardSizeName: (cs: Selectable<CardSizes>) =>
+                    cardSizeToString(cs),
+            },
+        );
 
         // Include parents of visible subs
         winningSubCols.forEach((sub) => {
@@ -334,7 +425,9 @@ export default function SearchClient({
             }
         }
 
-        const topColIds = new Set([...winningTopCols].map((c) => c.collection.id!));
+        const topColIds = new Set(
+            [...winningTopCols].map((c) => c.collection.id!),
+        );
         const subColIds = new Set([...winningSubCols].map((c) => c.id!));
 
         return {
@@ -398,7 +491,10 @@ export default function SearchClient({
         trySearch(newFilters);
     }
 
-    function getSubCollectionsForTop(topCollectionName: string, typeId: number): Set<number> {
+    function getSubCollectionsForTop(
+        topCollectionName: string,
+        typeId: number,
+    ): Set<number> {
         return new Set(
             collectionsHierarchy
                 .get(typeId)!
@@ -407,24 +503,42 @@ export default function SearchClient({
         );
     }
 
-    function getTopCollectionForSub(subCollection: Selectable<Collections>, typeId: number): Selectable<Collections> {
-        return collectionsHierarchy.get(typeId)!.tops.find(({ collection }) => collection.name === subCollection.name)!
-            .collection;
+    function getTopCollectionForSub(
+        subCollection: Selectable<Collections>,
+        typeId: number,
+    ): Selectable<Collections> {
+        return collectionsHierarchy
+            .get(typeId)!
+            .tops.find(
+                ({ collection }) => collection.name === subCollection.name,
+            )!.collection;
     }
 
     function getTopCollectionsForType(typeId: number): Set<number> {
-        return new Set(collectionsHierarchy.get(typeId)!.tops.map(({ collection }) => collection.id!));
+        return new Set(
+            collectionsHierarchy
+                .get(typeId)!
+                .tops.map(({ collection }) => collection.id!),
+        );
     }
 
     function getSubCollectionsForType(typeId: number): Set<number> {
-        return new Set(collectionsHierarchy.get(typeId)!.subs.map((collection) => collection.id!));
+        return new Set(
+            collectionsHierarchy
+                .get(typeId)!
+                .subs.map((collection) => collection.id!),
+        );
     }
 
-    function getNewCollectionTypes(newSelectedTopCollections: Set<number>): Set<number> {
+    function getNewCollectionTypes(
+        newSelectedTopCollections: Set<number>,
+    ): Set<number> {
         const newSelectedTypes = new Set<number>();
         for (const type of collectionTypes) {
             const topColsForType = getTopCollectionsForType(type.id!);
-            const hasChecked = Array.from(topColsForType).some((id) => newSelectedTopCollections.has(id));
+            const hasChecked = Array.from(topColsForType).some((id) =>
+                newSelectedTopCollections.has(id),
+            );
             if (hasChecked) {
                 newSelectedTypes.add(type.id!);
             }
@@ -441,12 +555,26 @@ export default function SearchClient({
 
         if (checked) {
             newSelectedCollectionTypes.add(typeId);
-            newSelectedTopCollections = new Set([...filters.topCollections, ...topColsForType]);
-            newSelectedSubCollections = new Set([...filters.subCollections, ...subColsForType]);
+            newSelectedTopCollections = new Set([
+                ...filters.topCollections,
+                ...topColsForType,
+            ]);
+            newSelectedSubCollections = new Set([
+                ...filters.subCollections,
+                ...subColsForType,
+            ]);
         } else {
             newSelectedCollectionTypes.delete(typeId);
-            newSelectedTopCollections = new Set([...filters.topCollections].filter((id) => !topColsForType.has(id)));
-            newSelectedSubCollections = new Set([...filters.subCollections].filter((id) => !subColsForType.has(id)));
+            newSelectedTopCollections = new Set(
+                [...filters.topCollections].filter(
+                    (id) => !topColsForType.has(id),
+                ),
+            );
+            newSelectedSubCollections = new Set(
+                [...filters.subCollections].filter(
+                    (id) => !subColsForType.has(id),
+                ),
+            );
         }
         const newFilters = {
             ...filters,
@@ -465,20 +593,25 @@ export default function SearchClient({
     ) {
         const newSelectedTopCollections = new Set(filters.topCollections);
         let newSelectedSubCollections = new Set(filters.subCollections);
-        const subColsForTop = hasSub ? getSubCollectionsForTop(collection.name, typeId) : new Set<number>();
+        const subColsForTop = hasSub
+            ? getSubCollectionsForTop(collection.name, typeId)
+            : new Set<number>();
 
         if (checked) {
             newSelectedTopCollections.add(collection.id!);
 
             if (hasSub) {
-                newSelectedSubCollections = newSelectedSubCollections.union(subColsForTop);
+                newSelectedSubCollections =
+                    newSelectedSubCollections.union(subColsForTop);
             }
         } else {
             newSelectedTopCollections.delete(collection.id!);
 
             if (hasSub) {
                 newSelectedSubCollections = new Set(
-                    [...newSelectedSubCollections].filter((id) => !subColsForTop.has(id)),
+                    [...newSelectedSubCollections].filter(
+                        (id) => !subColsForTop.has(id),
+                    ),
                 );
             }
         }
@@ -492,7 +625,11 @@ export default function SearchClient({
         setFilters(newFilters);
     }
 
-    function onSelectedSubCollection(collection: Selectable<Collections>, checked: boolean, typeId: number) {
+    function onSelectedSubCollection(
+        collection: Selectable<Collections>,
+        checked: boolean,
+        typeId: number,
+    ) {
         const topCollection = getTopCollectionForSub(collection, typeId);
         const newSelectedSubCollections = new Set(filters.subCollections);
         const newSelectedTopCollections = new Set(filters.topCollections);
@@ -504,9 +641,13 @@ export default function SearchClient({
             newSelectedSubCollections.delete(collection.id!);
 
             // Uncheck top collection if no more sub collections are checked for it
-            const remainingSubsForTop = getSubCollectionsForTop(topCollection.name, typeId);
+            const remainingSubsForTop = getSubCollectionsForTop(
+                topCollection.name,
+                typeId,
+            );
             const hasOtherChecked = Array.from(remainingSubsForTop).some(
-                (id) => id !== collection.id && newSelectedSubCollections.has(id),
+                (id) =>
+                    id !== collection.id && newSelectedSubCollections.has(id),
             );
             if (!hasOtherChecked) {
                 newSelectedTopCollections.delete(topCollection.id!);
@@ -532,7 +673,10 @@ export default function SearchClient({
         setFilters(newFilters);
     }
 
-    function onSelectedCardType(cardType: Selectable<CardTypes>, checked: boolean) {
+    function onSelectedCardType(
+        cardType: Selectable<CardTypes>,
+        checked: boolean,
+    ) {
         const newSelectedCardTypes = new Set(filters.cardTypes);
         if (checked) {
             newSelectedCardTypes.add(cardType);
@@ -543,7 +687,10 @@ export default function SearchClient({
         setFilters(newFilters);
     }
 
-    function onSelectedCardSize(cardSize: Selectable<CardSizes>, checked: boolean) {
+    function onSelectedCardSize(
+        cardSize: Selectable<CardSizes>,
+        checked: boolean,
+    ) {
         const newSelectedCardSizes = new Set(filters.cardSizes);
         if (checked) {
             newSelectedCardSizes.add(cardSize);
@@ -554,20 +701,33 @@ export default function SearchClient({
         setFilters(newFilters);
     }
 
-    function onSelectedExclusiveCountry(country: ExclusiveCountry, checked: boolean) {
-        const newSelectedExclusiveCountries = new Set(filters.exclusiveCountries);
+    function onSelectedExclusiveCountry(
+        country: ExclusiveCountry,
+        checked: boolean,
+    ) {
+        const newSelectedExclusiveCountries = new Set(
+            filters.exclusiveCountries,
+        );
         if (checked) {
             newSelectedExclusiveCountries.add(country);
         } else {
             newSelectedExclusiveCountries.delete(country);
         }
-        const newFilters = { ...filters, exclusiveCountries: newSelectedExclusiveCountries };
+        const newFilters = {
+            ...filters,
+            exclusiveCountries: newSelectedExclusiveCountries,
+        };
         setFilters(newFilters);
     }
 
     // Ensure context has been loaded
     function canSearch(): boolean {
-        return collectionTypes.length > 0 && collections.length > 0 && cardSizes.length > 0 && cardTypes.length > 0;
+        return (
+            collectionTypes.length > 0 &&
+            collections.length > 0 &&
+            cardSizes.length > 0 &&
+            cardTypes.length > 0
+        );
     }
 
     function topAndSubToSelectedCollections(
@@ -576,7 +736,11 @@ export default function SearchClient({
     ): Set<number> {
         const selectedCollectionsSet = new Set<number>(selectedSubCollections);
         for (const topColId of selectedTopCollections) {
-            if (allSearchableCols.tops.find(({ collection }) => collection.id === topColId)?.hasSub) {
+            if (
+                allSearchableCols.tops.find(
+                    ({ collection }) => collection.id === topColId,
+                )?.hasSub
+            ) {
                 continue; // Skip top collections that have sub-collections
             }
             selectedCollectionsSet.add(topColId);
@@ -584,7 +748,10 @@ export default function SearchClient({
         return selectedCollectionsSet;
     }
 
-    function dontFilterIfAllSelected<T, U>(selectedSet: Set<T>, allItems: U[]): T[] {
+    function dontFilterIfAllSelected<T, U>(
+        selectedSet: Set<T>,
+        allItems: U[],
+    ): T[] {
         if (selectedSet.size === allItems.length) {
             return []; // No filtering
         }
@@ -602,7 +769,9 @@ export default function SearchClient({
     ): number[] {
         const prevCollections =
             prevSearch && !ignorePrevSearch
-                ? collections.filter((col) => prevSearch.coveredCollectionIds.includes(col.id!))
+                ? collections.filter((col) =>
+                      prevSearch.coveredCollectionIds.includes(col.id!),
+                  )
                 : [];
         let sortedAndFilteredCollections: Selectable<Collections>[] = [];
         switch (currentFilters.sort) {
@@ -611,38 +780,59 @@ export default function SearchClient({
                     prevCollections.length === 0
                         ? null
                         : prevCollections.reduce((prev, curr) => {
-                              return new Date(curr.release_date) > new Date(prev.release_date) ? curr : prev;
+                              return new Date(curr.release_date) >
+                                  new Date(prev.release_date)
+                                  ? curr
+                                  : prev;
                           });
                 sortedAndFilteredCollections = collections
                     .filter(
                         (col) =>
                             prevCollections.length === 0 ||
-                            new Date(col.release_date) > new Date(maxReleaseDate!.release_date),
+                            new Date(col.release_date) >
+                                new Date(maxReleaseDate!.release_date),
                     )
-                    .sort((a, b) => new Date(a.release_date).getTime() - new Date(b.release_date).getTime());
+                    .sort(
+                        (a, b) =>
+                            new Date(a.release_date).getTime() -
+                            new Date(b.release_date).getTime(),
+                    );
                 break;
             case SortType.ReleaseDateDesc:
                 const minReleaseDate =
                     prevCollections.length === 0
                         ? null
                         : prevCollections.reduce((prev, curr) => {
-                              return new Date(curr.release_date) < new Date(prev.release_date) ? curr : prev;
+                              return new Date(curr.release_date) <
+                                  new Date(prev.release_date)
+                                  ? curr
+                                  : prev;
                           });
                 sortedAndFilteredCollections = collections
                     .filter(
                         (col) =>
                             prevCollections.length === 0 ||
-                            new Date(col.release_date) < new Date(minReleaseDate!.release_date),
+                            new Date(col.release_date) <
+                                new Date(minReleaseDate!.release_date),
                     )
-                    .sort((a, b) => new Date(b.release_date).getTime() - new Date(a.release_date).getTime());
+                    .sort(
+                        (a, b) =>
+                            new Date(b.release_date).getTime() -
+                            new Date(a.release_date).getTime(),
+                    );
                 break;
             default:
-                return dontFilterIfAllSelected(selectedCollections, collections);
+                return dontFilterIfAllSelected(
+                    selectedCollections,
+                    collections,
+                );
         }
 
         // If no collections were selected, return all collections
         const actualSelectedCollections =
-            selectedCollections.size === 0 ? collections.map((col) => col.id!) : Array.from(selectedCollections);
+            selectedCollections.size === 0
+                ? collections.map((col) => col.id!)
+                : Array.from(selectedCollections);
         // Return the NUM_LOAD_COLLECTIONS first collections that were selected
         return sortedAndFilteredCollections
             .filter((col) => actualSelectedCollections.includes(col.id!))
@@ -671,9 +861,18 @@ export default function SearchClient({
             currentFilters.subCollections,
         );
         const searchQuery: SearchQuery = {
-            collectionIds: dontFilterIfAllSelected(selectedCollections, collections),
-            cardTypeIds: dontFilterIfAllSelected(currentFilters.cardTypes, cardTypes).map((ct) => ct.id!),
-            sizeIds: dontFilterIfAllSelected(currentFilters.cardSizes, cardSizes).map((cs) => cs.id!),
+            collectionIds: dontFilterIfAllSelected(
+                selectedCollections,
+                collections,
+            ),
+            cardTypeIds: dontFilterIfAllSelected(
+                currentFilters.cardTypes,
+                cardTypes,
+            ).map((ct) => ct.id!),
+            sizeIds: dontFilterIfAllSelected(
+                currentFilters.cardSizes,
+                cardSizes,
+            ).map((cs) => cs.id!),
             exclusiveCountryIds: dontFilterIfAllSelected(
                 currentFilters.exclusiveCountries,
                 Object.values(ExclusiveCountry),
@@ -684,7 +883,10 @@ export default function SearchClient({
         return searchQuery;
     }
 
-    function hasFiltersChanged(searchQuery: SearchQuery, prevQuery?: SearchQuery) {
+    function hasFiltersChanged(
+        searchQuery: SearchQuery,
+        prevQuery?: SearchQuery,
+    ) {
         if (prevQuery === undefined) {
             // If there was no previous search, then we should always allow the search to proceed
             return true;
@@ -715,10 +917,16 @@ export default function SearchClient({
             case SortType.ReleaseDateDesc:
                 newCollectionIds = limitSearchCollections(
                     currentFilters,
-                    topAndSubToSelectedCollections(currentFilters.topCollections, currentFilters.subCollections),
+                    topAndSubToSelectedCollections(
+                        currentFilters.topCollections,
+                        currentFilters.subCollections,
+                    ),
                     true,
                 );
-                console.log("Limited collection IDs for release date sort:", newCollectionIds);
+                console.log(
+                    "Limited collection IDs for release date sort:",
+                    newCollectionIds,
+                );
                 break;
         }
 
@@ -733,7 +941,11 @@ export default function SearchClient({
         const numResults = await sendQuery(queryToSend, null, false);
 
         // Insert the unmodified search (so we can compare)
-        setPrevSearch({ fullQuery: searchQuery, coveredCollectionIds: newCollectionIds, wasEmpty: numResults === 0 });
+        setPrevSearch({
+            fullQuery: searchQuery,
+            coveredCollectionIds: newCollectionIds,
+            wasEmpty: numResults === 0,
+        });
         return true;
     }
 
@@ -750,7 +962,10 @@ export default function SearchClient({
         const searchQuery = prevSearch.fullQuery;
         searchQuery.collectionIds = limitSearchCollections(
             filters,
-            topAndSubToSelectedCollections(filters.topCollections, filters.subCollections),
+            topAndSubToSelectedCollections(
+                filters.topCollections,
+                filters.subCollections,
+            ),
             false,
         );
         const lastId = limitSearchId();
@@ -775,12 +990,18 @@ export default function SearchClient({
         // Update the prevSearch to include the newly covered collections
         setPrevSearch({
             fullQuery: prevSearch.fullQuery, // Unchanged
-            coveredCollectionIds: prevSearch.coveredCollectionIds.concat(searchQuery.collectionIds),
+            coveredCollectionIds: prevSearch.coveredCollectionIds.concat(
+                searchQuery.collectionIds,
+            ),
             wasEmpty: numResults === 0,
         });
     }
 
-    async function sendQuery(searchQuery: SearchQuery, lastId: number | null, append: boolean): Promise<number> {
+    async function sendQuery(
+        searchQuery: SearchQuery,
+        lastId: number | null,
+        append: boolean,
+    ): Promise<number> {
         setIsLoading(true);
 
         const results = await getPhotocardsInDB(searchQuery, lastId);
@@ -801,7 +1022,9 @@ export default function SearchClient({
 
         // Always append owned and wishlisted IDs
         setOwnedIds(new Set([...ownedIds, ...results.data!.owned]));
-        setWishlistedIds(new Set([...wishlistedIds, ...results.data!.wishlisted]));
+        setWishlistedIds(
+            new Set([...wishlistedIds, ...results.data!.wishlisted]),
+        );
 
         setIsLoading(false);
         return results.data!.cards.length;
@@ -809,7 +1032,9 @@ export default function SearchClient({
 
     // Selection Mode Logic
     const [isSelectionMode, setIsSelectionMode] = useState<boolean>(false);
-    const [selectedPhotocardIds, setSelectedPhotocardIds] = useState<Set<number>>(new Set());
+    const [selectedPhotocardIds, setSelectedPhotocardIds] = useState<
+        Set<number>
+    >(new Set());
 
     function enterSelectionMode() {
         setIsSelectionMode(true);
@@ -832,27 +1057,41 @@ export default function SearchClient({
     }
 
     async function addToOwned() {
-        let result = await addPhotocardsToOwned(Array.from(selectedPhotocardIds));
+        let result = await addPhotocardsToOwned(
+            Array.from(selectedPhotocardIds),
+        );
         if (result.error) {
             setError(result.error);
-        }
-        else {
+        } else {
             setOwnedIds(new Set([...ownedIds, ...selectedPhotocardIds]));
             // Remove these from wishlisted
-            setWishlistedIds(new Set([...wishlistedIds].filter((id) => !selectedPhotocardIds.has(id))));
+            setWishlistedIds(
+                new Set(
+                    [...wishlistedIds].filter(
+                        (id) => !selectedPhotocardIds.has(id),
+                    ),
+                ),
+            );
             exitSelectionMode();
         }
     }
 
     async function addToWishlist() {
-        let result = await addPhotocardsToWishlist(Array.from(selectedPhotocardIds));
+        let result = await addPhotocardsToWishlist(
+            Array.from(selectedPhotocardIds),
+        );
         if (result.error) {
             setError(result.error);
-        }
-        else {
-            setWishlistedIds(new Set([...wishlistedIds, ...selectedPhotocardIds]));
+        } else {
+            setWishlistedIds(
+                new Set([...wishlistedIds, ...selectedPhotocardIds]),
+            );
             // Remove these from owned
-            setOwnedIds(new Set([...ownedIds].filter((id) => !selectedPhotocardIds.has(id))));
+            setOwnedIds(
+                new Set(
+                    [...ownedIds].filter((id) => !selectedPhotocardIds.has(id)),
+                ),
+            );
             exitSelectionMode();
         }
     }
@@ -865,17 +1104,27 @@ export default function SearchClient({
                         <SidebarMenu className="ml-2 mr-2 w-auto">
                             <SidebarMenuItem>
                                 <Label>Sort By</Label>
-                                <Select value={filters.sort} onValueChange={(value) => onSortChange(value as SortType)}>
+                                <Select
+                                    value={filters.sort}
+                                    onValueChange={(value) =>
+                                        onSortChange(value as SortType)
+                                    }
+                                >
                                     <SelectTrigger>
                                         <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
                                         <SelectGroup>
-                                            {Object.values(SortType).map((sortOption) => (
-                                                <SelectItem key={sortOption} value={sortOption}>
-                                                    {sortOption}
-                                                </SelectItem>
-                                            ))}
+                                            {Object.values(SortType).map(
+                                                (sortOption) => (
+                                                    <SelectItem
+                                                        key={sortOption}
+                                                        value={sortOption}
+                                                    >
+                                                        {sortOption}
+                                                    </SelectItem>
+                                                ),
+                                            )}
                                         </SelectGroup>
                                     </SelectContent>
                                 </Select>
@@ -890,7 +1139,9 @@ export default function SearchClient({
                                     type="text"
                                     placeholder="Love Yourself: Answer RM"
                                     value={searchInput}
-                                    onChange={(e) => setSearchInput(e.target.value)}
+                                    onChange={(e) =>
+                                        setSearchInput(e.target.value)
+                                    }
                                     onKeyDown={(e) => {
                                         if (e.key === "Enter") {
                                             trySearch(filters);
@@ -902,11 +1153,17 @@ export default function SearchClient({
                     </SidebarHeader>
                     <SidebarContent className="pb-24">
                         <CollapsibleGroup
-                            key={searchInput ? "col-search-active" : "col-search-inactive"}
+                            key={
+                                searchInput
+                                    ? "col-search-active"
+                                    : "col-search-inactive"
+                            }
                             label="Collections"
                         >
                             {collectionTypes.map((type) => {
-                                const hierarchy = collectionsHierarchy.get(type.id!);
+                                const hierarchy = collectionsHierarchy.get(
+                                    type.id!,
+                                );
                                 if (!hierarchy) return null;
                                 const { tops, subs } = hierarchy;
 
@@ -915,50 +1172,96 @@ export default function SearchClient({
                                         key={type.id!}
                                         type={MenuType.Regular}
                                         label={type.name}
-                                        checked={filters.collectionTypes.has(type.id!)}
-                                        hidden={!visibleOptions.collectionTypes.has(type.id!)}
-                                        onClick={(checked) => onSelectedCollectionType(type.id!, checked)}
+                                        checked={filters.collectionTypes.has(
+                                            type.id!,
+                                        )}
+                                        hidden={
+                                            !visibleOptions.collectionTypes.has(
+                                                type.id!,
+                                            )
+                                        }
+                                        onClick={(checked) =>
+                                            onSelectedCollectionType(
+                                                type.id!,
+                                                checked,
+                                            )
+                                        }
                                     >
                                         <SidebarMenuSub>
-                                            {tops.map(({ collection, hasSub }) => (
-                                                <CheckMenuButton
-                                                    key={collection.id!}
-                                                    type={MenuType.Sub}
-                                                    label={collectionDisplayName(collection)}
-                                                    checked={filters.topCollections.has(collection.id!)}
-                                                    hidden={!visibleOptions.topCollections.has(collection.id!)}
-                                                    onClick={(checked) => {
-                                                        onSelectedTopCollection(collection, hasSub, checked, type.id!);
-                                                    }}
-                                                >
-                                                    {hasSub && (
-                                                        <SidebarMenuSub>
-                                                            {subs
-                                                                .filter((subCol) => subCol.name === collection.name)
-                                                                .map((subCol) => (
-                                                                    <CheckMenuButton
-                                                                        key={subCol.id!}
-                                                                        type={MenuType.Sub}
-                                                                        label={collectionDisplayName(subCol)}
-                                                                        checked={filters.subCollections.has(subCol.id!)}
-                                                                        hidden={
-                                                                            !visibleOptions.subCollections.has(
-                                                                                subCol.id!,
-                                                                            )
-                                                                        }
-                                                                        onClick={(checked) => {
-                                                                            onSelectedSubCollection(
-                                                                                subCol,
-                                                                                checked,
-                                                                                type.id!,
-                                                                            );
-                                                                        }}
-                                                                    />
-                                                                ))}
-                                                        </SidebarMenuSub>
-                                                    )}
-                                                </CheckMenuButton>
-                                            ))}
+                                            {tops.map(
+                                                ({ collection, hasSub }) => (
+                                                    <CheckMenuButton
+                                                        key={collection.id!}
+                                                        type={MenuType.Sub}
+                                                        label={collectionDisplayName(
+                                                            collection,
+                                                        )}
+                                                        checked={filters.topCollections.has(
+                                                            collection.id!,
+                                                        )}
+                                                        hidden={
+                                                            !visibleOptions.topCollections.has(
+                                                                collection.id!,
+                                                            )
+                                                        }
+                                                        onClick={(checked) => {
+                                                            onSelectedTopCollection(
+                                                                collection,
+                                                                hasSub,
+                                                                checked,
+                                                                type.id!,
+                                                            );
+                                                        }}
+                                                    >
+                                                        {hasSub && (
+                                                            <SidebarMenuSub>
+                                                                {subs
+                                                                    .filter(
+                                                                        (
+                                                                            subCol,
+                                                                        ) =>
+                                                                            subCol.name ===
+                                                                            collection.name,
+                                                                    )
+                                                                    .map(
+                                                                        (
+                                                                            subCol,
+                                                                        ) => (
+                                                                            <CheckMenuButton
+                                                                                key={
+                                                                                    subCol.id!
+                                                                                }
+                                                                                type={
+                                                                                    MenuType.Sub
+                                                                                }
+                                                                                label={collectionDisplayName(
+                                                                                    subCol,
+                                                                                )}
+                                                                                checked={filters.subCollections.has(
+                                                                                    subCol.id!,
+                                                                                )}
+                                                                                hidden={
+                                                                                    !visibleOptions.subCollections.has(
+                                                                                        subCol.id!,
+                                                                                    )
+                                                                                }
+                                                                                onClick={(
+                                                                                    checked,
+                                                                                ) => {
+                                                                                    onSelectedSubCollection(
+                                                                                        subCol,
+                                                                                        checked,
+                                                                                        type.id!,
+                                                                                    );
+                                                                                }}
+                                                                            />
+                                                                        ),
+                                                                    )}
+                                                            </SidebarMenuSub>
+                                                        )}
+                                                    </CheckMenuButton>
+                                                ),
+                                            )}
                                         </SidebarMenuSub>
                                     </CheckMenuButton>
                                 );
@@ -966,11 +1269,17 @@ export default function SearchClient({
                         </CollapsibleGroup>
 
                         <CollapsibleGroup
-                            key={searchInput ? "mem-search-active" : "mem-search-inactive"}
+                            key={
+                                searchInput
+                                    ? "mem-search-active"
+                                    : "mem-search-inactive"
+                            }
                             label="Members"
                         >
                             {Object.entries(MemberToIntWithOT7)
-                                .filter(([_, memberKey]) => visibleOptions.members.has(memberKey))
+                                .filter(([_, memberKey]) =>
+                                    visibleOptions.members.has(memberKey),
+                                )
                                 .map(([name, memberKey]) => (
                                     <CheckMenuButton
                                         key={memberKey}
@@ -978,87 +1287,134 @@ export default function SearchClient({
                                         label={name}
                                         checked={filters.members.has(memberKey)}
                                         onClick={(checked) => {
-                                            onSelectedMember(memberKey, checked);
+                                            onSelectedMember(
+                                                memberKey,
+                                                checked,
+                                            );
                                         }}
                                     />
                                 ))}
                         </CollapsibleGroup>
                         <CollapsibleGroup
-                            key={searchInput ? "ct-search-active" : "ct-search-inactive"}
+                            key={
+                                searchInput
+                                    ? "ct-search-active"
+                                    : "ct-search-inactive"
+                            }
                             label="Card Types"
                             defaultOpen={!!searchInput}
                         >
                             {cardTypes
-                                .filter((cardType) => visibleOptions.cardTypes.has(cardType))
+                                .filter((cardType) =>
+                                    visibleOptions.cardTypes.has(cardType),
+                                )
                                 .map((cardType) => (
                                     <CheckMenuButton
                                         key={cardType.id ?? 0}
                                         type={MenuType.Regular}
                                         label={cardType.name}
-                                        checked={filters.cardTypes.has(cardType)}
+                                        checked={filters.cardTypes.has(
+                                            cardType,
+                                        )}
                                         onClick={(checked) => {
-                                            onSelectedCardType(cardType, checked);
+                                            onSelectedCardType(
+                                                cardType,
+                                                checked,
+                                            );
                                         }}
                                     />
                                 ))}
                         </CollapsibleGroup>
                         <CollapsibleGroup
-                            key={searchInput ? "cs-search-active" : "cs-search-inactive"}
+                            key={
+                                searchInput
+                                    ? "cs-search-active"
+                                    : "cs-search-inactive"
+                            }
                             label="Card Sizes (mm)"
                             defaultOpen={!!searchInput}
                         >
                             {cardSizes
-                                .filter((cardSize) => visibleOptions.cardSizes.has(cardSize))
+                                .filter((cardSize) =>
+                                    visibleOptions.cardSizes.has(cardSize),
+                                )
                                 .map((cardSize) => (
                                     <CheckMenuButton
                                         key={cardSize.id!}
                                         type={MenuType.Regular}
                                         label={cardSizeToString(cardSize)}
-                                        checked={filters.cardSizes.has(cardSize)}
+                                        checked={filters.cardSizes.has(
+                                            cardSize,
+                                        )}
                                         onClick={(checked) => {
-                                            onSelectedCardSize(cardSize, checked);
+                                            onSelectedCardSize(
+                                                cardSize,
+                                                checked,
+                                            );
                                         }}
                                     />
                                 ))}
                         </CollapsibleGroup>
                         <CollapsibleGroup
-                            key={searchInput ? "ec-search-active" : "ec-search-inactive"}
+                            key={
+                                searchInput
+                                    ? "ec-search-active"
+                                    : "ec-search-inactive"
+                            }
                             label="Exclusive Countries"
                             defaultOpen={!!searchInput}
                         >
                             {Object.entries(ExclusiveCountry)
-                                .filter(([_, id]) => visibleOptions.exclusiveCountries.has(id))
+                                .filter(([_, id]) =>
+                                    visibleOptions.exclusiveCountries.has(id),
+                                )
                                 .map(([country, id]) => (
                                     <CheckMenuButton
                                         key={id}
                                         type={MenuType.Regular}
                                         label={country}
-                                        checked={filters.exclusiveCountries.has(id)}
+                                        checked={filters.exclusiveCountries.has(
+                                            id,
+                                        )}
                                         onClick={(checked) => {
-                                            onSelectedExclusiveCountry(id, checked);
+                                            onSelectedExclusiveCountry(
+                                                id,
+                                                checked,
+                                            );
                                         }}
                                     />
                                 ))}
                         </CollapsibleGroup>
                     </SidebarContent>
                     <div className="fixed w-[25vw] bottom-4 px-4">
-                        <CustomSearchButton searchFunction={() => trySearch(filters)} />
+                        <CustomSearchButton
+                            searchFunction={() => trySearch(filters)}
+                        />
                     </div>
                 </Sidebar>
                 <div className="flex flex-col mt-4 mb-4 gap-4 grow">
                     <CustomSidebarTrigger />
-                    <Button hidden={!isAtLeastMod(session)} className="w-fit self-center" asChild>
-                        <Link href="/createCollection">Add a Missing Collection</Link>
+                    <Button
+                        hidden={!isAtLeastMod(session)}
+                        className="w-fit self-center"
+                        asChild
+                    >
+                        <Link href="/createCollection">
+                            Add a Missing Collection
+                        </Link>
                     </Button>
                     <PhotocardGrid
                         photocards={photocards}
                         collections={collections.sort((a, b) =>
                             filters.sort === SortType.ReleaseDateAsc
-                                ? new Date(a.release_date).getTime() - new Date(b.release_date).getTime()
-                                : new Date(b.release_date).getTime() - new Date(a.release_date).getTime(),
+                                ? new Date(a.release_date).getTime() -
+                                  new Date(b.release_date).getTime()
+                                : new Date(b.release_date).getTime() -
+                                  new Date(a.release_date).getTime(),
                         )}
                         displayCollections={
-                            filters.sort === SortType.ReleaseDateAsc || filters.sort === SortType.ReleaseDateDesc
+                            filters.sort === SortType.ReleaseDateAsc ||
+                            filters.sort === SortType.ReleaseDateDesc
                         }
                         showFront={showFront}
                         isSelectionMode={isSelectionMode}
@@ -1068,12 +1424,19 @@ export default function SearchClient({
                         ownedIds={ownedIds}
                         wishlistedIds={wishlistedIds}
                     />
-                    <BottomSpinnerComponent dontLoad={dontLoad} loadMore={trySearchNext} isLoading={isLoading} />
+                    <BottomSpinnerComponent
+                        dontLoad={dontLoad}
+                        loadMore={trySearchNext}
+                        isLoading={isLoading}
+                    />
                 </div>
             </SidebarProvider>
 
             <div className="fixed bottom-8 right-8 z-50 flex flex-col gap-2 items-end">
-                <Button onClick={() => setShowFront(!showFront)} className="pl-3">
+                <Button
+                    onClick={() => setShowFront(!showFront)}
+                    className="pl-3"
+                >
                     <Image
                         src="/flipthru_flipcard.svg"
                         className="size-6"
@@ -1083,9 +1446,14 @@ export default function SearchClient({
                     />{" "}
                     Show Card {showFront ? "Back" : "Front"}
                 </Button>
-                <div className="flex gap-2 items-center" hidden={session === null}>
+                <div
+                    className="flex gap-2 items-center"
+                    hidden={session === null}
+                >
                     {!isSelectionMode ? (
-                        <Button onClick={enterSelectionMode}>Enter Selection Mode</Button>
+                        <Button onClick={enterSelectionMode}>
+                            Enter Selection Mode
+                        </Button>
                     ) : (
                         <>
                             <div className="bg-background border rounded-md px-4 py-2 shadow-lg font-bold">
@@ -1094,10 +1462,17 @@ export default function SearchClient({
                             <Button onClick={addToOwned} className="shadow-lg">
                                 Add to Owned
                             </Button>
-                            <Button onClick={addToWishlist} className="shadow-lg">
+                            <Button
+                                onClick={addToWishlist}
+                                className="shadow-lg"
+                            >
                                 Add to Wishlist
                             </Button>
-                            <Button onClick={exitSelectionMode} variant="neutral" className="shadow-lg">
+                            <Button
+                                onClick={exitSelectionMode}
+                                variant="neutral"
+                                className="shadow-lg"
+                            >
                                 Exit Selection Mode
                             </Button>
                         </>

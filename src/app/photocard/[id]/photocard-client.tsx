@@ -1,7 +1,11 @@
 "use client";
 
 import PhotocardComponent from "@/app/photocard";
-import { AlertDialogHeader, AlertDialogFooter, AlertDialogWithButton } from "@/components/ui/alert-dialog";
+import {
+    AlertDialogHeader,
+    AlertDialogFooter,
+    AlertDialogWithButton,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import {
     collectionDisplayName,
@@ -88,9 +92,13 @@ function SubmitAltImageDialog({ id }: { id: number }) {
     async function onSubmit(data: z.infer<typeof formSchema>) {
         toast.promise(
             async () => {
-                const presignedUrls = await generateSignedUploadUrlForPhotocards(2);
+                const presignedUrls =
+                    await generateSignedUploadUrlForPhotocards(2);
                 if (presignedUrls.error) {
-                    throw new Error("Failed to generate presigned URLs: " + presignedUrls.error);
+                    throw new Error(
+                        "Failed to generate presigned URLs: " +
+                            presignedUrls.error,
+                    );
                 }
                 const databaseUpdated = await updatePhotocardInDB(
                     id,
@@ -98,7 +106,9 @@ function SubmitAltImageDialog({ id }: { id: number }) {
                     presignedUrls.data![1].params.public_id,
                 );
                 if (databaseUpdated.error) {
-                    throw new Error("Failed to update database: " + databaseUpdated.error);
+                    throw new Error(
+                        "Failed to update database: " + databaseUpdated.error,
+                    );
                 }
 
                 await Promise.all([
@@ -123,7 +133,11 @@ function SubmitAltImageDialog({ id }: { id: number }) {
                         action: {
                             label: "Report",
                             onClick: () => {
-                                const url = reportWindowURL(ReportType.Error, window.location.href, error.message);
+                                const url = reportWindowURL(
+                                    ReportType.Error,
+                                    window.location.href,
+                                    error.message,
+                                );
                                 window.open(url, "_blank");
                             },
                         },
@@ -143,10 +157,14 @@ function SubmitAltImageDialog({ id }: { id: number }) {
                     <DialogHeader>
                         <DialogTitle>Submit an Image</DialogTitle>
                         <DialogDescription>
-                            Contribute to our database by submitting the front and back image of the photocard! Please
-                            only use images that you've taken yourself and refer to the steps in the
+                            Contribute to our database by submitting the front
+                            and back image of the photocard! Please only use
+                            images that you've taken yourself and refer to the
+                            steps in the
                             <Button variant="underline" asChild>
-                                <Link href="/faq#how-do-i-upload-cards">FAQ</Link>
+                                <Link href="/faq#how-do-i-upload-cards">
+                                    FAQ
+                                </Link>
                             </Button>
                             .
                         </DialogDescription>
@@ -167,7 +185,11 @@ function SubmitAltImageDialog({ id }: { id: number }) {
                                             expand={true}
                                             image={field.value}
                                         />
-                                        {fieldState.error && <FieldError errors={[fieldState.error]} />}
+                                        {fieldState.error && (
+                                            <FieldError
+                                                errors={[fieldState.error]}
+                                            />
+                                        )}
                                     </>
                                 )}
                             />
@@ -187,7 +209,11 @@ function SubmitAltImageDialog({ id }: { id: number }) {
                                             expand={true}
                                             image={field.value}
                                         />
-                                        {fieldState.error && <FieldError errors={[fieldState.error]} />}
+                                        {fieldState.error && (
+                                            <FieldError
+                                                errors={[fieldState.error]}
+                                            />
+                                        )}
                                     </>
                                 )}
                             />
@@ -220,8 +246,16 @@ function TitleComponent({
         <div className={`flex flex-col gap ${className}`}>
             <div className="flex flex-row gap-2">
                 <h2 className="grow">{collectionDisplayName(collection)}</h2>
-                <Button hidden={session?.user.role === Role.USER || session === null}>
-                    <Link href={`/createCollection?collectionId=${collection?.id}`}>Edit Collection</Link>
+                <Button
+                    hidden={
+                        session?.user.role === Role.USER || session === null
+                    }
+                >
+                    <Link
+                        href={`/createCollection?collectionId=${collection?.id}`}
+                    >
+                        Edit Collection
+                    </Link>
                 </Button>
                 <Button
                     onClick={() => {
@@ -234,7 +268,9 @@ function TitleComponent({
                     <Share2Icon />
                 </Button>
             </div>
-            <p className="text-2xl">{photocard && memberIntsToName(photocard.members)}</p>
+            <p className="text-2xl">
+                {photocard && memberIntsToName(photocard.members)}
+            </p>
         </div>
     );
 }
@@ -249,7 +285,9 @@ function PhotocardAndButtonsComponent({
     const [flipped, setFlipped] = useState(false);
 
     return (
-        <div className={`flex flex-col gap-2 items-center shrink-0 ${className}`}>
+        <div
+            className={`flex flex-col gap-2 items-center shrink-0 ${className}`}
+        >
             <PhotocardComponent
                 src={
                     flipped
@@ -275,9 +313,17 @@ function PhotocardAndButtonsComponent({
             <Button className="w-fit mt-4" onClick={() => setFlipped(!flipped)}>
                 Flip
             </Button>
-            {photocard?.mod_temporary && <SubmitAltImageDialog id={photocard.id} />}
+            {photocard?.mod_temporary && (
+                <SubmitAltImageDialog id={photocard.id} />
+            )}
             <Button asChild className="w-fit">
-                <Link href={reportWindowURL(ReportType.Error, "/photocard/" + photocard.id, "Photocard error")}>
+                <Link
+                    href={reportWindowURL(
+                        ReportType.Error,
+                        "/photocard/" + photocard.id,
+                        "Photocard error",
+                    )}
+                >
                     Report an Error
                 </Link>
             </Button>
@@ -301,7 +347,9 @@ function CardDataComponent({
     className?: string;
 }) {
     return (
-        <div className={`flex flex-col gap-4 rounded-2xl p-8 pb-6 bg-accent-light grow ${className}`}>
+        <div
+            className={`flex flex-col gap-4 rounded-2xl p-8 pb-6 bg-accent-light grow ${className}`}
+        >
             <div className="flex flex-row gap-4 items-center">
                 <h3>Release Date</h3>
                 <p>{collection && dateToString(collection.release_date)}</p>
@@ -312,7 +360,9 @@ function CardDataComponent({
             </div>
             <div className="flex flex-row gap-4 items-center">
                 <h3>Appearance</h3>
-                <p>{Object.keys(Effects)[photocard?.effects ?? Effects.Matte]}</p>
+                <p>
+                    {Object.keys(Effects)[photocard?.effects ?? Effects.Matte]}
+                </p>
             </div>
             <div className="flex flex-row gap-4 items-center">
                 <h3>Type</h3>
@@ -320,12 +370,21 @@ function CardDataComponent({
             </div>
             <div className="flex flex-row gap-4 items-center">
                 <h3>Country</h3>
-                <p>{Object.keys(ExclusiveCountry)[photocard?.exclusive_country ?? ExclusiveCountry.Global]}</p>
+                <p>
+                    {
+                        Object.keys(ExclusiveCountry)[
+                            photocard?.exclusive_country ??
+                                ExclusiveCountry.Global
+                        ]
+                    }
+                </p>
             </div>
             <div className="flex flex-row gap-4 items-center">
                 <h3>Image Submission</h3>
                 <Button variant="underline" asChild>
-                    <Link href={"/profile/" + imageContributor.user_id}>@{imageContributor.username}</Link>
+                    <Link href={"/profile/" + imageContributor.user_id}>
+                        @{imageContributor.username}
+                    </Link>
                 </Button>
             </div>
         </div>
@@ -342,7 +401,10 @@ function CardActionsComponent({
     session: ClientSession | null;
     photocard: Selectable<Photocards>;
     userData: Selectable<UserData> | null;
-    updateUserData: (userData: Updateable<UserData>, withImage: boolean) => Promise<Result<PresignedUrl | null>>;
+    updateUserData: (
+        userData: Updateable<UserData>,
+        withImage: boolean,
+    ) => Promise<Result<PresignedUrl | null>>;
     className?: string;
 }) {
     const [owned, setOwned] = useState(false);
@@ -370,7 +432,12 @@ function CardActionsComponent({
     ) {
         if (show) {
             return (
-                <AlertDialogWithButton title={title} description={description} submit={submit} onSubmit={onSubmit}>
+                <AlertDialogWithButton
+                    title={title}
+                    description={description}
+                    submit={submit}
+                    onSubmit={onSubmit}
+                >
                     {children}
                 </AlertDialogWithButton>
             );
@@ -395,7 +462,10 @@ function CardActionsComponent({
         if (session === null) {
             return DialogIfNotSignedIn(children);
         }
-        if (userData?.profile_photocard_id !== null && userData?.profile_photocard_id !== photocard.id) {
+        if (
+            userData?.profile_photocard_id !== null &&
+            userData?.profile_photocard_id !== photocard.id
+        ) {
             return OptionalDialog(
                 true,
                 children,
@@ -403,19 +473,31 @@ function CardActionsComponent({
                 "You already have a favorite card. Are you sure you want to overwrite it?",
                 "Yes",
                 () => {
-                    updateUserData({ profile_photocard_id: photocard.id }, false);
+                    updateUserData(
+                        { profile_photocard_id: photocard.id },
+                        false,
+                    );
                 },
             );
         } else {
-            return cloneElement(children as React.ReactElement<{ onClick: () => void }>, {
-                onClick: () => {
-                    if (userData?.profile_photocard_id === photocard.id) {
-                        updateUserData({ profile_photocard_id: null }, false);
-                    } else {
-                        updateUserData({ profile_photocard_id: photocard.id }, false);
-                    }
+            return cloneElement(
+                children as React.ReactElement<{ onClick: () => void }>,
+                {
+                    onClick: () => {
+                        if (userData?.profile_photocard_id === photocard.id) {
+                            updateUserData(
+                                { profile_photocard_id: null },
+                                false,
+                            );
+                        } else {
+                            updateUserData(
+                                { profile_photocard_id: photocard.id },
+                                false,
+                            );
+                        }
+                    },
                 },
-            });
+            );
         }
     }
 
@@ -468,8 +550,13 @@ function CardActionsComponent({
                 <Button
                     className={`pl-2 pr-3 w-fit ${userData?.profile_photocard_id === photocard.id ? "bg-third" : ""}`}
                 >
-                    <img src="/flipthru_addtocollection.svg" className="size-8" />
-                    {userData?.profile_photocard_id === photocard.id ? "Remove as Favorite" : "Mark as Favorite"}
+                    <img
+                        src="/flipthru_addtocollection.svg"
+                        className="size-8"
+                    />
+                    {userData?.profile_photocard_id === photocard.id
+                        ? "Remove as Favorite"
+                        : "Mark as Favorite"}
                 </Button>,
             )}
         </div>
@@ -495,8 +582,16 @@ export default function PhotocardClient({
 
     return (
         <div className="flex flex-col lg:flex-row gap-8 m-12">
-            <TitleComponent photocard={photocard} collection={collection} session={session} className="lg:hidden" />
-            <PhotocardAndButtonsComponent photocard={photocard} className="lg:w-1/3" />
+            <TitleComponent
+                photocard={photocard}
+                collection={collection}
+                session={session}
+                className="lg:hidden"
+            />
+            <PhotocardAndButtonsComponent
+                photocard={photocard}
+                className="lg:w-1/3"
+            />
             <div className="flex flex-col gap-4 lg:w-2/3">
                 <TitleComponent
                     photocard={photocard}

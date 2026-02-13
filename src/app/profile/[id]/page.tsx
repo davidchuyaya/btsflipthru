@@ -14,18 +14,35 @@ async function ProfileContent({ params }: { params: Promise<{ id: string }> }) {
         notFound();
     }
 
-    return <ProfileClient userData={userData.data!} collections={collections.data!} />;
+    return (
+        <ProfileClient
+            userData={userData.data!}
+            collections={collections.data!}
+        />
+    );
 }
 
-export default function ProfilePage({ params }: { params: Promise<{ id: string }> }) {
+export default function ProfilePage({
+    params,
+}: {
+    params: Promise<{ id: string }>;
+}) {
     return (
-        <Suspense fallback={<div className="flex justify-center p-12">Loading...</div>}>
+        <Suspense
+            fallback={
+                <div className="flex justify-center p-12">Loading...</div>
+            }
+        >
             <ProfileContent params={params} />
         </Suspense>
     );
 }
 
-export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
+export async function generateMetadata({
+    params,
+}: {
+    params: Promise<{ id: string }>;
+}) {
     const { id } = await params;
     const userData = await getUserProfileData(id);
     if (userData.error) {

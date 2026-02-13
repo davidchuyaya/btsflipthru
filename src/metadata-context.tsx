@@ -1,6 +1,12 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import {
+    createContext,
+    useContext,
+    useEffect,
+    useState,
+    ReactNode,
+} from "react";
 import { updateUserDataInDB } from "@/actions";
 import { ReportType, reportWindowURL, PresignedUrl, Result } from "@/constants";
 import { authClient, ClientSession } from "@/auth-client";
@@ -20,13 +26,18 @@ interface MetadataContextType {
     userData: Selectable<UserData> | null;
     cursorDisabled: boolean;
     effectsDisabled: boolean;
-    updateUserData: (userData: Updateable<UserData>, withImage: boolean) => Promise<Result<PresignedUrl | null>>;
+    updateUserData: (
+        userData: Updateable<UserData>,
+        withImage: boolean,
+    ) => Promise<Result<PresignedUrl | null>>;
     updateCursorDisabled: (cursorDisabled: boolean) => void;
     updateEffectsDisabled: (effectsDisabled: boolean) => void;
     setError: (message: string) => void;
 }
 
-const MetadataContext = createContext<MetadataContextType | undefined>(undefined);
+const MetadataContext = createContext<MetadataContextType | undefined>(
+    undefined,
+);
 
 function getFromStorage<T>(key: string): T | null {
     if (typeof window === "undefined") return null;
@@ -68,7 +79,9 @@ export function MetadataProvider({ children }: { children: ReactNode }) {
         function handleStorageChange(event: StorageEvent) {
             if (
                 !event.key ||
-                !Object.values(STORAGE_KEYS).includes(event.key as (typeof STORAGE_KEYS)[keyof typeof STORAGE_KEYS])
+                !Object.values(STORAGE_KEYS).includes(
+                    event.key as (typeof STORAGE_KEYS)[keyof typeof STORAGE_KEYS],
+                )
             ) {
                 return;
             }
@@ -82,9 +95,15 @@ export function MetadataProvider({ children }: { children: ReactNode }) {
     }, []);
 
     async function fetchMetadata() {
-        const storageUserData = getFromStorage<Selectable<UserData>>(STORAGE_KEYS.userData);
-        const storageCursorDisabled = getFromStorage<boolean>(STORAGE_KEYS.cursorDisabled);
-        const storageEffectsDisabled = getFromStorage<boolean>(STORAGE_KEYS.effectsDisabled);
+        const storageUserData = getFromStorage<Selectable<UserData>>(
+            STORAGE_KEYS.userData,
+        );
+        const storageCursorDisabled = getFromStorage<boolean>(
+            STORAGE_KEYS.cursorDisabled,
+        );
+        const storageEffectsDisabled = getFromStorage<boolean>(
+            STORAGE_KEYS.effectsDisabled,
+        );
         if (storageUserData) setUserData(storageUserData);
         setCursorDisabled(storageCursorDisabled || false);
         setEffectsDisabled(storageEffectsDisabled || false);
@@ -95,17 +114,27 @@ export function MetadataProvider({ children }: { children: ReactNode }) {
             action: {
                 label: "Report",
                 onClick: () => {
-                    const url = reportWindowURL(ReportType.Error, window.location.href, message);
+                    const url = reportWindowURL(
+                        ReportType.Error,
+                        window.location.href,
+                        message,
+                    );
                     window.open(url, "_blank");
                 },
             },
         });
     }
 
-    async function updateUserData(newUserData: Updateable<UserData>, withImage: boolean) {
+    async function updateUserData(
+        newUserData: Updateable<UserData>,
+        withImage: boolean,
+    ) {
         const result = await updateUserDataInDB(newUserData, withImage);
         if (!result.error && userData) {
-            let updatedUserData: Selectable<UserData> = { ...userData, ...newUserData } as Selectable<UserData>;
+            let updatedUserData: Selectable<UserData> = {
+                ...userData,
+                ...newUserData,
+            } as Selectable<UserData>;
             if (withImage) {
                 updatedUserData.image_id = result.data!.params.public_id;
             }

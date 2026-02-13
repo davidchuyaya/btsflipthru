@@ -3,7 +3,15 @@
 import { Spinner } from "@/components/ui/spinner";
 import { useEffect, useRef } from "react";
 
-export default function BottomSpinnerComponent({ dontLoad, loadMore, isLoading }: { dontLoad: boolean; loadMore: () => void; isLoading: boolean }) {
+export default function BottomSpinnerComponent({
+    dontLoad,
+    loadMore,
+    isLoading,
+}: {
+    dontLoad: boolean;
+    loadMore: () => void;
+    isLoading: boolean;
+}) {
     const sentinelRef = useRef<HTMLDivElement>(null);
     useEffect(() => {
         const observer = new IntersectionObserver(
@@ -25,7 +33,10 @@ export default function BottomSpinnerComponent({ dontLoad, loadMore, isLoading }
     }, [isLoading, dontLoad]); // Re-bind if loading state affects logic
 
     return (
-        <div ref={sentinelRef} className="h-10 w-full flex items-center justify-center">
+        <div
+            ref={sentinelRef}
+            className="h-10 w-full flex items-center justify-center"
+        >
             {isLoading && <Spinner className="size-8 text-main" />}
         </div>
     );

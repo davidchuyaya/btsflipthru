@@ -1,22 +1,57 @@
 "use client";
 
-import { getCardSizesFromDB, getOwnedPhotocards, getWishlistedPhotocards } from "@/actions";
+import {
+    getCardSizesFromDB,
+    getOwnedPhotocards,
+    getWishlistedPhotocards,
+} from "@/actions";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { BINDER_PERFORATION_DOT_SIZE, BinderPage, BinderType } from "@/constants";
+import {
+    BINDER_PERFORATION_DOT_SIZE,
+    BinderPage,
+    BinderType,
+} from "@/constants";
 import { CardSizes, Photocards } from "@/db";
 import { useMetadata } from "@/metadata-context";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Selectable } from "kysely";
-import { AlignCenterVertical, AlignCenterVerticalIcon, AlignEndVerticalIcon, AlignStartVerticalIcon, ChevronLeftIcon, ChevronRightIcon, ChevronsLeftIcon, ChevronsRightIcon, EyeIcon, FlipHorizontalIcon, PointerIcon, RotateCcwIcon, SaveIcon, Share2Icon } from "lucide-react";
+import {
+    AlignCenterVertical,
+    AlignCenterVerticalIcon,
+    AlignEndVerticalIcon,
+    AlignStartVerticalIcon,
+    ChevronLeftIcon,
+    ChevronRightIcon,
+    ChevronsLeftIcon,
+    ChevronsRightIcon,
+    EyeIcon,
+    FlipHorizontalIcon,
+    PointerIcon,
+    RotateCcwIcon,
+    SaveIcon,
+    Share2Icon,
+} from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { Controller, FormProvider, useForm, useFormContext, useWatch } from "react-hook-form";
+import {
+    Controller,
+    FormProvider,
+    useForm,
+    useFormContext,
+    useWatch,
+} from "react-hook-form";
 import z from "zod";
 
 import PhotocardGrid from "../photocard-grid";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { DndContext, DragEndEvent, DragOverlay, useDroppable, DragStartEvent } from "@dnd-kit/core";
+import {
+    DndContext,
+    DragEndEvent,
+    DragOverlay,
+    useDroppable,
+    DragStartEvent,
+} from "@dnd-kit/core";
 import { DraggablePhotocard, PhotocardWithSize } from "../photocard";
 
 function BinderCoverComponent({
@@ -82,8 +117,12 @@ function BinderPageComponent({
         return null;
     }
 
-    const width = pageType.xPerforations[pageType.xPerforations.length - 1] + BINDER_PERFORATION_DOT_SIZE;
-    const height = pageType.yPerforations[pageType.yPerforations.length - 1] + BINDER_PERFORATION_DOT_SIZE;
+    const width =
+        pageType.xPerforations[pageType.xPerforations.length - 1] +
+        BINDER_PERFORATION_DOT_SIZE;
+    const height =
+        pageType.yPerforations[pageType.yPerforations.length - 1] +
+        BINDER_PERFORATION_DOT_SIZE;
     const widthPercent = (width / binderType.coverWidth) * 100;
 
     const xPerfs = [0, ...pageType.xPerforations];
@@ -98,7 +137,8 @@ function BinderPageComponent({
     });
     const rowHeights = yPerfs.slice(1).map((y, i) => y - yPerfs[i]);
 
-    const gradient = "radial-gradient(circle, transparent 40%, white 40%, white 50%, transparent 50%)";
+    const gradient =
+        "radial-gradient(circle, transparent 40%, white 40%, white 50%, transparent 50%)";
 
     return (
         <div
@@ -161,7 +201,12 @@ function BinderSlot({
     isSelected: boolean;
 }) {
     const { control } = useFormContext();
-    const logicalWidth = width - (isLastCol ? BINDER_PERFORATION_DOT_SIZE * 2 : BINDER_PERFORATION_DOT_SIZE) - 1;
+    const logicalWidth =
+        width -
+        (isLastCol
+            ? BINDER_PERFORATION_DOT_SIZE * 2
+            : BINDER_PERFORATION_DOT_SIZE) -
+        1;
     const logicalHeight = height - BINDER_PERFORATION_DOT_SIZE - 1;
 
     const { setNodeRef, isOver } = useDroppable({
@@ -185,7 +230,7 @@ function BinderSlot({
                     ref={setNodeRef}
                     onClick={() => {
                         if (field.value) {
-                            onSelectSlot(id, logicalWidth, logicalHeight)
+                            onSelectSlot(id, logicalWidth, logicalHeight);
                         }
                     }}
                     className={`${isOver ? "bg-white/50" : ""} relative`}
@@ -217,10 +262,18 @@ function BinderSlot({
     );
 }
 
-function SearchComponent({ cardSizes }: { cardSizes: Selectable<CardSizes>[] }) {
+function SearchComponent({
+    cardSizes,
+}: {
+    cardSizes: Selectable<CardSizes>[];
+}) {
     const { setError } = useMetadata();
-    const [ownedPhotocards, setOwnedPhotocards] = useState<Selectable<Photocards>[]>([]);
-    const [wishlistedPhotocards, setWishlistedPhotocards] = useState<Selectable<Photocards>[]>([]);
+    const [ownedPhotocards, setOwnedPhotocards] = useState<
+        Selectable<Photocards>[]
+    >([]);
+    const [wishlistedPhotocards, setWishlistedPhotocards] = useState<
+        Selectable<Photocards>[]
+    >([]);
     const [searchType, setSearchType] = useState(SearchType.Owned);
 
     useEffect(() => {
@@ -241,7 +294,7 @@ function SearchComponent({ cardSizes }: { cardSizes: Selectable<CardSizes>[] }) 
         fetchPhotocards();
     }, []);
 
-    function onSearch() { }
+    function onSearch() {}
 
     return (
         <div className="rounded-2xl bg-third-lighter p-4 flex flex-col items-center gap-4 w-[75%]">
@@ -269,7 +322,11 @@ function SearchComponent({ cardSizes }: { cardSizes: Selectable<CardSizes>[] }) 
                 ))}
             </ToggleGroup>
             <PhotocardGrid
-                photocards={searchType === SearchType.Owned ? ownedPhotocards : wishlistedPhotocards}
+                photocards={
+                    searchType === SearchType.Owned
+                        ? ownedPhotocards
+                        : wishlistedPhotocards
+                }
                 draggable={true}
             />
         </div>
@@ -321,9 +378,14 @@ export default function BinderClient() {
     const [needsSaving, setNeedsSaving] = useState(false);
     const [snapToGrid, setSnapToGrid] = useState<SnapToGrid>(SnapToGrid.Center);
     // The one being dragged & dropped
-    const [activePhotocard, setActivePhotocard] = useState<Selectable<Photocards> | null>(null);
+    const [activePhotocard, setActivePhotocard] =
+        useState<Selectable<Photocards> | null>(null);
     // The one in the binder that is now selected
-    const [selectedSlot, setSelectedSlot] = useState<{ id: string; width: number; height: number } | null>(null);
+    const [selectedSlot, setSelectedSlot] = useState<{
+        id: string;
+        width: number;
+        height: number;
+    } | null>(null);
     const [cardSizes, setCardSizes] = useState<Selectable<CardSizes>[]>([]);
     const [numPages, setNumPages] = useState(1);
 
@@ -347,7 +409,9 @@ export default function BinderClient() {
     const binderRef = useRef<HTMLDivElement>(null);
     const binderType = form.watch("binderType");
     const activeCardSize =
-        activePhotocard && cardSizes.length > 0 ? cardSizes.find((cs) => cs.id === activePhotocard.size_id) : null;
+        activePhotocard && cardSizes.length > 0
+            ? cardSizes.find((cs) => cs.id === activePhotocard.size_id)
+            : null;
     const totalLogicalWidth = binderType.coverWidth * 2 + binderType.spineWidth;
     const scale = binderWidth ? binderWidth / totalLogicalWidth : 0;
 
@@ -411,8 +475,7 @@ export default function BinderClient() {
                     x = (cardHeight - cardWidth) / 2;
                     break;
             }
-        }
-        else {
+        } else {
             switch (snapToGrid) {
                 case SnapToGrid.BottomLeft:
                     x = 0;
@@ -463,9 +526,9 @@ export default function BinderClient() {
         setActivePhotocard(null);
     }
 
-    function onPreview() { }
+    function onPreview() {}
 
-    function onShare() { }
+    function onShare() {}
 
     async function onSubmit(data: z.infer<typeof formSchema>) {
         console.log("Submitting:", data);
@@ -482,7 +545,9 @@ export default function BinderClient() {
 
     function alignSelectedSlot(snapToGrid: SnapToGrid) {
         if (selectedSlot) {
-            const slotData = form.getValues(`pages.${currentPage}.slots.${selectedSlot.id}`);
+            const slotData = form.getValues(
+                `pages.${currentPage}.slots.${selectedSlot.id}`,
+            );
             if (slotData) {
                 const slotWidth = selectedSlot.width * scale;
                 const slotHeight = selectedSlot.height * scale;
@@ -492,7 +557,7 @@ export default function BinderClient() {
                     slotHeight,
                     slotData.width,
                     slotData.height,
-                    slotData.rotation
+                    slotData.rotation,
                 );
                 form.setValue(`pages.${currentPage}.slots.${selectedSlot.id}`, {
                     ...slotData,
@@ -509,7 +574,9 @@ export default function BinderClient() {
 
     function flipSelectedSlot() {
         if (selectedSlot) {
-            const slotData = form.getValues(`pages.${currentPage}.slots.${selectedSlot.id}`);
+            const slotData = form.getValues(
+                `pages.${currentPage}.slots.${selectedSlot.id}`,
+            );
             if (slotData) {
                 form.setValue(`pages.${currentPage}.slots.${selectedSlot.id}`, {
                     ...slotData,
@@ -522,7 +589,9 @@ export default function BinderClient() {
 
     function rotateSelectedSlot() {
         if (selectedSlot) {
-            const slotData = form.getValues(`pages.${currentPage}.slots.${selectedSlot.id}`);
+            const slotData = form.getValues(
+                `pages.${currentPage}.slots.${selectedSlot.id}`,
+            );
             if (slotData) {
                 // Rotate 90 degrees counter-clockwise
                 form.setValue(`pages.${currentPage}.slots.${selectedSlot.id}`, {
@@ -542,18 +611,31 @@ export default function BinderClient() {
                 <FormProvider {...form}>
                     <form
                         className="w-full flex flex-col gap-4"
-                        onSubmit={form.handleSubmit(onSubmit, (error) => console.error(error))}
+                        onSubmit={form.handleSubmit(onSubmit, (error) =>
+                            console.error(error),
+                        )}
                     >
                         <Controller
                             name="name"
                             control={form.control}
                             render={({ field }) => (
                                 <Field orientation="horizontal">
-                                    <Input {...field} type="text" placeholder="Binder Name" />
+                                    <Input
+                                        {...field}
+                                        type="text"
+                                        placeholder="Binder Name"
+                                    />
                                     <p className="whitespace-nowrap px-4">
-                                        {needsSaving ? "Changes not saved" : "All changes saved"}
+                                        {needsSaving
+                                            ? "Changes not saved"
+                                            : "All changes saved"}
                                     </p>
-                                    <Button size="icon" type="submit" className="px-3" disabled={!needsSaving}>
+                                    <Button
+                                        size="icon"
+                                        type="submit"
+                                        className="px-3"
+                                        disabled={!needsSaving}
+                                    >
                                         <SaveIcon />
                                     </Button>
                                     <Button
@@ -578,14 +660,24 @@ export default function BinderClient() {
                             )}
                         />
                         <div className="flex flex-row gap-4 items-center">
-                            <div className="flex flex-col gap-4 p-4 bg-main rounded-xl">
-
-                            </div>
+                            <div className="flex flex-col gap-4 p-4 bg-main rounded-xl"></div>
                             <div className="flex flex-col gap-4">
-                                <Button size="icon" type="button" className="px-3" onClick={() => setPage(currentPage - 1)} disabled={currentPage === 0}>
+                                <Button
+                                    size="icon"
+                                    type="button"
+                                    className="px-3"
+                                    onClick={() => setPage(currentPage - 1)}
+                                    disabled={currentPage === 0}
+                                >
                                     <ChevronLeftIcon />
                                 </Button>
-                                <Button size="icon" type="button" className="px-3" onClick={() => setPage(0)} disabled={currentPage === 0}>
+                                <Button
+                                    size="icon"
+                                    type="button"
+                                    className="px-3"
+                                    onClick={() => setPage(0)}
+                                    disabled={currentPage === 0}
+                                >
                                     <ChevronsLeftIcon />
                                 </Button>
                             </div>
@@ -602,7 +694,9 @@ export default function BinderClient() {
                                                 index={currentPage - 1}
                                                 flipped={true}
                                                 onSelectSlot={onSelectSlot}
-                                                selectedSlotId={selectedSlot?.id}
+                                                selectedSlotId={
+                                                    selectedSlot?.id
+                                                }
                                             />
                                         }
                                         rightPage={
@@ -611,37 +705,103 @@ export default function BinderClient() {
                                                 index={currentPage}
                                                 flipped={false}
                                                 onSelectSlot={onSelectSlot}
-                                                selectedSlotId={selectedSlot?.id}
+                                                selectedSlotId={
+                                                    selectedSlot?.id
+                                                }
                                             />
                                         }
                                     />
                                 )}
                             />
                             <div className="flex flex-col gap-4">
-                                <Button size="icon" type="button" className="px-3" onClick={() => setPage(currentPage + 1)} disabled={currentPage === numPages - 1}>
+                                <Button
+                                    size="icon"
+                                    type="button"
+                                    className="px-3"
+                                    onClick={() => setPage(currentPage + 1)}
+                                    disabled={currentPage === numPages - 1}
+                                >
                                     <ChevronRightIcon />
                                 </Button>
-                                <Button size="icon" type="button" className="px-3" onClick={() => setPage(numPages - 1)} disabled={currentPage === numPages - 1}>
+                                <Button
+                                    size="icon"
+                                    type="button"
+                                    className="px-3"
+                                    onClick={() => setPage(numPages - 1)}
+                                    disabled={currentPage === numPages - 1}
+                                >
                                     <ChevronsRightIcon />
                                 </Button>
                             </div>
                             <div className="flex flex-col gap-2 p-4 bg-main rounded-xl">
-                                <Button size="icon" type="button" variant="noShadow" className="px-3" onClick={flipSelectedSlot} disabled={selectedSlot === null}>
+                                <Button
+                                    size="icon"
+                                    type="button"
+                                    variant="noShadow"
+                                    className="px-3"
+                                    onClick={flipSelectedSlot}
+                                    disabled={selectedSlot === null}
+                                >
                                     <FlipHorizontalIcon />
                                 </Button>
-                                <Button size="icon" type="button" variant="noShadow" className="px-3" onClick={rotateSelectedSlot} disabled={selectedSlot === null}>
+                                <Button
+                                    size="icon"
+                                    type="button"
+                                    variant="noShadow"
+                                    className="px-3"
+                                    onClick={rotateSelectedSlot}
+                                    disabled={selectedSlot === null}
+                                >
                                     <RotateCcwIcon />
                                 </Button>
-                                <Button size="icon" type="button" variant="noShadow" className="px-3" onClick={() => alignSelectedSlot(SnapToGrid.BottomLeft)} disabled={selectedSlot === null}>
+                                <Button
+                                    size="icon"
+                                    type="button"
+                                    variant="noShadow"
+                                    className="px-3"
+                                    onClick={() =>
+                                        alignSelectedSlot(SnapToGrid.BottomLeft)
+                                    }
+                                    disabled={selectedSlot === null}
+                                >
                                     <AlignStartVerticalIcon />
                                 </Button>
-                                <Button size="icon" type="button" variant="noShadow" className="px-3" onClick={() => alignSelectedSlot(SnapToGrid.Center)} disabled={selectedSlot === null}>
+                                <Button
+                                    size="icon"
+                                    type="button"
+                                    variant="noShadow"
+                                    className="px-3"
+                                    onClick={() =>
+                                        alignSelectedSlot(SnapToGrid.Center)
+                                    }
+                                    disabled={selectedSlot === null}
+                                >
                                     <AlignCenterVerticalIcon />
                                 </Button>
-                                <Button size="icon" type="button" variant="noShadow" className="px-3" onClick={() => alignSelectedSlot(SnapToGrid.BottomRight)} disabled={selectedSlot === null}>
+                                <Button
+                                    size="icon"
+                                    type="button"
+                                    variant="noShadow"
+                                    className="px-3"
+                                    onClick={() =>
+                                        alignSelectedSlot(
+                                            SnapToGrid.BottomRight,
+                                        )
+                                    }
+                                    disabled={selectedSlot === null}
+                                >
                                     <AlignEndVerticalIcon />
                                 </Button>
-                                <Button size="icon" type="button" variant="noShadow" className="px-3" onClick={() => alignSelectedSlot(SnapToGrid.Manual)} disabled={selectedSlot === null}>
+                                <Button
+                                    size="icon"
+                                    type="button"
+                                    variant="noShadow"
+                                    className="px-3"
+                                    onClick={() =>
+                                        alignSelectedSlot(SnapToGrid.Manual)
+                                    }
+                                    disabled={selectedSlot === null}
+                                >
                                     <PointerIcon />
                                 </Button>
                             </div>

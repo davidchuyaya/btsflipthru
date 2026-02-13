@@ -17,13 +17,23 @@ function SocialButton({
     return (
         <Button variant="imageShadow" asChild>
             <Link href={href} className="px-2!">
-                <img src={imgSrc} alt={altText} className={`h-${size} max-w-none`} />
+                <img
+                    src={imgSrc}
+                    alt={altText}
+                    className={`h-${size} max-w-none`}
+                />
             </Link>
         </Button>
     );
 }
 
-export default function SocialButtonsComponent({ size = 8, className }: { size?: number; className?: string }) {
+export default function SocialButtonsComponent({
+    size = 8,
+    className,
+}: {
+    size?: number;
+    className?: string;
+}) {
     return (
         <div className={`flex flex-row ${className}`}>
             <SocialButton

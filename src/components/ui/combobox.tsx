@@ -1,6 +1,11 @@
 "use client";
 
-import { CheckIcon, ChevronsUpDown, PlusCircleIcon, Trash2Icon } from "lucide-react";
+import {
+    CheckIcon,
+    ChevronsUpDown,
+    PlusCircleIcon,
+    Trash2Icon,
+} from "lucide-react";
 
 import * as React from "react";
 
@@ -14,7 +19,11 @@ import {
     CommandList,
     CommandSeparator,
 } from "@/components/ui/command";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from "@/components/ui/popover";
 
 import { cn } from "@/lib/utils";
 import { ButtonGroup, ButtonGroupSeparator } from "./button-group";
@@ -42,17 +51,28 @@ export default function Combobox<E>({
     const [inputValue, setInputValue] = React.useState<string>("");
 
     const selectedItem = React.useMemo(
-        () => items.find(([itemName, itemEnum]) => value !== undefined && isEqual(itemEnum, value)),
+        () =>
+            items.find(
+                ([itemName, itemEnum]) =>
+                    value !== undefined && isEqual(itemEnum, value),
+            ),
         [items, value, isEqual],
     );
 
     const filteredItems = React.useMemo(
-        () => items.filter(([itemName, itemEnum]) => itemName.toLowerCase().includes(inputValue.toLowerCase())),
+        () =>
+            items.filter(([itemName, itemEnum]) =>
+                itemName.toLowerCase().includes(inputValue.toLowerCase()),
+            ),
         [items, inputValue],
     );
 
     const hasExactMatch = React.useMemo(
-        () => filteredItems.some(([itemName, itemEnum]) => itemName.toLowerCase() === inputValue.toLowerCase()),
+        () =>
+            filteredItems.some(
+                ([itemName, itemEnum]) =>
+                    itemName.toLowerCase() === inputValue.toLowerCase(),
+            ),
         [filteredItems, inputValue],
     );
 
@@ -72,7 +92,10 @@ export default function Combobox<E>({
                         type="button"
                         variant="noShadow"
                         disabled={disabled}
-                        className={cn("w-full justify-between md:max-w-70 bg-accent-light", className)}
+                        className={cn(
+                            "w-full justify-between md:max-w-70 bg-accent-light",
+                            className,
+                        )}
                     >
                         {selectedItem ? selectedItem[0] : "Select..."}
                         <ChevronsUpDown className="text-muted-foreground" />
@@ -80,7 +103,12 @@ export default function Combobox<E>({
                     {onDelete && (
                         <>
                             <ButtonGroupSeparator />
-                            <Button type="button" size="icon" variant="noShadow" onClick={onDelete}>
+                            <Button
+                                type="button"
+                                size="icon"
+                                variant="noShadow"
+                                onClick={onDelete}
+                            >
                                 <Trash2Icon />
                             </Button>
                         </>
@@ -88,10 +116,19 @@ export default function Combobox<E>({
                 </ButtonGroup>
             </PopoverTrigger>
             <PopoverContent className="w-(--radix-popover-trigger-width) border-0 p-0">
-                <Command className="**:data-[slot=command-input-wrapper]:h-11 bg-accent-light" shouldFilter={false}>
-                    <CommandInput placeholder="Search..." value={inputValue} onValueChange={setInputValue} />
+                <Command
+                    className="**:data-[slot=command-input-wrapper]:h-11 bg-accent-light"
+                    shouldFilter={false}
+                >
+                    <CommandInput
+                        placeholder="Search..."
+                        value={inputValue}
+                        onValueChange={setInputValue}
+                    />
                     <CommandList className="p-1">
-                        {filteredItems.length === 0 && <CommandEmpty>No item found.</CommandEmpty>}
+                        {filteredItems.length === 0 && (
+                            <CommandEmpty>No item found.</CommandEmpty>
+                        )}
                         {filteredItems.length > 0 && (
                             <CommandGroup className="**:[[cmdk-group-items]]:flex **:[[cmdk-group-items]]:flex-col **:[[cmdk-group-items]]:gap-1">
                                 {filteredItems.map(([itemName, itemEnum]) => {
@@ -109,7 +146,8 @@ export default function Combobox<E>({
                                             <CheckIcon
                                                 className={cn(
                                                     "ml-auto",
-                                                    value !== undefined && isEqual(itemEnum, value)
+                                                    value !== undefined &&
+                                                        isEqual(itemEnum, value)
                                                         ? "opacity-100"
                                                         : "opacity-0",
                                                 )}
@@ -123,10 +161,15 @@ export default function Combobox<E>({
                             <>
                                 <CommandSeparator />
                                 <CommandGroup>
-                                    <CommandItem onSelect={handleCreate} className="bg-main ">
+                                    <CommandItem
+                                        onSelect={handleCreate}
+                                        className="bg-main "
+                                    >
                                         <PlusCircleIcon />
                                         Create
-                                        {inputValue && !hasExactMatch ? `: "${inputValue}"` : ""}
+                                        {inputValue && !hasExactMatch
+                                            ? `: "${inputValue}"`
+                                            : ""}
                                     </CommandItem>
                                 </CommandGroup>
                             </>

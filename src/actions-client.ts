@@ -17,7 +17,10 @@ export function formatBytes(bytes: number): string {
     return (bytes / (1024 * 1024)).toFixed(2) + " MB";
 }
 
-export async function uploadImage(presignedUrl: PresignedUrl, image: File): Promise<Result<boolean>> {
+export async function uploadImage(
+    presignedUrl: PresignedUrl,
+    image: File,
+): Promise<Result<boolean>> {
     const formData = new FormData();
     formData.append("file", image);
     formData.append("api_key", CLOUDINARY_API_KEY);
@@ -32,21 +35,32 @@ export async function uploadImage(presignedUrl: PresignedUrl, image: File): Prom
         formData.append("eager", presignedUrl.params.eager);
     }
 
-    return fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, {
-        method: "POST",
-        body: formData,
-    })
-        .then((res) => (!res.ok ? { error: `Image upload failed: ${res.status}` } : { data: true }))
+    return fetch(
+        `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
+        {
+            method: "POST",
+            body: formData,
+        },
+    )
+        .then((res) =>
+            !res.ok
+                ? { error: `Image upload failed: ${res.status}` }
+                : { data: true },
+        )
         .catch((error) => ({
             error: (error as Error).message,
         }));
 }
 
-export function createCardSizeFromString(sizeString: string): Result<Insertable<CardSizes>> {
+export function createCardSizeFromString(
+    sizeString: string,
+): Result<Insertable<CardSizes>> {
     // Match format: "Name WidthxHeight" (e.g., "Standard 55x85")
     const match = sizeString.match(/^(.+?)\s+(\d+)\s*x\s*(\d+)$/i);
     if (!match) {
-        return { error: 'Please provide dimensions in the format "Name WidthxHeight" (e.g., "Standard 55x85")' };
+        return {
+            error: 'Please provide dimensions in the format "Name WidthxHeight" (e.g., "Standard 55x85")',
+        };
     }
 
     const name = match[1].trim();
@@ -87,29 +101,23 @@ export function executeSearchLogic<T, S, CT, CS>(
         .filter((t) => t.length > 0);
 
     const memberEntries = Object.entries(MemberToIntWithOT7);
-    const { winners: winningMembers, matchedTerms: memberMatchedTerms } = getWinnersFromTerms(
-        memberEntries,
-        ([name, _]) => name,
-        allTerms,
-    );
+    const { winners: winningMembers, matchedTerms: memberMatchedTerms } =
+        getWinnersFromTerms(memberEntries, ([name, _]) => name, allTerms);
 
     // Filter out terms used by Members
-    const termsAfterMembers = allTerms.filter((term) => !memberMatchedTerms.has(term));
-
-    const { winners: winningTopCols, matchedTerms: topColMatchedTerms } = getWinnersFromTerms(
-        data.tops,
-        accessors.topName,
-        termsAfterMembers,
+    const termsAfterMembers = allTerms.filter(
+        (term) => !memberMatchedTerms.has(term),
     );
 
-    const { winners: winningSubCols, matchedTerms: subColMatchedTerms } = getWinnersFromTerms(
-        data.subs,
-        accessors.subName,
-        termsAfterMembers,
-    );
+    const { winners: winningTopCols, matchedTerms: topColMatchedTerms } =
+        getWinnersFromTerms(data.tops, accessors.topName, termsAfterMembers);
+
+    const { winners: winningSubCols, matchedTerms: subColMatchedTerms } =
+        getWinnersFromTerms(data.subs, accessors.subName, termsAfterMembers);
 
     const termsAfterCollections = termsAfterMembers.filter(
-        (term) => !topColMatchedTerms.has(term) && !subColMatchedTerms.has(term),
+        (term) =>
+            !topColMatchedTerms.has(term) && !subColMatchedTerms.has(term),
     );
 
     const { winners: winningCardTypes } = getWinnersFromTerms(
@@ -132,16 +140,23 @@ export function executeSearchLogic<T, S, CT, CS>(
     );
 
     return {
-        winningMembers: new Set(Array.from(winningMembers).map(([_name, val]) => val)),
+        winningMembers: new Set(
+            Array.from(winningMembers).map(([_name, val]) => val),
+        ),
         winningTopCols,
         winningSubCols,
         winningCardTypes,
         winningCardSizes,
-        winningCountries: new Set(Array.from(winningCountries).map(([_name, val]) => val)),
+        winningCountries: new Set(
+            Array.from(winningCountries).map(([_name, val]) => val),
+        ),
     };
 }
 
-function countMatches(text: string, searchTerms: string[]): { matches: number; matchedTerms: Set<string> } {
+function countMatches(
+    text: string,
+    searchTerms: string[],
+): { matches: number; matchedTerms: Set<string> } {
     const lowerText = text.toLowerCase();
     let matches = 0;
     const matchedTerms = new Set<string>();
@@ -163,7 +178,10 @@ function getWinnersFromTerms<T>(
     const scores = new Map<T, { score: number; matched: Set<string> }>();
 
     for (const item of items) {
-        const { matches, matchedTerms } = countMatches(textFn(item), availableTerms);
+        const { matches, matchedTerms } = countMatches(
+            textFn(item),
+            availableTerms,
+        );
         if (matches > 0) {
             scores.set(item, { score: matches, matched: matchedTerms });
             if (matches > maxScore) maxScore = matches;

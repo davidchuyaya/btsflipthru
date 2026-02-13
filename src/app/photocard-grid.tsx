@@ -1,5 +1,9 @@
 import PhotocardComponent, { DraggablePhotocard } from "./photocard";
-import { collectionDisplayName, memberIntsToName, thumbnailUrl } from "@/constants";
+import {
+    collectionDisplayName,
+    memberIntsToName,
+    thumbnailUrl,
+} from "@/constants";
 import React from "react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
@@ -33,10 +37,16 @@ function PhotocardGridWithoutCollections({
     wishlistedIds?: Set<number>;
 }) {
     return (
-        <div className={`flex flex-row flex-wrap gap-4 justify-center ${className}`}>
+        <div
+            className={`flex flex-row flex-wrap gap-4 justify-center ${className}`}
+        >
             {photocards.map((photocard) =>
                 draggable ? (
-                    <DraggablePhotocard key={photocard.id} photocard={photocard} showFront={showFront} />
+                    <DraggablePhotocard
+                        key={photocard.id}
+                        photocard={photocard}
+                        showFront={showFront}
+                    />
                 ) : (
                     <PhotocardComponent
                         key={photocard.id}
@@ -64,14 +74,25 @@ function PhotocardGridWithoutCollections({
                         isOwned={ownedIds?.has(photocard.id!)}
                         isWishlisted={wishlistedIds?.has(photocard.id!)}
                         onToggle={() => onToggleSelection?.(photocard.id!)}
-                        onClick={() => window.open(`/photocard/${photocard.id}`, "_blank")}
+                        onClick={() =>
+                            window.open(`/photocard/${photocard.id}`, "_blank")
+                        }
                     >
                         {collections && (
                             <>
                                 <p>
-                                    {collectionDisplayName(collections?.find((c) => c.id === photocard.collection_id))}
+                                    {collectionDisplayName(
+                                        collections?.find(
+                                            (c) =>
+                                                c.id ===
+                                                photocard.collection_id,
+                                        ),
+                                    )}
                                 </p>
-                                <p>{photocard.members && memberIntsToName(photocard.members)}</p>
+                                <p>
+                                    {photocard.members &&
+                                        memberIntsToName(photocard.members)}
+                                </p>
                             </>
                         )}
                     </PhotocardComponent>
@@ -109,27 +130,45 @@ export default function PhotocardGrid({
     wishlistedIds?: Set<number>;
 }) {
     return displayCollections ? (
-        <div className={`flex flex-col gap-4 justify-center items-center ${className}`}>
+        <div
+            className={`flex flex-col gap-4 justify-center items-center ${className}`}
+        >
             {collections!.map((collection) => {
-                const children = photocards.filter((pc) => pc.collection_id === collection.id);
+                const children = photocards.filter(
+                    (pc) => pc.collection_id === collection.id,
+                );
                 const hidden = children.length === 0;
 
                 return (
                     <React.Fragment key={collection.id!}>
                         <h2 hidden={hidden} className="mt-4">
-                            {collection.version ? `${collection.name} (${collection.version})` : collection.name}
+                            {collection.version
+                                ? `${collection.name} (${collection.version})`
+                                : collection.name}
                         </h2>
-                        <div className="flex flex-row gap-2" hidden={!showEditButton || hidden}>
+                        <div
+                            className="flex flex-row gap-2"
+                            hidden={!showEditButton || hidden}
+                        >
                             <Button className="self-center" asChild>
-                                <Link href={`/createCollection?collectionId=${collection.id}`}>Edit Collection</Link>
+                                <Link
+                                    href={`/createCollection?collectionId=${collection.id}`}
+                                >
+                                    Edit Collection
+                                </Link>
                             </Button>
                             <AlertDialogWithButton
                                 title="Delete Collection"
                                 description="Are you sure you want to delete this collection? This will also delete all photocards in this collection."
                                 submit="Delete"
-                                onSubmit={() => deleteCollection(collection.id!)}
+                                onSubmit={() =>
+                                    deleteCollection(collection.id!)
+                                }
                             >
-                                <Button className="self-center bg-third" size="icon">
+                                <Button
+                                    className="self-center bg-third"
+                                    size="icon"
+                                >
                                     <Trash2Icon />
                                 </Button>
                             </AlertDialogWithButton>

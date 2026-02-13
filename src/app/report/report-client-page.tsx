@@ -16,7 +16,9 @@ function ReportPageSuspenseWrapper() {
 
 export default function ReportClientPage() {
     return (
-        <Suspense fallback={<div className="flex justify-center m-8">Loading...</div>}>
+        <Suspense
+            fallback={<div className="flex justify-center m-8">Loading...</div>}
+        >
             <ReportPageSuspenseWrapper />
         </Suspense>
     );

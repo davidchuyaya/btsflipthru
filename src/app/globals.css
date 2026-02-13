@@ -216,8 +216,20 @@ label {
 
 td:not(:first-of-type):not(:last-of-type) {
     background-image:
-        repeating-linear-gradient(180deg, #333 0, #333 10px, transparent 10px, transparent 27px),
-        repeating-linear-gradient(180deg, #333 0, #333 10px, transparent 10px, transparent 27px);
+        repeating-linear-gradient(
+            180deg,
+            #333 0,
+            #333 10px,
+            transparent 10px,
+            transparent 27px
+        ),
+        repeating-linear-gradient(
+            180deg,
+            #333 0,
+            #333 10px,
+            transparent 10px,
+            transparent 27px
+        );
     background-size:
         1px 100%,
         1px 100%;
@@ -228,14 +240,26 @@ td:not(:first-of-type):not(:last-of-type) {
 }
 
 td:last-of-type {
-    background-image: repeating-linear-gradient(180deg, #333 0, #333 10px, transparent 10px, transparent 27px);
+    background-image: repeating-linear-gradient(
+        180deg,
+        #333 0,
+        #333 10px,
+        transparent 10px,
+        transparent 27px
+    );
     background-size: 1px 100%;
     background-position: left top;
     background-repeat: no-repeat;
 }
 
 td:first-of-type {
-    background-image: repeating-linear-gradient(180deg, #333 0, #333 10px, transparent 10px, transparent 27px);
+    background-image: repeating-linear-gradient(
+        180deg,
+        #333 0,
+        #333 10px,
+        transparent 10px,
+        transparent 27px
+    );
     background-size: 1px 100%;
     background-position: right top;
     background-repeat: no-repeat;
@@ -270,11 +294,24 @@ hover-tilt::part(tilt) {
 .shiny::part(container) {
     --hover-tilt-custom-gradient: linear-gradient(
         110deg,
-        transparent calc((var(--gradient-x, 50%) / 2 + var(--gradient-y, 50%) / 2) - 20%),
-        rgba(255, 255, 255, 0.4) calc((var(--gradient-x, 50%) / 2 + var(--gradient-y, 50%) / 2) - 10%),
-        rgba(255, 255, 255, 0.8) calc((var(--gradient-x, 50%) / 2 + var(--gradient-y, 50%) / 2)),
-        rgba(255, 255, 255, 0.4) calc((var(--gradient-x, 50%) / 2 + var(--gradient-y, 50%) / 2) + 10%),
-        transparent calc((var(--gradient-x, 50%) / 2 + var(--gradient-y, 50%) / 2) + 20%)
+        transparent
+            calc(
+                (var(--gradient-x, 50%) / 2 + var(--gradient-y, 50%) / 2) - 20%
+            ),
+        rgba(255, 255, 255, 0.4)
+            calc(
+                (var(--gradient-x, 50%) / 2 + var(--gradient-y, 50%) / 2) - 10%
+            ),
+        rgba(255, 255, 255, 0.8)
+            calc((var(--gradient-x, 50%) / 2 + var(--gradient-y, 50%) / 2)),
+        rgba(255, 255, 255, 0.4)
+            calc(
+                (var(--gradient-x, 50%) / 2 + var(--gradient-y, 50%) / 2) + 10%
+            ),
+        transparent
+            calc(
+                (var(--gradient-x, 50%) / 2 + var(--gradient-y, 50%) / 2) + 20%
+            )
     );
 
     /* Matches the blend mode often used in the Simey project for V cards */

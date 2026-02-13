@@ -8,11 +8,16 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 import { Label } from "./label";
 
-interface CheckboxProps extends React.ComponentProps<typeof CheckboxPrimitive.Root> {
+interface CheckboxProps extends React.ComponentProps<
+    typeof CheckboxPrimitive.Root
+> {
     text?: string;
 }
 
-function CheckboxWithoutLabel({ className, ...props }: Omit<CheckboxProps, "text">) {
+function CheckboxWithoutLabel({
+    className,
+    ...props
+}: Omit<CheckboxProps, "text">) {
     return (
         <CheckboxPrimitive.Root
             data-slot="checkbox"

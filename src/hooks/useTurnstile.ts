@@ -16,7 +16,10 @@ declare const turnstile: {
     reset: (element: string | HTMLElement) => void;
 };
 
-export default function useTurnstile(ref: RefObject<HTMLDivElement | null>, updateToken: (token: string) => void) {
+export default function useTurnstile(
+    ref: RefObject<HTMLDivElement | null>,
+    updateToken: (token: string) => void,
+) {
     const [turnstileWidgetId, setTurnstileWidgetId] = useState(""); // mount and render turnstile widget
     function buildTurnstile() {
         if (ref === null || ref.current === null) {

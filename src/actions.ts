@@ -51,7 +51,9 @@ export async function getDate(): Promise<Date> {
     return new Date();
 }
 
-export async function addUserDataToDB(user_data: Insertable<UserData>): Promise<Result<boolean>> {
+export async function addUserDataToDB(
+    user_data: Insertable<UserData>,
+): Promise<Result<boolean>> {
     return await db
         .insertInto("user_data")
         .values(user_data)
@@ -66,7 +68,9 @@ export async function addUserDataToDB(user_data: Insertable<UserData>): Promise<
         );
 }
 
-export async function getUserDataFromDB(userId: string): Promise<Result<Selectable<UserData>>> {
+export async function getUserDataFromDB(
+    userId: string,
+): Promise<Result<Selectable<UserData>>> {
     return await db
         .selectFrom("user_data")
         .where("user_id", "=", userId)
@@ -85,7 +89,9 @@ export async function getUserDataFromDB(userId: string): Promise<Result<Selectab
  * @param collectionType Only the name field is used
  * @returns The auto-assigned ID of the collection type.
  */
-export async function addCollectionTypeToDB(collectionType: Insertable<CollectionTypes>): Promise<Result<number>> {
+export async function addCollectionTypeToDB(
+    collectionType: Insertable<CollectionTypes>,
+): Promise<Result<number>> {
     const result = await isAtLeastMod<number>();
     if (result.error) {
         return result;
@@ -98,7 +104,9 @@ export async function addCollectionTypeToDB(collectionType: Insertable<Collectio
         .then(
             (result) => {
                 if (result.id === undefined) {
-                    return { error: "Collection type conflicts with existing entry" };
+                    return {
+                        error: "Collection type conflicts with existing entry",
+                    };
                 }
                 updateTag(CACHE_TAG_COLLECTION_TYPES);
                 return { data: result.id };
@@ -109,7 +117,9 @@ export async function addCollectionTypeToDB(collectionType: Insertable<Collectio
         );
 }
 
-export async function getCollectionTypesFromDB(): Promise<Result<Selectable<CollectionTypes>[]>> {
+export async function getCollectionTypesFromDB(): Promise<
+    Result<Selectable<CollectionTypes>[]>
+> {
     "use cache";
     cacheTag(CACHE_TAG_COLLECTION_TYPES);
     return await db
@@ -129,7 +139,9 @@ export async function getCollectionTypesFromDB(): Promise<Result<Selectable<Coll
  * @param cardType Only the name field is used
  * @returns The auto-assigned ID of the card type.
  */
-export async function addCardTypeToDB(cardType: Insertable<CardTypes>): Promise<Result<number>> {
+export async function addCardTypeToDB(
+    cardType: Insertable<CardTypes>,
+): Promise<Result<number>> {
     const result = await isAtLeastMod<number>();
     if (result.error) {
         return result;
@@ -153,7 +165,9 @@ export async function addCardTypeToDB(cardType: Insertable<CardTypes>): Promise<
         );
 }
 
-export async function getCardTypesFromDB(): Promise<Result<Selectable<CardTypes>[]>> {
+export async function getCardTypesFromDB(): Promise<
+    Result<Selectable<CardTypes>[]>
+> {
     "use cache";
     cacheTag(CACHE_TAG_CARD_TYPES);
     return await db
@@ -173,7 +187,9 @@ export async function getCardTypesFromDB(): Promise<Result<Selectable<CardTypes>
  * @param cardSize The name, width, and height fields are used
  * @returns The auto-assigned ID of the card size.
  */
-export async function addCardSizeToDB(cardSize: Insertable<CardSizes>): Promise<Result<number>> {
+export async function addCardSizeToDB(
+    cardSize: Insertable<CardSizes>,
+): Promise<Result<number>> {
     const result = await isAtLeastMod<number>();
     if (result.error) {
         return result;
@@ -201,7 +217,9 @@ export async function addCardSizeToDB(cardSize: Insertable<CardSizes>): Promise<
         );
 }
 
-export async function getCardSizesFromDB(): Promise<Result<Selectable<CardSizes>[]>> {
+export async function getCardSizesFromDB(): Promise<
+    Result<Selectable<CardSizes>[]>
+> {
     "use cache";
     cacheTag(CACHE_TAG_CARD_SIZES);
     return await db
@@ -216,7 +234,9 @@ export async function getCardSizesFromDB(): Promise<Result<Selectable<CardSizes>
         );
 }
 
-export async function getCollectionsFromDB(): Promise<Result<Selectable<Collections>[]>> {
+export async function getCollectionsFromDB(): Promise<
+    Result<Selectable<Collections>[]>
+> {
     "use cache";
     cacheTag(CACHE_TAG_COLLECTIONS);
     return await db
@@ -244,11 +264,16 @@ function generateSignedUploadUrl(createThumbnail: boolean): PresignedUrl {
     });
 
     const params = generateSignedParams(createThumbnail);
-    const signature = cloudinary.utils.api_sign_request(params, process.env.CLOUDINARY_API_SECRET);
+    const signature = cloudinary.utils.api_sign_request(
+        params,
+        process.env.CLOUDINARY_API_SECRET,
+    );
     return { signature, params };
 }
 
-export async function generateSignedUploadUrlForPhotocards(numPhotocards: number): Promise<Result<PresignedUrl[]>> {
+export async function generateSignedUploadUrlForPhotocards(
+    numPhotocards: number,
+): Promise<Result<PresignedUrl[]>> {
     const result = await isAtLeastMod<boolean>();
     if (result.error) {
         return result;
@@ -281,7 +306,8 @@ export async function addCollectionToDB(
     // If the user is a mod, set admin_temporary to true for all photocards
     const mappedPhotocards = photocards.map((photocard) => ({
         ...photocard,
-        admin_temporary: session.data!.user.role === Role.MOD || photocard.admin_temporary,
+        admin_temporary:
+            session.data!.user.role === Role.MOD || photocard.admin_temporary,
     }));
 
     try {
@@ -310,9 +336,12 @@ export async function addCollectionToDB(
     }
 }
 
-export async function getCollectionForEdit(
-    collectionId: number,
-): Promise<Result<{ collections: Selectable<Collections>; photocards: Selectable<Photocards>[] }>> {
+export async function getCollectionForEdit(collectionId: number): Promise<
+    Result<{
+        collections: Selectable<Collections>;
+        photocards: Selectable<Photocards>[];
+    }>
+> {
     const result = await isAtLeastMod<boolean>();
     if (result.error) {
         return result;
@@ -353,7 +382,9 @@ export async function updateCollectionInDB(
 
     // Only keep cards that aren't locked by admins (unless we're an admin)
     const mappedPhotocards = photocards.filter(
-        (photocard) => photocard.admin_temporary === true || session.data!.user.role === Role.ADMIN,
+        (photocard) =>
+            photocard.admin_temporary === true ||
+            session.data!.user.role === Role.ADMIN,
     );
 
     try {
@@ -391,7 +422,9 @@ export async function deleteCollection(id: number): Promise<Result<boolean>> {
     return { data: true };
 }
 
-export async function getPhotocardFromDB(id: number): Promise<Result<Selectable<Photocards>>> {
+export async function getPhotocardFromDB(
+    id: number,
+): Promise<Result<Selectable<Photocards>>> {
     return await db
         .selectFrom("photocards")
         .where("id", "=", id)
@@ -405,7 +438,11 @@ export async function getPhotocardFromDB(id: number): Promise<Result<Selectable<
         );
 }
 
-export async function updatePhotocardInDB(id: number, imageId: string, backImageId: string): Promise<Result<boolean>> {
+export async function updatePhotocardInDB(
+    id: number,
+    imageId: string,
+    backImageId: string,
+): Promise<Result<boolean>> {
     return await db
         .updateTable("photocards")
         .set({
@@ -428,16 +465,19 @@ export async function updatePhotocardInDB(id: number, imageId: string, backImage
 
 async function verifyTurnstile(token: string): Promise<Result<boolean>> {
     try {
-        const response = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
+        const response = await fetch(
+            "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+            {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: new URLSearchParams({
+                    secret: process.env.TURNSTILE_SECRET_KEY,
+                    response: token,
+                }),
             },
-            body: new URLSearchParams({
-                secret: process.env.TURNSTILE_SECRET_KEY,
-                response: token,
-            }),
-        });
+        );
         const data: { success: boolean } = await response.json();
         return { data: data.success };
     } catch (error) {
@@ -496,7 +536,9 @@ export async function addReportToDB(
     return { data: presignUrl };
 }
 
-async function getMostContributionsUser(): Promise<Result<Selectable<UserData>>> {
+async function getMostContributionsUser(): Promise<
+    Result<Selectable<UserData>>
+> {
     const result: Result<Selectable<ViewMostContributions>> = await db
         .selectFrom("view_most_contributions")
         .selectAll()
@@ -518,7 +560,9 @@ async function getMostContributionsUser(): Promise<Result<Selectable<UserData>>>
     return getUserDataFromDB(result.data.image_contributor_id);
 }
 
-async function getMostOwnedPhotocard(): Promise<Result<Selectable<Photocards>>> {
+async function getMostOwnedPhotocard(): Promise<
+    Result<Selectable<Photocards>>
+> {
     const photocardData: Result<Selectable<ViewMostOwnedPhotocards>> = await db
         .selectFrom("view_most_owned_photocards")
         .selectAll()
@@ -539,17 +583,22 @@ async function getMostOwnedPhotocard(): Promise<Result<Selectable<Photocards>>> 
     return getPhotocardFromDB(photocardData.data.photocard_id);
 }
 
-async function getMostWishlistedPhotocard(): Promise<Result<Selectable<Photocards>>> {
-    const photocardData: Result<Selectable<ViewMostWishlistedPhotocards>> = await db
-        .selectFrom("view_most_wishlisted_photocards")
-        .selectAll()
-        .executeTakeFirstOrThrow()
-        .then(
-            (data) => ({ data: data }),
-            (reason) => ({
-                error: "Could not fetch most wishlisted photocard data: " + reason,
-            }),
-        );
+async function getMostWishlistedPhotocard(): Promise<
+    Result<Selectable<Photocards>>
+> {
+    const photocardData: Result<Selectable<ViewMostWishlistedPhotocards>> =
+        await db
+            .selectFrom("view_most_wishlisted_photocards")
+            .selectAll()
+            .executeTakeFirstOrThrow()
+            .then(
+                (data) => ({ data: data }),
+                (reason) => ({
+                    error:
+                        "Could not fetch most wishlisted photocard data: " +
+                        reason,
+                }),
+            );
     if (photocardData.error) {
         return photocardData;
     }
@@ -587,18 +636,24 @@ async function getTotalPhotocardsWithoutImages(): Promise<Result<number>> {
         .then(
             (data) => {
                 if (data.num_photocards_without_images === null) {
-                    return { error: "Could not fetch total photocards without images" };
+                    return {
+                        error: "Could not fetch total photocards without images",
+                    };
                 } else {
                     return { data: data.num_photocards_without_images };
                 }
             },
             (reason) => ({
-                error: "Could not fetch total photocards without images: " + reason,
+                error:
+                    "Could not fetch total photocards without images: " +
+                    reason,
             }),
         );
 }
 
-async function getRecentlyAddedPhotocardsInDB(): Promise<Result<Selectable<Photocards>[]>> {
+async function getRecentlyAddedPhotocardsInDB(): Promise<
+    Result<Selectable<Photocards>[]>
+> {
     return await db
         .selectFrom("photocards")
         .selectAll()
@@ -623,7 +678,10 @@ export async function getHomeStats(): Promise<Result<HomeStats>> {
         getTotalPhotocardsWithoutImages(),
         getRecentlyAddedPhotocardsInDB(),
     ]);
-    if (results.some((result) => result.error) || results.some((result) => !result.data)) {
+    if (
+        results.some((result) => result.error) ||
+        results.some((result) => !result.data)
+    ) {
         return { error: "Could not fetch home stats" };
     }
     return {
@@ -636,7 +694,9 @@ export async function getHomeStats(): Promise<Result<HomeStats>> {
     };
 }
 
-export async function getPhotocardsInCollection(collectionId: number): Promise<Result<Selectable<Photocards>[]>> {
+export async function getPhotocardsInCollection(
+    collectionId: number,
+): Promise<Result<Selectable<Photocards>[]>> {
     return await db
         .selectFrom("photocards")
         .selectAll()
@@ -653,13 +713,24 @@ export async function getPhotocardsInCollection(collectionId: number): Promise<R
 export async function getPhotocardsInDB(
     query: SearchQuery,
     lastId: number | null = null,
-): Promise<Result<{ cards: Selectable<Photocards>[]; query: string; owned: number[]; wishlisted: number[] }>> {
+): Promise<
+    Result<{
+        cards: Selectable<Photocards>[];
+        query: string;
+        owned: number[];
+        wishlisted: number[];
+    }>
+> {
     const session = await getSession();
 
     let queryBuilder = db.selectFrom("photocards").selectAll();
 
     if (query.collectionIds.length > 0) {
-        queryBuilder = queryBuilder.where("collection_id", "in", query.collectionIds);
+        queryBuilder = queryBuilder.where(
+            "collection_id",
+            "in",
+            query.collectionIds,
+        );
     }
     if (query.cardTypeIds.length > 0) {
         queryBuilder = queryBuilder.where("card_type", "in", query.cardTypeIds);
@@ -668,21 +739,36 @@ export async function getPhotocardsInDB(
         queryBuilder = queryBuilder.where("size_id", "in", query.sizeIds);
     }
     if (query.exclusiveCountryIds.length > 0) {
-        queryBuilder = queryBuilder.where("exclusive_country", "in", query.exclusiveCountryIds);
+        queryBuilder = queryBuilder.where(
+            "exclusive_country",
+            "in",
+            query.exclusiveCountryIds,
+        );
     }
     if (query.members.length > 0) {
         if (!query.members.includes(MemberToIntWithOT7.OT7)) {
             // Don't include group cards unless asked to
-            queryBuilder = queryBuilder.where(sql<boolean>`NOT members @> ARRAY[${sql.join(MemberInts)}]::integer[]`);
+            queryBuilder = queryBuilder.where(
+                sql<boolean>`NOT members @> ARRAY[${sql.join(MemberInts)}]::integer[]`,
+            );
         }
 
-        if (query.members.includes(MemberToIntWithOT7.OT7) && query.members.length === 1) {
+        if (
+            query.members.includes(MemberToIntWithOT7.OT7) &&
+            query.members.length === 1
+        ) {
             // If only asked for OT7, include group cards only
-            queryBuilder = queryBuilder.where(sql<boolean>`members @> ARRAY[${sql.join(MemberInts)}]::integer[]`);
+            queryBuilder = queryBuilder.where(
+                sql<boolean>`members @> ARRAY[${sql.join(MemberInts)}]::integer[]`,
+            );
         } else {
             // Otherwise, include cards with any of the members
-            const remainingMembers = query.members.filter((member) => member !== MemberToIntWithOT7.OT7);
-            queryBuilder = queryBuilder.where(sql<boolean>`members && ARRAY[${sql.join(remainingMembers)}]::integer[]`);
+            const remainingMembers = query.members.filter(
+                (member) => member !== MemberToIntWithOT7.OT7,
+            );
+            queryBuilder = queryBuilder.where(
+                sql<boolean>`members && ARRAY[${sql.join(remainingMembers)}]::integer[]`,
+            );
         }
     }
 
@@ -692,7 +778,9 @@ export async function getPhotocardsInDB(
         case SortType.ReleaseDateDesc:
             // Nothing to do for these, handled on client side (with collection release dates)
             if (query.collectionIds.length === 0) {
-                return { error: "Release date sorting requires at least one collection filter." };
+                return {
+                    error: "Release date sorting requires at least one collection filter.",
+                };
             } else if (query.collectionIds.length > NUM_LOAD_COLLECTIONS) {
                 return {
                     error: `Cannot load more than ${NUM_LOAD_COLLECTIONS} collections when sorting by release date.`,
@@ -703,13 +791,17 @@ export async function getPhotocardsInDB(
             if (lastId !== null) {
                 queryBuilder = queryBuilder.where("id", ">", lastId);
             }
-            queryBuilder = queryBuilder.orderBy("id", "asc").limit(NUM_LOAD_PHOTOCARDS);
+            queryBuilder = queryBuilder
+                .orderBy("id", "asc")
+                .limit(NUM_LOAD_PHOTOCARDS);
             break;
         case SortType.DateAddedDesc:
             if (lastId !== null) {
                 queryBuilder = queryBuilder.where("id", "<", lastId);
             }
-            queryBuilder = queryBuilder.orderBy("id", "desc").limit(NUM_LOAD_PHOTOCARDS);
+            queryBuilder = queryBuilder
+                .orderBy("id", "desc")
+                .limit(NUM_LOAD_PHOTOCARDS);
             break;
         default:
             return { error: "Invalid sort type." };
@@ -723,12 +815,16 @@ export async function getPhotocardsInDB(
 
     if (!session.error && session.data) {
         try {
-            const ownedRes = await doesUserOwnPhotocard(cards.map((c) => c.id!));
+            const ownedRes = await doesUserOwnPhotocard(
+                cards.map((c) => c.id!),
+            );
             if (!ownedRes.error) {
                 owned = ownedRes.data!;
             }
 
-            const wishlistedRes = await didUserWishlistPhotocard(cards.map((c) => c.id!));
+            const wishlistedRes = await didUserWishlistPhotocard(
+                cards.map((c) => c.id!),
+            );
             if (!wishlistedRes.error) {
                 wishlisted = wishlistedRes.data!;
             }
@@ -740,7 +836,9 @@ export async function getPhotocardsInDB(
     return { data: { cards, query: queryString, owned, wishlisted } };
 }
 
-export async function getUserProfileDataFromDB(id: string): Promise<Result<Selectable<UserData>>> {
+export async function getUserProfileDataFromDB(
+    id: string,
+): Promise<Result<Selectable<UserData>>> {
     return db
         .selectFrom("user_data")
         .selectAll()
@@ -748,7 +846,9 @@ export async function getUserProfileDataFromDB(id: string): Promise<Result<Selec
         .executeTakeFirstOrThrow()
         .then(
             (data): Result<Selectable<UserData>> => ({ data }),
-            (reason): Result<Selectable<UserData>> => ({ error: "Could not fetch user data: " + reason }),
+            (reason): Result<Selectable<UserData>> => ({
+                error: "Could not fetch user data: " + reason,
+            }),
         );
 }
 
@@ -761,38 +861,77 @@ export async function updateUserDataInDB(
         return { error: session.error };
     }
     if (session.data!.user.id !== userData.user_id) {
-        return { error: "You do not have permission to update this user's data." };
+        return {
+            error: "You do not have permission to update this user's data.",
+        };
     }
 
     // Check formatting
     if (userData.username) {
         if (userData.username.length > MAX_USERNAME_LENGTH) {
-            return { error: `Username exceeds ${MAX_USERNAME_LENGTH} characters.` };
+            return {
+                error: `Username exceeds ${MAX_USERNAME_LENGTH} characters.`,
+            };
         }
         if (!USERNAME_REGEX.test(userData.username)) {
             return { error: USERNAME_ERROR_TEXT };
         }
     }
-    if (userData.description && userData.description.length > MAX_DESCRIPTION_LENGTH) {
-        return { error: `Description exceeds ${MAX_DESCRIPTION_LENGTH} characters.` };
+    if (
+        userData.description &&
+        userData.description.length > MAX_DESCRIPTION_LENGTH
+    ) {
+        return {
+            error: `Description exceeds ${MAX_DESCRIPTION_LENGTH} characters.`,
+        };
     }
-    if (userData.bcd_id && userData.bcd_id.length > MAX_EXTERNAL_SITE_USERNAME_LENGTH) {
-        return { error: `BCD ID exceeds ${MAX_EXTERNAL_SITE_USERNAME_LENGTH} characters.` };
+    if (
+        userData.bcd_id &&
+        userData.bcd_id.length > MAX_EXTERNAL_SITE_USERNAME_LENGTH
+    ) {
+        return {
+            error: `BCD ID exceeds ${MAX_EXTERNAL_SITE_USERNAME_LENGTH} characters.`,
+        };
     }
-    if (userData.bluesky_id && userData.bluesky_id.length > MAX_EXTERNAL_SITE_USERNAME_LENGTH) {
-        return { error: `Bluesky ID exceeds ${MAX_EXTERNAL_SITE_USERNAME_LENGTH} characters.` };
+    if (
+        userData.bluesky_id &&
+        userData.bluesky_id.length > MAX_EXTERNAL_SITE_USERNAME_LENGTH
+    ) {
+        return {
+            error: `Bluesky ID exceeds ${MAX_EXTERNAL_SITE_USERNAME_LENGTH} characters.`,
+        };
     }
-    if (userData.twitter_id && userData.twitter_id.length > MAX_EXTERNAL_SITE_USERNAME_LENGTH) {
-        return { error: `Twitter ID exceeds ${MAX_EXTERNAL_SITE_USERNAME_LENGTH} characters.` };
+    if (
+        userData.twitter_id &&
+        userData.twitter_id.length > MAX_EXTERNAL_SITE_USERNAME_LENGTH
+    ) {
+        return {
+            error: `Twitter ID exceeds ${MAX_EXTERNAL_SITE_USERNAME_LENGTH} characters.`,
+        };
     }
-    if (userData.instagram_id && userData.instagram_id.length > MAX_EXTERNAL_SITE_USERNAME_LENGTH) {
-        return { error: `Instagram ID exceeds ${MAX_EXTERNAL_SITE_USERNAME_LENGTH} characters.` };
+    if (
+        userData.instagram_id &&
+        userData.instagram_id.length > MAX_EXTERNAL_SITE_USERNAME_LENGTH
+    ) {
+        return {
+            error: `Instagram ID exceeds ${MAX_EXTERNAL_SITE_USERNAME_LENGTH} characters.`,
+        };
     }
-    if (userData.discord_id && userData.discord_id.length > MAX_EXTERNAL_SITE_USERNAME_LENGTH) {
-        return { error: `Discord ID exceeds ${MAX_EXTERNAL_SITE_USERNAME_LENGTH} characters.` };
+    if (
+        userData.discord_id &&
+        userData.discord_id.length > MAX_EXTERNAL_SITE_USERNAME_LENGTH
+    ) {
+        return {
+            error: `Discord ID exceeds ${MAX_EXTERNAL_SITE_USERNAME_LENGTH} characters.`,
+        };
     }
-    if (userData.spotify_playlist && userData.spotify_playlist.length !== SPOTIFY_PLAYLIST_ID_LENGTH) {
-        return { error: `Spotify playlist ID must be ${SPOTIFY_PLAYLIST_ID_LENGTH} characters.` };
+    if (
+        userData.spotify_playlist &&
+        userData.spotify_playlist.length !== SPOTIFY_PLAYLIST_ID_LENGTH
+    ) {
+        return {
+            error: `Spotify playlist ID must be ${SPOTIFY_PLAYLIST_ID_LENGTH} characters.`,
+        };
     }
 
     // Fetch the pre-signed URL
@@ -821,7 +960,9 @@ export async function updateUserDataInDB(
     return { data: presignUrl };
 }
 
-export async function doesUserOwnPhotocard(photocardIds: number[]): Promise<Result<number[]>> {
+export async function doesUserOwnPhotocard(
+    photocardIds: number[],
+): Promise<Result<number[]>> {
     const session = await getSession();
     // Fine if not logged in, just return empty array
     if (session.error) {
@@ -840,11 +981,15 @@ export async function doesUserOwnPhotocard(photocardIds: number[]): Promise<Resu
         .execute()
         .then(
             (data) => ({ data: data.map((d) => d.photocard_id) }),
-            (reason) => ({ error: "Could not check if user owns photocard: " + reason }),
+            (reason) => ({
+                error: "Could not check if user owns photocard: " + reason,
+            }),
         );
 }
 
-export async function didUserWishlistPhotocard(photocardIds: number[]): Promise<Result<number[]>> {
+export async function didUserWishlistPhotocard(
+    photocardIds: number[],
+): Promise<Result<number[]>> {
     const session = await getSession();
     // Fine if not logged in, just return empty array
     if (session.error) {
@@ -863,7 +1008,9 @@ export async function didUserWishlistPhotocard(photocardIds: number[]): Promise<
         .execute()
         .then(
             (data) => ({ data: data.map((d) => d.photocard_id) }),
-            (reason) => ({ error: "Could not check if user wishlist photocard: " + reason }),
+            (reason) => ({
+                error: "Could not check if user wishlist photocard: " + reason,
+            }),
         );
 }
 
@@ -872,13 +1019,18 @@ export async function didUserWishlistPhotocard(photocardIds: number[]): Promise<
  * @param photocardIds
  * @returns
  */
-export async function addPhotocardsToOwned(photocardIds: number[]): Promise<Result<boolean>> {
+export async function addPhotocardsToOwned(
+    photocardIds: number[],
+): Promise<Result<boolean>> {
     const session = await getSession();
     if (session.error) {
         return { error: session.error };
     }
 
-    const values = photocardIds.map((id) => ({ user_id: session.data!.user.id, photocard_id: id }));
+    const values = photocardIds.map((id) => ({
+        user_id: session.data!.user.id,
+        photocard_id: id,
+    }));
 
     const result: [Result<boolean>, Result<boolean>] = await Promise.all([
         db
@@ -887,7 +1039,9 @@ export async function addPhotocardsToOwned(photocardIds: number[]): Promise<Resu
             .executeTakeFirstOrThrow()
             .then(
                 (data) => ({ data: true }),
-                (reason) => ({ error: "Could not add photocards to owned: " + reason }),
+                (reason) => ({
+                    error: "Could not add photocards to owned: " + reason,
+                }),
             ),
         removePhotocardsFromWishlist(photocardIds),
     ]);
@@ -898,13 +1052,18 @@ export async function addPhotocardsToOwned(photocardIds: number[]): Promise<Resu
     return { data: true };
 }
 
-export async function addPhotocardsToWishlist(photocardIds: number[]): Promise<Result<boolean>> {
+export async function addPhotocardsToWishlist(
+    photocardIds: number[],
+): Promise<Result<boolean>> {
     const session = await getSession();
     if (session.error) {
         return { error: session.error };
     }
 
-    const values = photocardIds.map((id) => ({ user_id: session.data!.user.id, photocard_id: id }));
+    const values = photocardIds.map((id) => ({
+        user_id: session.data!.user.id,
+        photocard_id: id,
+    }));
 
     const result: [Result<boolean>, Result<boolean>] = await Promise.all([
         db
@@ -913,7 +1072,9 @@ export async function addPhotocardsToWishlist(photocardIds: number[]): Promise<R
             .executeTakeFirstOrThrow()
             .then(
                 (data) => ({ data: true }),
-                (reason) => ({ error: "Could not add photocards to wishlist: " + reason }),
+                (reason) => ({
+                    error: "Could not add photocards to wishlist: " + reason,
+                }),
             ),
         removePhotocardsFromOwned(photocardIds),
     ]);
@@ -924,7 +1085,9 @@ export async function addPhotocardsToWishlist(photocardIds: number[]): Promise<R
     return { data: true };
 }
 
-export async function removePhotocardsFromOwned(photocardIds: number[]): Promise<Result<boolean>> {
+export async function removePhotocardsFromOwned(
+    photocardIds: number[],
+): Promise<Result<boolean>> {
     const session = await getSession();
     if (session.error) {
         return { error: session.error };
@@ -937,11 +1100,15 @@ export async function removePhotocardsFromOwned(photocardIds: number[]): Promise
         .executeTakeFirstOrThrow()
         .then(
             (data) => ({ data: true }),
-            (reason) => ({ error: "Could not remove photocards from owned: " + reason }),
+            (reason) => ({
+                error: "Could not remove photocards from owned: " + reason,
+            }),
         );
 }
 
-export async function removePhotocardsFromWishlist(photocardIds: number[]): Promise<Result<boolean>> {
+export async function removePhotocardsFromWishlist(
+    photocardIds: number[],
+): Promise<Result<boolean>> {
     const session = await getSession();
     if (session.error) {
         return { error: session.error };
@@ -954,11 +1121,15 @@ export async function removePhotocardsFromWishlist(photocardIds: number[]): Prom
         .executeTakeFirstOrThrow()
         .then(
             (data) => ({ data: true }),
-            (reason) => ({ error: "Could not remove photocards from wishlist: " + reason }),
+            (reason) => ({
+                error: "Could not remove photocards from wishlist: " + reason,
+            }),
         );
 }
 
-export async function markPhotocardAsFavorite(photocardId: number): Promise<Result<boolean>> {
+export async function markPhotocardAsFavorite(
+    photocardId: number,
+): Promise<Result<boolean>> {
     const session = await getSession();
     if (session.error) {
         return { error: session.error };
@@ -971,11 +1142,15 @@ export async function markPhotocardAsFavorite(photocardId: number): Promise<Resu
         .executeTakeFirstOrThrow()
         .then(
             (data) => ({ data: true }),
-            (reason) => ({ error: "Could not mark photocard as favorite: " + reason }),
+            (reason) => ({
+                error: "Could not mark photocard as favorite: " + reason,
+            }),
         );
 }
 
-export async function getOwnedPhotocards(): Promise<Result<Selectable<Photocards>[]>> {
+export async function getOwnedPhotocards(): Promise<
+    Result<Selectable<Photocards>[]>
+> {
     const session = await getSession();
     if (session.error) {
         return { error: session.error };
@@ -983,17 +1158,25 @@ export async function getOwnedPhotocards(): Promise<Result<Selectable<Photocards
 
     return await db
         .selectFrom("user_photocards")
-        .innerJoin("photocards", "photocards.id", "user_photocards.photocard_id")
+        .innerJoin(
+            "photocards",
+            "photocards.id",
+            "user_photocards.photocard_id",
+        )
         .where("user_photocards.user_id", "=", session.data!.user.id)
         .selectAll("photocards")
         .execute()
         .then(
             (data) => ({ data }),
-            (reason) => ({ error: "Could not get owned photocards: " + reason }),
+            (reason) => ({
+                error: "Could not get owned photocards: " + reason,
+            }),
         );
 }
 
-export async function getWishlistedPhotocards(): Promise<Result<Selectable<Photocards>[]>> {
+export async function getWishlistedPhotocards(): Promise<
+    Result<Selectable<Photocards>[]>
+> {
     const session = await getSession();
     if (session.error) {
         return { error: session.error };
@@ -1007,6 +1190,8 @@ export async function getWishlistedPhotocards(): Promise<Result<Selectable<Photo
         .execute()
         .then(
             (data) => ({ data }),
-            (reason) => ({ error: "Could not get wishlisted photocards: " + reason }),
+            (reason) => ({
+                error: "Could not get wishlisted photocards: " + reason,
+            }),
         );
 }

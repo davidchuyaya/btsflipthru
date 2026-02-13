@@ -5,247 +5,252 @@
 
 import type { ColumnType } from "kysely";
 
-export type Generated<T> = T extends ColumnType<infer S, infer I, infer U>
-  ? ColumnType<S, I | undefined, U>
-  : ColumnType<T, T | undefined, T>;
+export type Generated<T> =
+    T extends ColumnType<infer S, infer I, infer U>
+        ? ColumnType<S, I | undefined, U>
+        : ColumnType<T, T | undefined, T>;
 
-export type Int8 = ColumnType<string, bigint | number | string, bigint | number | string>;
+export type Int8 = ColumnType<
+    string,
+    bigint | number | string,
+    bigint | number | string
+>;
 
 export type Timestamp = ColumnType<Date, Date | string, Date | string>;
 
 export interface Account {
-  accessToken: string | null;
-  accessTokenExpiresAt: Timestamp | null;
-  accountId: string;
-  createdAt: Generated<Timestamp>;
-  id: string;
-  idToken: string | null;
-  password: string | null;
-  providerId: string;
-  refreshToken: string | null;
-  refreshTokenExpiresAt: Timestamp | null;
-  scope: string | null;
-  updatedAt: Timestamp;
-  userId: string;
+    accessToken: string | null;
+    accessTokenExpiresAt: Timestamp | null;
+    accountId: string;
+    createdAt: Generated<Timestamp>;
+    id: string;
+    idToken: string | null;
+    password: string | null;
+    providerId: string;
+    refreshToken: string | null;
+    refreshTokenExpiresAt: Timestamp | null;
+    scope: string | null;
+    updatedAt: Timestamp;
+    userId: string;
 }
 
 export interface BinderPages {
-  binder_id: number;
-  creation_ids: Generated<number[]>;
-  creation_rotations: Generated<number[]>;
-  creation_show_front: Generated<boolean[]>;
-  creation_x_positions: Generated<number[]>;
-  creation_y_positions: Generated<number[]>;
-  creation_z_indices: Generated<number[]>;
-  description: string | null;
-  id: Generated<number>;
-  page_type: number;
-  photocard_ids: Generated<number[]>;
-  photocard_rotations: Generated<number[]>;
-  photocard_show_front: Generated<boolean[]>;
-  photocard_x_positions: Generated<number[]>;
-  photocard_y_positions: Generated<number[]>;
-  photocard_z_indices: Generated<number[]>;
+    binder_id: number;
+    creation_ids: Generated<number[]>;
+    creation_rotations: Generated<number[]>;
+    creation_show_front: Generated<boolean[]>;
+    creation_x_positions: Generated<number[]>;
+    creation_y_positions: Generated<number[]>;
+    creation_z_indices: Generated<number[]>;
+    description: string | null;
+    id: Generated<number>;
+    page_type: number;
+    photocard_ids: Generated<number[]>;
+    photocard_rotations: Generated<number[]>;
+    photocard_show_front: Generated<boolean[]>;
+    photocard_x_positions: Generated<number[]>;
+    photocard_y_positions: Generated<number[]>;
+    photocard_z_indices: Generated<number[]>;
 }
 
 export interface CardSizes {
-  height: number;
-  id: Generated<number>;
-  name: string;
-  width: number;
+    height: number;
+    id: Generated<number>;
+    name: string;
+    width: number;
 }
 
 export interface CardTypes {
-  id: Generated<number>;
-  name: string;
+    id: Generated<number>;
+    name: string;
 }
 
 export interface Collections {
-  collection_types: number[];
-  id: Generated<number>;
-  name: string;
-  release_date: Timestamp;
-  version: string | null;
-  version_order: number | null;
+    collection_types: number[];
+    id: Generated<number>;
+    name: string;
+    release_date: Timestamp;
+    version: string | null;
+    version_order: number | null;
 }
 
 export interface CollectionTypes {
-  id: Generated<number>;
-  name: string;
+    id: Generated<number>;
+    name: string;
 }
 
 export interface Creations {
-  collection_id: number | null;
-  contributor_id: string;
-  created_at: Generated<Timestamp>;
-  height: number;
-  id: Generated<number>;
-  image_id: string;
-  name: string;
-  type: number;
-  width: number;
+    collection_id: number | null;
+    contributor_id: string;
+    created_at: Generated<Timestamp>;
+    height: number;
+    id: Generated<number>;
+    image_id: string;
+    name: string;
+    type: number;
+    width: number;
 }
 
 export interface Photocards {
-  admin_temporary: Generated<boolean>;
-  back_image_id: string | null;
-  back_image_type: Generated<number>;
-  card_type: number;
-  collection_id: number;
-  effects: Generated<number>;
-  exclusive_country: number;
-  id: Generated<number>;
-  image_contributor_id: string;
-  image_id: string | null;
-  members: number[];
-  mod_temporary: Generated<boolean>;
-  size_id: number;
-  updated_at: Generated<Timestamp>;
+    admin_temporary: Generated<boolean>;
+    back_image_id: string | null;
+    back_image_type: Generated<number>;
+    card_type: number;
+    collection_id: number;
+    effects: Generated<number>;
+    exclusive_country: number;
+    id: Generated<number>;
+    image_contributor_id: string;
+    image_id: string | null;
+    members: number[];
+    mod_temporary: Generated<boolean>;
+    size_id: number;
+    updated_at: Generated<Timestamp>;
 }
 
 export interface Reports {
-  created_at: Generated<Timestamp>;
-  description: string;
-  id: Generated<number>;
-  image_id: string | null;
-  title: string;
-  url: string;
-  user_agent: string | null;
-  user_email: string | null;
-  user_id: string | null;
+    created_at: Generated<Timestamp>;
+    description: string;
+    id: Generated<number>;
+    image_id: string | null;
+    title: string;
+    url: string;
+    user_agent: string | null;
+    user_email: string | null;
+    user_id: string | null;
 }
 
 export interface Session {
-  createdAt: Generated<Timestamp>;
-  expiresAt: Timestamp;
-  id: string;
-  ipAddress: string | null;
-  token: string;
-  updatedAt: Timestamp;
-  userAgent: string | null;
-  userId: string;
+    createdAt: Generated<Timestamp>;
+    expiresAt: Timestamp;
+    id: string;
+    ipAddress: string | null;
+    token: string;
+    updatedAt: Timestamp;
+    userAgent: string | null;
+    userId: string;
 }
 
 export interface User {
-  createdAt: Generated<Timestamp>;
-  email: string;
-  emailVerified: boolean;
-  id: string;
-  image: string | null;
-  name: string;
-  role: Generated<number>;
-  updatedAt: Generated<Timestamp>;
+    createdAt: Generated<Timestamp>;
+    email: string;
+    emailVerified: boolean;
+    id: string;
+    image: string | null;
+    name: string;
+    role: Generated<number>;
+    updatedAt: Generated<Timestamp>;
 }
 
 export interface UserBinders {
-  binder_pages: number[] | null;
-  cover_id: string | null;
-  created_at: Generated<Timestamp>;
-  description: string | null;
-  id: Generated<number>;
-  name: string;
-  updated_at: Generated<Timestamp>;
-  user_id: string;
+    binder_pages: number[] | null;
+    cover_id: string | null;
+    created_at: Generated<Timestamp>;
+    description: string | null;
+    id: Generated<number>;
+    name: string;
+    updated_at: Generated<Timestamp>;
+    user_id: string;
 }
 
 export interface UserData {
-  army_since: number | null;
-  bcd_id: string | null;
-  bias: number | null;
-  binders: Generated<string[]>;
-  bluesky_id: string | null;
-  contributions: Generated<number>;
-  description: string | null;
-  discord_id: string | null;
-  friends: Generated<string[]>;
-  image_id: string | null;
-  instagram_id: string | null;
-  profile_photocard_id: number | null;
-  saved_creations_count: Generated<number>;
-  saved_photocards_count: Generated<number>;
-  spotify_playlist: string | null;
-  twitter_id: string | null;
-  user_id: string;
-  username: string;
-  wishlist_count: Generated<number>;
+    army_since: number | null;
+    bcd_id: string | null;
+    bias: number | null;
+    binders: Generated<string[]>;
+    bluesky_id: string | null;
+    contributions: Generated<number>;
+    description: string | null;
+    discord_id: string | null;
+    friends: Generated<string[]>;
+    image_id: string | null;
+    instagram_id: string | null;
+    profile_photocard_id: number | null;
+    saved_creations_count: Generated<number>;
+    saved_photocards_count: Generated<number>;
+    spotify_playlist: string | null;
+    twitter_id: string | null;
+    user_id: string;
+    username: string;
+    wishlist_count: Generated<number>;
 }
 
 export interface UserPhotocards {
-  photocard_id: number;
-  saved_at: Generated<Timestamp>;
-  user_id: string;
+    photocard_id: number;
+    saved_at: Generated<Timestamp>;
+    user_id: string;
 }
 
 export interface UserSavedCreations {
-  creation_id: number;
-  saved_at: Generated<Timestamp>;
-  user_id: string;
+    creation_id: number;
+    saved_at: Generated<Timestamp>;
+    user_id: string;
 }
 
 export interface UserWishlists {
-  photocard_id: number;
-  saved_at: Generated<Timestamp>;
-  user_id: string;
+    photocard_id: number;
+    saved_at: Generated<Timestamp>;
+    user_id: string;
 }
 
 export interface Verification {
-  createdAt: Generated<Timestamp>;
-  expiresAt: Timestamp;
-  id: string;
-  identifier: string;
-  updatedAt: Generated<Timestamp>;
-  value: string;
+    createdAt: Generated<Timestamp>;
+    expiresAt: Timestamp;
+    id: string;
+    identifier: string;
+    updatedAt: Generated<Timestamp>;
+    value: string;
 }
 
 export interface ViewDbStats {
-  num_binders: number | null;
-  num_creations: number | null;
-  num_photocards: number | null;
-  num_photocards_without_images: number | null;
-  num_users: number | null;
+    num_binders: number | null;
+    num_creations: number | null;
+    num_photocards: number | null;
+    num_photocards_without_images: number | null;
+    num_users: number | null;
 }
 
 export interface ViewMostContributions {
-  image_contributor_id: string | null;
-  num_contributions: Int8 | null;
+    image_contributor_id: string | null;
+    num_contributions: Int8 | null;
 }
 
 export interface ViewMostOwnedPhotocards {
-  num_owners: Int8 | null;
-  photocard_id: number | null;
+    num_owners: Int8 | null;
+    photocard_id: number | null;
 }
 
 export interface ViewMostSavedCreations {
-  creation_id: number | null;
-  num_saved: Int8 | null;
+    creation_id: number | null;
+    num_saved: Int8 | null;
 }
 
 export interface ViewMostWishlistedPhotocards {
-  num_wishlisted: Int8 | null;
-  photocard_id: number | null;
+    num_wishlisted: Int8 | null;
+    photocard_id: number | null;
 }
 
 export interface DB {
-  account: Account;
-  binder_pages: BinderPages;
-  card_sizes: CardSizes;
-  card_types: CardTypes;
-  collection_types: CollectionTypes;
-  collections: Collections;
-  creations: Creations;
-  photocards: Photocards;
-  reports: Reports;
-  session: Session;
-  user: User;
-  user_binders: UserBinders;
-  user_data: UserData;
-  user_photocards: UserPhotocards;
-  user_saved_creations: UserSavedCreations;
-  user_wishlists: UserWishlists;
-  verification: Verification;
-  view_db_stats: ViewDbStats;
-  view_most_contributions: ViewMostContributions;
-  view_most_owned_photocards: ViewMostOwnedPhotocards;
-  view_most_saved_creations: ViewMostSavedCreations;
-  view_most_wishlisted_photocards: ViewMostWishlistedPhotocards;
+    account: Account;
+    binder_pages: BinderPages;
+    card_sizes: CardSizes;
+    card_types: CardTypes;
+    collection_types: CollectionTypes;
+    collections: Collections;
+    creations: Creations;
+    photocards: Photocards;
+    reports: Reports;
+    session: Session;
+    user: User;
+    user_binders: UserBinders;
+    user_data: UserData;
+    user_photocards: UserPhotocards;
+    user_saved_creations: UserSavedCreations;
+    user_wishlists: UserWishlists;
+    verification: Verification;
+    view_db_stats: ViewDbStats;
+    view_most_contributions: ViewMostContributions;
+    view_most_owned_photocards: ViewMostOwnedPhotocards;
+    view_most_saved_creations: ViewMostSavedCreations;
+    view_most_wishlisted_photocards: ViewMostWishlistedPhotocards;
 }

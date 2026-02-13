@@ -5,8 +5,19 @@ import { CheckIcon, ChevronsUpDown } from "lucide-react";
 import * as React from "react";
 
 import { Button } from "@/components/ui/button";
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+    Command,
+    CommandEmpty,
+    CommandGroup,
+    CommandInput,
+    CommandItem,
+    CommandList,
+} from "@/components/ui/command";
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from "@/components/ui/popover";
 
 export default function MultiCombobox<E>({
     items,
@@ -27,7 +38,10 @@ export default function MultiCombobox<E>({
     const [inputValue, setInputValue] = React.useState<string>("");
 
     const filteredItems = React.useMemo(
-        () => items.filter(([itemName, itemEnum]) => itemName.toLowerCase().includes(inputValue.toLowerCase())),
+        () =>
+            items.filter(([itemName, itemEnum]) =>
+                itemName.toLowerCase().includes(inputValue.toLowerCase()),
+            ),
         [items, inputValue],
     );
 
@@ -47,16 +61,26 @@ export default function MultiCombobox<E>({
                             : selectedItems
                                   .map(
                                       (itemEnum) =>
-                                          items.find(([itemName, enumValue]) => enumValue === itemEnum)?.[0] || "",
+                                          items.find(
+                                              ([itemName, enumValue]) =>
+                                                  enumValue === itemEnum,
+                                          )?.[0] || "",
                                   )
                                   .join(", ")
                         : "Select..."}
                     <ChevronsUpDown className="text-muted-foreground" />
                 </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-(--radix-popover-trigger-width) p-0 border-0" align="start">
+            <PopoverContent
+                className="w-(--radix-popover-trigger-width) p-0 border-0"
+                align="start"
+            >
                 <Command className="**:data-[slot=command-input-wrapper]:h-11 bg-accent-light">
-                    <CommandInput placeholder="Search..." value={inputValue} onValueChange={setInputValue} />
+                    <CommandInput
+                        placeholder="Search..."
+                        value={inputValue}
+                        onValueChange={setInputValue}
+                    />
                     <CommandList className="p-1">
                         <CommandEmpty>No item found.</CommandEmpty>
                         <CommandGroup className="**:[[cmdk-group-items]]:flex **:[[cmdk-group-items]]:flex-col **:[[cmdk-group-items]]:gap-1">
@@ -65,24 +89,34 @@ export default function MultiCombobox<E>({
                                     key={itemName}
                                     value={itemName}
                                     onSelect={(currentValue) => {
-                                        const prevIndex = selectedItems.findIndex(
-                                            (selectedEnum) => selectedEnum === itemEnum,
-                                        );
+                                        const prevIndex =
+                                            selectedItems.findIndex(
+                                                (selectedEnum) =>
+                                                    selectedEnum === itemEnum,
+                                            );
                                         if (prevIndex >= 0) {
                                             // Deselect
-                                            const newSelected = [...selectedItems];
+                                            const newSelected = [
+                                                ...selectedItems,
+                                            ];
                                             newSelected.splice(prevIndex, 1);
                                             onSelect(newSelected); // Update parent state
                                         } else {
                                             // Select
-                                            onSelect([...selectedItems, itemEnum]);
+                                            onSelect([
+                                                ...selectedItems,
+                                                itemEnum,
+                                            ]);
                                         }
                                         setInputValue("");
                                     }}
                                 >
                                     <div
                                         className="border-border pointer-events-none size-5 shrink-0 rounded-base border-2 transition-all select-none *:[svg]:opacity-0 data-[selected=true]:*:[svg]:opacity-100"
-                                        data-selected={selectedItems.some((selectedEnum) => selectedEnum === itemEnum)}
+                                        data-selected={selectedItems.some(
+                                            (selectedEnum) =>
+                                                selectedEnum === itemEnum,
+                                        )}
                                     >
                                         <CheckIcon className="size-4 text-current" />
                                     </div>
@@ -94,7 +128,11 @@ export default function MultiCombobox<E>({
                             <CommandItem
                                 onSelect={() => {
                                     if (selectedItems.length < items.length) {
-                                        onSelect(items.map(([_, enumValue]) => enumValue));
+                                        onSelect(
+                                            items.map(
+                                                ([_, enumValue]) => enumValue,
+                                            ),
+                                        );
                                     } else {
                                         onSelect([]);
                                     }
@@ -102,7 +140,9 @@ export default function MultiCombobox<E>({
                             >
                                 <div
                                     className="border-border pointer-events-none size-5 shrink-0 rounded-base border-2 transition-all select-none *:[svg]:opacity-0 data-[selected=true]:*:[svg]:opacity-100"
-                                    data-selected={selectedItems.length === items.length}
+                                    data-selected={
+                                        selectedItems.length === items.length
+                                    }
                                 >
                                     <CheckIcon className="size-4 text-current" />
                                 </div>

@@ -1,8 +1,11 @@
 # BTS Flipthru
+
 See the [About Page](https://btsflipthru.com/about) for more information.
 
 ## Development
+
 We use the following technologies:
+
 - Next.js (Server)
 - Better-auth (Authentication)
 - Kysely (Database ORM)
@@ -14,11 +17,13 @@ We use the following technologies:
 - Caddy (HTTPS)
 
 ### Modifying the Schema
+
 1. Modify `schema.sql`
 2. Update postgres: `npm run load-local-db`
 3. Update types: `npm run kysely-codegen`
 
 ### Setting up the Server
+
 1. Set up firewalls with `ufw`, only allow SSH, HTTP, and HTTPS
 2. Install postgres: `sudo apt install postgres` and import old data.
 3. Install [pnpm](https://pnpm.io/installation#on-posix-systems), then use it to install Node.js
@@ -35,11 +40,13 @@ We use the following technologies:
 14. Add a cron job to refresh materialized views: `sudo crontab -e`
 
 ### Deploying
+
 1. Pull changes: `git pull`
 2. Update postgres if schema changed: `npm run load-local-db`
 3. Build: `npm run build`
 4. Restart the app: `npx pm2 restart all`
 
 ### Backing up the database
+
 1. Export the database: `pg_dump -a -U postgres -d postgres -h 127.0.0.1 -f exported.sql`
 2. Copy the file somewhere safe.

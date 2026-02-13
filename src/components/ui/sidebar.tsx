@@ -9,9 +9,20 @@ import * as React from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import {
+    Sheet,
+    SheetContent,
+    SheetDescription,
+    SheetHeader,
+    SheetTitle,
+} from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 import { cn } from "@/lib/utils";
 
@@ -80,13 +91,18 @@ function SidebarProvider({
 
     // Helper to toggle the sidebar.
     const toggleSidebar = React.useCallback(() => {
-        return isMobile ? setOpenMobile((open) => !open) : setOpen((open) => !open);
+        return isMobile
+            ? setOpenMobile((open) => !open)
+            : setOpen((open) => !open);
     }, [isMobile, setOpen, setOpenMobile]);
 
     // Adds a keyboard shortcut to toggle the sidebar.
     React.useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
-            if (event.key === SIDEBAR_KEYBOARD_SHORTCUT && (event.metaKey || event.ctrlKey)) {
+            if (
+                event.key === SIDEBAR_KEYBOARD_SHORTCUT &&
+                (event.metaKey || event.ctrlKey)
+            ) {
                 event.preventDefault();
                 toggleSidebar();
             }
@@ -110,7 +126,15 @@ function SidebarProvider({
             setOpenMobile,
             toggleSidebar,
         }),
-        [state, open, setOpen, isMobile, openMobile, setOpenMobile, toggleSidebar],
+        [
+            state,
+            open,
+            setOpen,
+            isMobile,
+            openMobile,
+            setOpenMobile,
+            toggleSidebar,
+        ],
     );
 
     return (
@@ -184,9 +208,13 @@ function Sidebar({
                 >
                     <SheetHeader className="sr-only">
                         <SheetTitle>Sidebar</SheetTitle>
-                        <SheetDescription>Displays the mobile sidebar.</SheetDescription>
+                        <SheetDescription>
+                            Displays the mobile sidebar.
+                        </SheetDescription>
                     </SheetHeader>
-                    <div className="flex h-full w-full flex-col">{children}</div>
+                    <div className="flex h-full w-full flex-col">
+                        {children}
+                    </div>
                 </SheetContent>
             </Sheet>
         );
@@ -240,7 +268,11 @@ function Sidebar({
     );
 }
 
-function SidebarTrigger({ className, onClick, ...props }: React.ComponentProps<typeof Button>) {
+function SidebarTrigger({
+    className,
+    onClick,
+    ...props
+}: React.ComponentProps<typeof Button>) {
     const { toggleSidebar } = useSidebar();
 
     return (
@@ -301,12 +333,18 @@ function SidebarInset({ className, ...props }: React.ComponentProps<"main">) {
     );
 }
 
-function SidebarInput({ className, ...props }: React.ComponentProps<typeof Input>) {
+function SidebarInput({
+    className,
+    ...props
+}: React.ComponentProps<typeof Input>) {
     return (
         <Input
             data-slot="sidebar-input"
             data-sidebar="input"
-            className={cn("bg-secondary-background h-8 w-full shadow-none", className)}
+            className={cn(
+                "bg-secondary-background h-8 w-full shadow-none",
+                className,
+            )}
             {...props}
         />
     );
@@ -317,7 +355,10 @@ function SidebarHeader({ className, ...props }: React.ComponentProps<"div">) {
         <div
             data-slot="sidebar-header"
             data-sidebar="header"
-            className={cn("flex flex-col gap-2 p-2 border-b-2 border-b-border", className)}
+            className={cn(
+                "flex flex-col gap-2 p-2 border-b-2 border-b-border",
+                className,
+            )}
             {...props}
         />
     );
@@ -328,7 +369,10 @@ function SidebarFooter({ className, ...props }: React.ComponentProps<"div">) {
         <div
             data-slot="sidebar-footer"
             data-sidebar="footer"
-            className={cn("flex flex-col gap-2 p-2 border-t-2 border-t-border", className)}
+            className={cn(
+                "flex flex-col gap-2 p-2 border-t-2 border-t-border",
+                className,
+            )}
             {...props}
         />
     );
@@ -406,7 +450,10 @@ function SidebarGroupAction({
     );
 }
 
-function SidebarGroupContent({ className, ...props }: React.ComponentProps<"div">) {
+function SidebarGroupContent({
+    className,
+    ...props
+}: React.ComponentProps<"div">) {
     return (
         <div
             data-slot="sidebar-group-content"
@@ -494,7 +541,12 @@ function SidebarMenuButton({
     return (
         <Tooltip>
             <TooltipTrigger asChild>{button}</TooltipTrigger>
-            <TooltipContent side="right" align="center" hidden={state !== "collapsed" || isMobile} {...tooltip} />
+            <TooltipContent
+                side="right"
+                align="center"
+                hidden={state !== "collapsed" || isMobile}
+                {...tooltip}
+            />
         </Tooltip>
     );
 }
@@ -529,7 +581,10 @@ function SidebarMenuAction({
     );
 }
 
-function SidebarMenuBadge({ className, ...props }: React.ComponentProps<"div">) {
+function SidebarMenuBadge({
+    className,
+    ...props
+}: React.ComponentProps<"div">) {
     return (
         <div
             data-slot="sidebar-menu-badge"
@@ -564,10 +619,18 @@ function SidebarMenuSkeleton({
         <div
             data-slot="sidebar-menu-skeleton"
             data-sidebar="menu-skeleton"
-            className={cn("flex h-8 items-center gap-2 rounded-base px-2", className)}
+            className={cn(
+                "flex h-8 items-center gap-2 rounded-base px-2",
+                className,
+            )}
             {...props}
         >
-            {showIcon && <Skeleton className="size-4 rounded-base" data-sidebar="menu-skeleton-icon" />}
+            {showIcon && (
+                <Skeleton
+                    className="size-4 rounded-base"
+                    data-sidebar="menu-skeleton-icon"
+                />
+            )}
             <Skeleton
                 className="h-4 max-w-(--skeleton-width) flex-1"
                 data-sidebar="menu-skeleton-text"
@@ -596,7 +659,10 @@ function SidebarMenuSub({ className, ...props }: React.ComponentProps<"ul">) {
     );
 }
 
-function SidebarMenuSubItem({ className, ...props }: React.ComponentProps<"li">) {
+function SidebarMenuSubItem({
+    className,
+    ...props
+}: React.ComponentProps<"li">) {
     return (
         <li
             data-slot="sidebar-menu-sub-item"

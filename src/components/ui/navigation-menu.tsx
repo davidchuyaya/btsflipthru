@@ -39,17 +39,26 @@ function NavigationMenu({
     );
 }
 
-function NavigationMenuList({ className, ...props }: React.ComponentProps<typeof NavigationMenuPrimitive.List>) {
+function NavigationMenuList({
+    className,
+    ...props
+}: React.ComponentProps<typeof NavigationMenuPrimitive.List>) {
     return (
         <NavigationMenuPrimitive.List
             data-slot="navigation-menu-list"
-            className={cn("group flex w-full list-none items-center font-heading justify-center space-x-1", className)}
+            className={cn(
+                "group flex w-full list-none items-center font-heading justify-center space-x-1",
+                className,
+            )}
             {...props}
         />
     );
 }
 
-function NavigationMenuItem({ className, ...props }: React.ComponentProps<typeof NavigationMenuPrimitive.Item>) {
+function NavigationMenuItem({
+    className,
+    ...props
+}: React.ComponentProps<typeof NavigationMenuPrimitive.Item>) {
     return (
         <NavigationMenuPrimitive.Item
             data-slot="navigation-menu-item"
@@ -83,7 +92,10 @@ function NavigationMenuTrigger({
     );
 }
 
-function NavigationMenuContent({ className, ...props }: React.ComponentProps<typeof NavigationMenuPrimitive.Content>) {
+function NavigationMenuContent({
+    className,
+    ...props
+}: React.ComponentProps<typeof NavigationMenuPrimitive.Content>) {
     return (
         <NavigationMenuPrimitive.Content
             data-slot="navigation-menu-content"
@@ -97,7 +109,10 @@ function NavigationMenuContent({ className, ...props }: React.ComponentProps<typ
     );
 }
 
-function NavigationMenuLink({ className, ...props }: React.ComponentProps<typeof NavigationMenuPrimitive.Link>) {
+function NavigationMenuLink({
+    className,
+    ...props
+}: React.ComponentProps<typeof NavigationMenuPrimitive.Link>) {
     return (
         <NavigationMenuPrimitive.Link
             data-slot="navigation-menu-link"
@@ -115,7 +130,11 @@ function NavigationMenuViewport({
     ...props
 }: React.ComponentProps<typeof NavigationMenuPrimitive.Viewport>) {
     return (
-        <div className={cn("absolute top-full left-0 isolate z-50 flex justify-center")}>
+        <div
+            className={cn(
+                "absolute top-full left-0 isolate z-50 flex justify-center",
+            )}
+        >
             <NavigationMenuPrimitive.Viewport
                 data-slot="navigation-menu-viewport"
                 className={cn(
@@ -146,7 +165,12 @@ function NavigationMenuIndicator({
     );
 }
 
-type NavItem = { title: string; href: string; middle: boolean; onClick?: never };
+type NavItem = {
+    title: string;
+    href: string;
+    middle: boolean;
+    onClick?: never;
+};
 
 const navItems: NavItem[] = [
     { title: "About", href: "/about", middle: false },
@@ -172,12 +196,19 @@ function MenuItemComponent({
             <NavigationMenuLink asChild>
                 {href ? (
                     <Button variant="textShadow" asChild>
-                        <Link href={href} className={navigationMenuTriggerStyle()}>
+                        <Link
+                            href={href}
+                            className={navigationMenuTriggerStyle()}
+                        >
                             {title}
                         </Link>
                     </Button>
                 ) : (
-                    <Button variant="textShadow" onClick={onClick} className={navigationMenuTriggerStyle()}>
+                    <Button
+                        variant="textShadow"
+                        onClick={onClick}
+                        className={navigationMenuTriggerStyle()}
+                    >
                         {title}
                     </Button>
                 )}
@@ -201,7 +232,8 @@ export default function NavigationComponent() {
                         className="size-20 lg:size-50"
                     />
                     <p className="text-3xl lg:text-5xl! font-heading text-main-light px-4 lg:px-8">
-                        For <span className="text-main">BTS</span> Photocard Collectors
+                        For <span className="text-main">BTS</span> Photocard
+                        Collectors
                     </p>
                 </Link>
                 <SocialButtonsComponent className="max-lg:hidden" />
@@ -209,7 +241,12 @@ export default function NavigationComponent() {
             <NavigationMenu className="z-5 w-svw max-w-svw">
                 <NavigationMenuList className="flex-wrap">
                     {navItems.map((item, index) => (
-                        <MenuItemComponent key={index} title={item.title} href={item.href} middle={item.middle} />
+                        <MenuItemComponent
+                            key={index}
+                            title={item.title}
+                            href={item.href}
+                            middle={item.middle}
+                        />
                     ))}
                     {session === null ? (
                         <MenuItemComponent
@@ -218,7 +255,11 @@ export default function NavigationComponent() {
                             middle={false}
                         />
                     ) : (
-                        <MenuItemComponent title="Profile" href={`/profile/${session.user.id}`} middle={false} />
+                        <MenuItemComponent
+                            title="Profile"
+                            href={`/profile/${session.user.id}`}
+                            middle={false}
+                        />
                     )}
                 </NavigationMenuList>
             </NavigationMenu>

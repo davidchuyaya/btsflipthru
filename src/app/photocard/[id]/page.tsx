@@ -9,13 +9,21 @@ import {
 } from "@/actions";
 import PhotocardClient from "./photocard-client";
 import { notFound } from "next/navigation";
-import { collectionDisplayName, memberIntsToName, thumbnailUrl } from "@/constants";
+import {
+    collectionDisplayName,
+    memberIntsToName,
+    thumbnailUrl,
+} from "@/constants";
 import { Metadata } from "next";
 
 const getPhotocard = cache(getPhotocardFromDB);
 const getCollections = cache(getCollectionsFromDB);
 
-async function PhotocardContent({ idPromise }: { idPromise: Promise<{ id: string }> }) {
+async function PhotocardContent({
+    idPromise,
+}: {
+    idPromise: Promise<{ id: string }>;
+}) {
     const { id: idStr } = await idPromise;
     const id = Number(idStr);
     if (isNaN(id)) {
@@ -28,7 +36,13 @@ async function PhotocardContent({ idPromise }: { idPromise: Promise<{ id: string
     }
     const photocard = photocardResult.data!;
 
-    const [relatedResult, collectionsResult, cardTypesResult, cardSizesResult, contributorResult] = await Promise.all([
+    const [
+        relatedResult,
+        collectionsResult,
+        cardTypesResult,
+        cardSizesResult,
+        contributorResult,
+    ] = await Promise.all([
         getPhotocardsInCollection(photocard.collection_id),
         getCollections(),
         getCardTypesFromDB(),
@@ -36,33 +50,60 @@ async function PhotocardContent({ idPromise }: { idPromise: Promise<{ id: string
         getUserDataFromDB(photocard.image_contributor_id),
     ]);
 
-    if (contributorResult.error || collectionsResult.error || cardTypesResult.error || cardSizesResult.error) {
+    if (
+        contributorResult.error ||
+        collectionsResult.error ||
+        cardTypesResult.error ||
+        cardSizesResult.error
+    ) {
         notFound();
     }
 
-    const relatedPhotocards = (relatedResult.data || []).filter((pc) => pc.id !== id);
+    const relatedPhotocards = (relatedResult.data || []).filter(
+        (pc) => pc.id !== id,
+    );
 
     return (
         <PhotocardClient
             photocard={photocard}
-            collection={collectionsResult.data!.find((c) => c.id === photocard.collection_id)!}
-            cardType={cardTypesResult.data!.find((c) => c.id === photocard.card_type)!}
-            cardSize={cardSizesResult.data!.find((c) => c.id === photocard.size_id)!}
+            collection={
+                collectionsResult.data!.find(
+                    (c) => c.id === photocard.collection_id,
+                )!
+            }
+            cardType={
+                cardTypesResult.data!.find((c) => c.id === photocard.card_type)!
+            }
+            cardSize={
+                cardSizesResult.data!.find((c) => c.id === photocard.size_id)!
+            }
             imageContributor={contributorResult.data!}
             relatedPhotocards={relatedPhotocards}
         />
     );
 }
 
-export default function PhotocardPage({ params }: { params: Promise<{ id: string }> }) {
+export default function PhotocardPage({
+    params,
+}: {
+    params: Promise<{ id: string }>;
+}) {
     return (
-        <Suspense fallback={<div className="flex justify-center p-12">Loading...</div>}>
+        <Suspense
+            fallback={
+                <div className="flex justify-center p-12">Loading...</div>
+            }
+        >
             <PhotocardContent idPromise={params} />
         </Suspense>
     );
 }
 
-export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+export async function generateMetadata({
+    params,
+}: {
+    params: Promise<{ id: string }>;
+}): Promise<Metadata> {
     const { id } = await params;
     const photocardResult = await getPhotocard(Number(id));
     const description = "Find other BTS photocards at BTS Flipthru.";
@@ -73,7 +114,9 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
         };
     }
     const collectionsResult = await getCollections();
-    const collection = collectionsResult.data?.find((c) => c.id === photocardResult.data!.collection_id);
+    const collection = collectionsResult.data?.find(
+        (c) => c.id === photocardResult.data!.collection_id,
+    );
     const title = `${memberIntsToName(photocardResult.data.members)} - ${collectionDisplayName(collection)} | BTS Flipthru`;
     const image = photocardResult.data.image_id
         ? thumbnailUrl(photocardResult.data.image_id)

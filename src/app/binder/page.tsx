@@ -7,9 +7,17 @@ async function BinderContent({ params }: { params: Promise<{ id: string }> }) {
     return <BinderClient />;
 }
 
-export default function BinderPage({ params }: { params: Promise<{ id: string }> }) {
+export default function BinderPage({
+    params,
+}: {
+    params: Promise<{ id: string }>;
+}) {
     return (
-        <Suspense fallback={<div className="flex justify-center p-12">Loading...</div>}>
+        <Suspense
+            fallback={
+                <div className="flex justify-center p-12">Loading...</div>
+            }
+        >
             <BinderContent params={params} />
         </Suspense>
     );

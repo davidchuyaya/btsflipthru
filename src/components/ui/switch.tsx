@@ -7,7 +7,9 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 import { Label } from "./label";
 
-interface SwitchProps extends React.ComponentProps<typeof SwitchPrimitive.Root> {
+interface SwitchProps extends React.ComponentProps<
+    typeof SwitchPrimitive.Root
+> {
     text?: React.ReactNode;
 }
 
