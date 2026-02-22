@@ -455,6 +455,8 @@ export default function BinderClient() {
     const [activePhotocard, setActivePhotocard] =
         useState<Selectable<Photocards> | null>(null);
     const [activePhotocardRotation, setActivePhotocardRotation] = useState(0);
+    const [activePhotocardShowFront, setActivePhotocardShowFront] =
+        useState(true);
     // Source slot when dragging from a slot (null when dragging from search panel)
     const [dragSourceSlot, setDragSourceSlot] = useState<{
         slotId: string;
@@ -540,6 +542,7 @@ export default function BinderClient() {
                 `pages.${data.sourcePageNum}.slots.${data.sourceSlotId}`,
             );
             setActivePhotocardRotation(sourceSlotData?.rotation ?? 0);
+            setActivePhotocardShowFront(sourceSlotData?.showFront ?? true);
             setDragSourceSlot({
                 slotId: data.sourceSlotId,
                 pageNum: data.sourcePageNum,
@@ -557,6 +560,7 @@ export default function BinderClient() {
         } else {
             setDragSourceSlot(null);
             setActivePhotocardRotation(0);
+            setActivePhotocardShowFront(true);
         }
     }
 
@@ -615,6 +619,7 @@ export default function BinderClient() {
         if (!event.over) {
             setActivePhotocard(null);
             setActivePhotocardRotation(0);
+            setActivePhotocardShowFront(true);
             setDragSourceSlot(null);
             return;
         }
@@ -647,7 +652,7 @@ export default function BinderClient() {
         form.setValue(`pages.${overPageNum}.slots.${overSlotId}`, {
             photocard: activePhotocard!,
             snap: sourceSnap,
-            showFront: true,
+            showFront: source?.showFront ?? true,
             rotation: sourceRotation,
             width,
             height,
@@ -675,6 +680,7 @@ export default function BinderClient() {
         setNeedsSaving(true);
         setActivePhotocard(null);
         setActivePhotocardRotation(0);
+        setActivePhotocardShowFront(true);
         setDragSourceSlot(null);
     }
 
@@ -1000,7 +1006,7 @@ export default function BinderClient() {
                 {activePhotocard && activeCardSize ? (
                     <PhotocardWithSize
                         photocard={activePhotocard}
-                        showFront={true}
+                        showFront={activePhotocardShowFront}
                         width={activeCardSize.width * scale}
                         height={activeCardSize.height * scale}
                         style={{
