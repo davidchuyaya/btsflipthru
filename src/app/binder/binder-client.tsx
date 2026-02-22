@@ -158,7 +158,7 @@ function BinderPageComponent({
                     const dotPctX = (BINDER_PERFORATION_DOT_SIZE / w) * 100;
                     const dotPctY = (BINDER_PERFORATION_DOT_SIZE / h) * 100;
                     const isLastCol = cIndex === colWidths.length - 1;
-                    const key = `${rIndex}-${cIndex}`;
+                    const key = `${index}-${rIndex}-${cIndex}`;
                     return (
                         <BinderSlot
                             key={key}
@@ -222,55 +222,51 @@ function BinderSlot({
         // It seems like even though binder perforations are only 2px, the gradient extends 1px on each side
         data: {
             slotId: id,
+            pageNum,
             width: logicalWidth,
             height: logicalHeight,
         },
     });
+    const slotValue = useWatch({ control, name: `pages.${pageNum}.slots.${id}` });
     // Left border for every cell
     // Right border only for the last column
     // Bottom border for every cell
     return (
-        <Controller
-            name={`pages.${pageNum}.slots.${id}`}
-            control={control}
-            render={({ field }) => (
-                <div
-                    ref={setNodeRef}
-                    onClick={() => {
-                        if (field.value && !flipped) {
-                            onSelectSlot(id, logicalWidth, logicalHeight);
-                        }
-                    }}
-                    className={`${isOver && !flipped ? "bg-white/50" : ""} relative`}
+        <div
+            ref={setNodeRef}
+            onClick={() => {
+                if (slotValue && !flipped) {
+                    onSelectSlot(id, logicalWidth, logicalHeight);
+                }
+            }}
+            className={`${isOver && !flipped ? "bg-white/50" : ""} relative`}
+            style={{
+                backgroundImage: `${gradient}, ${gradient} ${isLastCol ? ", " + gradient : ""}`,
+                backgroundPosition: `left bottom, left top ${isLastCol ? ", right top" : ""}`,
+                backgroundSize: `${dotPctX}% ${dotPctY}%, ${dotPctX}% ${dotPctY}% ${isLastCol ? `, ${dotPctX}% ${dotPctY}%` : ""}`,
+                backgroundRepeat: `repeat-x, repeat-y ${isLastCol ? ", repeat-y" : ""}`,
+            }}
+        >
+            {slotValue && (
+                <DraggableSlotContent
+                    photocard={slotValue.photocard}
+                    slotId={id}
+                    pageNum={pageNum}
+                    showFront={slotValue.showFront !== flipped}
+                    width={slotValue.width}
+                    height={slotValue.height}
+                    disabled={flipped}
+                    className={flipped ? "flip-horizontal!" : ""}
                     style={{
-                        backgroundImage: `${gradient}, ${gradient} ${isLastCol ? ", " + gradient : ""}`,
-                        backgroundPosition: `left bottom, left top ${isLastCol ? ", right top" : ""}`,
-                        backgroundSize: `${dotPctX}% ${dotPctY}%, ${dotPctX}% ${dotPctY}% ${isLastCol ? `, ${dotPctX}% ${dotPctY}%` : ""}`,
-                        backgroundRepeat: `repeat-x, repeat-y ${isLastCol ? ", repeat-y" : ""}`,
+                        position: "absolute",
+                        bottom: `calc(${slotValue.y}px + ${dotPctY}%)`,
+                        left: `calc(${slotValue.x}px + ${dotPctX}%)`,
+                        opacity: isSelected ? 1 : 0.6,
+                        transform: `rotate(${slotValue.rotation}deg)`,
                     }}
-                >
-                    {field.value && (
-                        <DraggableSlotContent
-                            photocard={field.value.photocard}
-                            slotId={id}
-                            pageNum={pageNum}
-                            showFront={field.value.showFront !== flipped}
-                            width={field.value.width}
-                            height={field.value.height}
-                            disabled={flipped}
-                            className={flipped ? "flip-horizontal!" : ""}
-                            style={{
-                                position: "absolute",
-                                bottom: `calc(${field.value.y}px + ${dotPctY}%)`,
-                                left: `calc(${field.value.x}px + ${dotPctX}%)`,
-                                opacity: isSelected ? 1 : 0.6,
-                                transform: `rotate(${field.value.rotation}deg)`,
-                            }}
-                        />
-                    )}
-                </div>
+                />
             )}
-        />
+        </div>
     );
 }
 
@@ -354,7 +350,7 @@ function SearchComponent({
         fetchPhotocards();
     }, [setError]);
 
-    function onSearch() { }
+    function onSearch() {}
 
     return (
         <div className="rounded-2xl bg-third-lighter p-4 flex flex-col items-center gap-4 w-[75%]">
@@ -521,7 +517,10 @@ export default function BinderClient() {
             setActivePhotocard(data.photocard);
         }
         if (data?.sourceSlotId !== undefined) {
-            setDragSourceSlot({ slotId: data.sourceSlotId, pageNum: data.sourcePageNum });
+            setDragSourceSlot({
+                slotId: data.sourceSlotId,
+                pageNum: data.sourcePageNum,
+            });
         } else {
             setDragSourceSlot(null);
         }
@@ -598,7 +597,10 @@ export default function BinderClient() {
             0, // Rotation is 0 on drop
         );
 
-        form.setValue(`pages.${currentPage}.slots.${event.over.data.current!.slotId}`, {
+        const overSlotId = String(event.over.data.current!.slotId);
+        const overPageNum = Number(event.over.data.current!.pageNum);
+
+        form.setValue(`pages.${overPageNum}.slots.${overSlotId}`, {
             photocard: activePhotocard!,
             snap: snapToGrid,
             showFront: true,
@@ -611,10 +613,13 @@ export default function BinderClient() {
         });
 
         // Clear source slot if this was a slot-to-slot drag to a different slot
-        if (dragSourceSlot && String(event.over.data.current!.slotId) !== dragSourceSlot.slotId) {
-            form.setValue(
+        if (
+            dragSourceSlot &&
+            (overSlotId !== dragSourceSlot.slotId ||
+                overPageNum !== dragSourceSlot.pageNum)
+        ) {
+            form.unregister(
                 `pages.${dragSourceSlot.pageNum}.slots.${dragSourceSlot.slotId}`,
-                undefined,
             );
         }
 
@@ -623,9 +628,9 @@ export default function BinderClient() {
         setDragSourceSlot(null);
     }
 
-    function onPreview() { }
+    function onPreview() {}
 
-    function onShare() { }
+    function onShare() {}
 
     async function onSubmit(data: z.infer<typeof formSchema>) {
         console.log("Submitting:", data);
@@ -855,7 +860,7 @@ export default function BinderClient() {
                                     type="button"
                                     className="px-3"
                                     onClick={() => setPage(pages.length)}
-                                    disabled={currentPage === pages.length - 1}
+                                    disabled={currentPage === pages.length}
                                 >
                                     <ChevronsRightIcon />
                                 </Button>
