@@ -281,12 +281,14 @@ export function PhotocardWithSize({
     width,
     height,
     style,
+    className,
 }: {
     photocard: Selectable<Photocards>;
     showFront: boolean;
     width?: number;
     height?: number;
     style?: React.CSSProperties;
+    className?: string;
 }) {
     return (
         <div
@@ -295,6 +297,7 @@ export function PhotocardWithSize({
                 height,
                 ...style,
             }}
+            className={className}
         >
             <PhotocardComponent
                 src={

@@ -144,7 +144,7 @@ function BinderPageComponent({
 
     return (
         <div
-            className={`relative bg-white/50 border border-black/10 ${flipped ? "ml-auto" : ""} grid`}
+            className={`relative bg-white/50 border border-black/10 ${flipped ? "ml-auto flip-horizontal" : ""} grid`}
             style={{
                 width: `${widthPercent}%`,
                 aspectRatio: `${width}/${height}`,
@@ -162,7 +162,7 @@ function BinderPageComponent({
                         <BinderSlot
                             key={key}
                             id={key}
-                            currentPage={index}
+                            pageNum={index}
                             width={w}
                             height={h}
                             gradient={gradient}
@@ -171,6 +171,7 @@ function BinderPageComponent({
                             dotPctY={dotPctY}
                             onSelectSlot={onSelectSlot}
                             isSelected={selectedSlotId === key}
+                            flipped={flipped}
                         />
                     );
                 }),
@@ -187,9 +188,10 @@ function BinderSlot({
     width,
     height,
     id,
-    currentPage,
+    pageNum,
     onSelectSlot,
     isSelected,
+    flipped,
 }: {
     gradient: string;
     isLastCol: boolean;
@@ -198,9 +200,10 @@ function BinderSlot({
     dotPctX: number;
     dotPctY: number;
     id: string;
-    currentPage: number;
+    pageNum: number;
     onSelectSlot: (id: string, width: number, height: number) => void;
     isSelected: boolean;
+    flipped: boolean;
 }) {
     const { control } = useFormContext();
     const logicalWidth =
@@ -225,7 +228,7 @@ function BinderSlot({
     // Bottom border for every cell
     return (
         <Controller
-            name={`pages.${currentPage}.slots.${id}`}
+            name={`pages.${pageNum}.slots.${id}`}
             control={control}
             render={({ field }) => (
                 <div
@@ -235,7 +238,7 @@ function BinderSlot({
                             onSelectSlot(id, logicalWidth, logicalHeight);
                         }
                     }}
-                    className={`${isOver ? "bg-white/50" : ""} relative`}
+                    className={`${isOver && !flipped ? "bg-white/50" : ""} relative`}
                     style={{
                         backgroundImage: `${gradient}, ${gradient} ${isLastCol ? ", " + gradient : ""}`,
                         backgroundPosition: `left bottom, left top ${isLastCol ? ", right top" : ""}`,
@@ -246,9 +249,10 @@ function BinderSlot({
                     {field.value && (
                         <PhotocardWithSize
                             photocard={field.value.photocard}
-                            showFront={field.value.showFront}
+                            showFront={field.value.showFront !== flipped}
                             width={field.value.width}
                             height={field.value.height}
+                            className={flipped ? "flip-horizontal!" : ""}
                             style={{
                                 position: "absolute",
                                 bottom: `calc(${field.value.y}px + ${dotPctY}%)`,
@@ -406,7 +410,9 @@ export default function BinderClient() {
     });
 
     // Pages
-    const [pageType, setPageType] = useState<BinderPage>(BinderPage.Standard9PP);
+    const [pageType, setPageType] = useState<BinderPage>(
+        BinderPage.Standard9PP,
+    );
     const {
         fields: pages,
         insert: insertPage,
@@ -547,16 +553,23 @@ export default function BinderClient() {
     }
 
     function addPage() {
-        insertPage(currentPage, {
+        insertPage(currentPage + 1, {
             pageType: pageType,
             slots: {},
         });
-        setCurrentPage(currentPage + 1);
+        setNeedsSaving(true);
+        if (currentPage < pages.length) {
+            setPage(currentPage + 1);
+        } else {
+            setPage(currentPage);
+        }
     }
 
     function setPage(page: number) {
+        console.log("Setting page to", page);
         setCurrentPage(page);
         setSelectedSlot(null);
+        setActivePhotocard(null);
     }
 
     function onSelectSlot(id: string, width: number, height: number) {

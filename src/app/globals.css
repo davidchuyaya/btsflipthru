@@ -199,6 +199,10 @@ input[type="file"]::file-selector-button {
     transform: scaleX(-1);
 }
 
+.flip-horizontal\! {
+    transform: scaleX(-1) !important;
+}
+
 .loading {
     cursor: wait;
 }
