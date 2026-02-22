@@ -227,7 +227,10 @@ function BinderSlot({
             height: logicalHeight,
         },
     });
-    const slotValue = useWatch({ control, name: `pages.${pageNum}.slots.${id}` });
+    const slotValue = useWatch({
+        control,
+        name: `pages.${pageNum}.slots.${id}`,
+    });
     // Left border for every cell
     // Right border only for the last column
     // Bottom border for every cell
@@ -255,6 +258,8 @@ function BinderSlot({
                     showFront={slotValue.showFront !== flipped}
                     width={slotValue.width}
                     height={slotValue.height}
+                    slotWidth={logicalWidth}
+                    slotHeight={logicalHeight}
                     disabled={flipped}
                     className={flipped ? "flip-horizontal!" : ""}
                     style={{
@@ -277,6 +282,8 @@ function DraggableSlotContent({
     showFront,
     width,
     height,
+    slotWidth,
+    slotHeight,
     style,
     className,
     disabled,
@@ -287,6 +294,8 @@ function DraggableSlotContent({
     showFront: boolean;
     width: number;
     height: number;
+    slotWidth: number;
+    slotHeight: number;
     style?: React.CSSProperties;
     className?: string;
     disabled?: boolean;
@@ -294,8 +303,15 @@ function DraggableSlotContent({
     const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
         id: `slot-${slotId}`,
         disabled,
-        data: { photocard, sourceSlotId: slotId, sourcePageNum: pageNum },
+        data: {
+            photocard,
+            sourceSlotId: slotId,
+            sourcePageNum: pageNum,
+            sourceSlotWidth: slotWidth,
+            sourceSlotHeight: slotHeight,
+        },
     });
+    const { transform, ...containerStyle } = style ?? {};
 
     return (
         <div
@@ -303,17 +319,19 @@ function DraggableSlotContent({
             {...listeners}
             {...attributes}
             style={{
-                ...style,
-                opacity: isDragging ? 0 : style?.opacity,
+                ...containerStyle,
+                opacity: isDragging ? 0 : containerStyle.opacity,
             }}
         >
-            <PhotocardWithSize
-                photocard={photocard}
-                showFront={showFront}
-                width={width}
-                height={height}
-                className={className}
-            />
+            <div style={{ transform, transformOrigin: "center center" }}>
+                <PhotocardWithSize
+                    photocard={photocard}
+                    showFront={showFront}
+                    width={width}
+                    height={height}
+                    className={className}
+                />
+            </div>
         </div>
     );
 }
@@ -436,6 +454,7 @@ export default function BinderClient() {
     // The one being dragged & dropped
     const [activePhotocard, setActivePhotocard] =
         useState<Selectable<Photocards> | null>(null);
+    const [activePhotocardRotation, setActivePhotocardRotation] = useState(0);
     // Source slot when dragging from a slot (null when dragging from search panel)
     const [dragSourceSlot, setDragSourceSlot] = useState<{
         slotId: string;
@@ -517,12 +536,27 @@ export default function BinderClient() {
             setActivePhotocard(data.photocard);
         }
         if (data?.sourceSlotId !== undefined) {
+            const sourceSlotData = form.getValues(
+                `pages.${data.sourcePageNum}.slots.${data.sourceSlotId}`,
+            );
+            setActivePhotocardRotation(sourceSlotData?.rotation ?? 0);
             setDragSourceSlot({
                 slotId: data.sourceSlotId,
                 pageNum: data.sourcePageNum,
             });
+            if (
+                data.sourceSlotWidth !== undefined &&
+                data.sourceSlotHeight !== undefined
+            ) {
+                setSelectedSlot({
+                    id: data.sourceSlotId,
+                    width: data.sourceSlotWidth,
+                    height: data.sourceSlotHeight,
+                });
+            }
         } else {
             setDragSourceSlot(null);
+            setActivePhotocardRotation(0);
         }
     }
 
@@ -580,6 +614,7 @@ export default function BinderClient() {
     function onDragEnd(event: DragEndEvent) {
         if (!event.over) {
             setActivePhotocard(null);
+            setActivePhotocardRotation(0);
             setDragSourceSlot(null);
             return;
         }
@@ -587,29 +622,43 @@ export default function BinderClient() {
         const slotWidth = event.over.data.current!.width * scale;
         const width = activeCardSize!.width * scale;
         const height = activeCardSize!.height * scale;
+        const source = dragSourceSlot
+            ? form.getValues(
+                  `pages.${dragSourceSlot.pageNum}.slots.${dragSourceSlot.slotId}`,
+              )
+            : null;
+        const sourceSnap = source?.snap ?? snapToGrid;
+        const sourceRotation = source?.rotation ?? 0;
 
         const { x, y, z } = calculatePhotocardPosition(
-            snapToGrid,
+            sourceSnap,
             slotWidth,
             0, // slotHeight not needed for x calculation currently, but good to have in sig if y needed later
             width,
             height,
-            0, // Rotation is 0 on drop
+            sourceRotation, // Rotation is 0 on drop
         );
 
         const overSlotId = String(event.over.data.current!.slotId);
         const overPageNum = Number(event.over.data.current!.pageNum);
+        const overSlotWidth = Number(event.over.data.current!.width);
+        const overSlotHeight = Number(event.over.data.current!.height);
 
         form.setValue(`pages.${overPageNum}.slots.${overSlotId}`, {
             photocard: activePhotocard!,
-            snap: snapToGrid,
+            snap: sourceSnap,
             showFront: true,
-            rotation: 0,
+            rotation: sourceRotation,
             width,
             height,
             x,
             y,
             z,
+        });
+        setSelectedSlot({
+            id: overSlotId,
+            width: overSlotWidth,
+            height: overSlotHeight,
         });
 
         // Clear source slot if this was a slot-to-slot drag to a different slot
@@ -625,6 +674,7 @@ export default function BinderClient() {
 
         setNeedsSaving(true);
         setActivePhotocard(null);
+        setActivePhotocardRotation(0);
         setDragSourceSlot(null);
     }
 
@@ -658,6 +708,10 @@ export default function BinderClient() {
 
     function onSelectSlot(id: string, width: number, height: number) {
         setSelectedSlot({ id, width, height });
+        const slotData = form.getValues(`pages.${currentPage}.slots.${id}`);
+        if (slotData) {
+            setSnapToGrid(slotData.snap);
+        }
     }
 
     function alignSelectedSlot(snapToGrid: SnapToGrid) {
@@ -890,7 +944,7 @@ export default function BinderClient() {
                                     size="icon"
                                     type="button"
                                     variant="noShadow"
-                                    className="px-3"
+                                    className={`px-3 ${selectedSlot && snapToGrid === SnapToGrid.BottomLeft ? "!bg-white" : ""}`}
                                     onClick={() =>
                                         alignSelectedSlot(SnapToGrid.BottomLeft)
                                     }
@@ -902,7 +956,7 @@ export default function BinderClient() {
                                     size="icon"
                                     type="button"
                                     variant="noShadow"
-                                    className="px-3"
+                                    className={`px-3 ${selectedSlot && snapToGrid === SnapToGrid.Center ? "!bg-white" : ""}`}
                                     onClick={() =>
                                         alignSelectedSlot(SnapToGrid.Center)
                                     }
@@ -914,7 +968,7 @@ export default function BinderClient() {
                                     size="icon"
                                     type="button"
                                     variant="noShadow"
-                                    className="px-3"
+                                    className={`px-3 ${selectedSlot && snapToGrid === SnapToGrid.BottomRight ? "!bg-white" : ""}`}
                                     onClick={() =>
                                         alignSelectedSlot(
                                             SnapToGrid.BottomRight,
@@ -928,7 +982,7 @@ export default function BinderClient() {
                                     size="icon"
                                     type="button"
                                     variant="noShadow"
-                                    className="px-3"
+                                    className={`px-3 ${selectedSlot && snapToGrid === SnapToGrid.Manual ? "!bg-white" : ""}`}
                                     onClick={() =>
                                         alignSelectedSlot(SnapToGrid.Manual)
                                     }
@@ -949,6 +1003,9 @@ export default function BinderClient() {
                         showFront={true}
                         width={activeCardSize.width * scale}
                         height={activeCardSize.height * scale}
+                        style={{
+                            transform: `rotate(${activePhotocardRotation}deg)`,
+                        }}
                     />
                 ) : null}
             </DragOverlay>

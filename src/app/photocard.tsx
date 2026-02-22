@@ -318,12 +318,17 @@ export function PhotocardWithSize({
                     }}
                 />
             ) : (
-                <PlaceholderComponent
-                    type={PlaceholderType.BTS}
-                    borderRadius={0}
-                    aspectRatio={DEFAULT_ASPECT_RATIO}
-                    large={false}
-                />
+                <div className="bg-accent w-full h-full flex items-center justify-center overflow-hidden">
+                    <img
+                        src={PlaceholderType.BTS}
+                        alt="Placeholder photocard"
+                        style={{
+                            width: "50%",
+                            height: "50%",
+                            objectFit: "contain",
+                        }}
+                    />
+                </div>
             )}
         </div>
     );
