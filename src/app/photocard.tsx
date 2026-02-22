@@ -290,6 +290,14 @@ export function PhotocardWithSize({
     style?: React.CSSProperties;
     className?: string;
 }) {
+    const frontSrc = photocard.image_id
+        ? thumbnailUrl(photocard.image_id)
+        : null;
+    const backSrc = photocard.back_image_id
+        ? thumbnailUrl(photocard.back_image_id)
+        : null;
+    const src = showFront ? frontSrc : backSrc;
+
     return (
         <div
             style={{
@@ -299,29 +307,24 @@ export function PhotocardWithSize({
             }}
             className={className}
         >
-            <PhotocardComponent
-                src={
-                    showFront
-                        ? photocard.image_id
-                            ? thumbnailUrl(photocard.image_id)
-                            : null
-                        : photocard.back_image_id
-                          ? thumbnailUrl(photocard.back_image_id)
-                          : null
-                }
-                fallbackSrc={
-                    showFront
-                        ? photocard.back_image_id
-                            ? thumbnailUrl(photocard.back_image_id)
-                            : null
-                        : photocard.image_id
-                          ? thumbnailUrl(photocard.image_id)
-                          : null
-                }
-                effects={photocard.effects}
-                tiltFactor="0"
-                large={true}
-            />
+            {src ? (
+                <img
+                    src={src}
+                    alt="Photocard"
+                    style={{
+                        width: "100%",
+                        height: "100%",
+                        objectFit: "fill",
+                    }}
+                />
+            ) : (
+                <PlaceholderComponent
+                    type={PlaceholderType.BTS}
+                    borderRadius={0}
+                    aspectRatio={DEFAULT_ASPECT_RATIO}
+                    large={false}
+                />
+            )}
         </div>
     );
 }

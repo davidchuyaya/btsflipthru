@@ -51,6 +51,7 @@ import {
     DragEndEvent,
     DragOverlay,
     useDroppable,
+    useDraggable,
     DragStartEvent,
 } from "@dnd-kit/core";
 import { PhotocardWithSize } from "../photocard";
@@ -215,10 +216,12 @@ function BinderSlot({
     const logicalHeight = height - BINDER_PERFORATION_DOT_SIZE - 1;
 
     const { setNodeRef, isOver } = useDroppable({
-        id,
+        id: `${pageNum}-${id}`,
+        disabled: flipped,
         // To tell the DndContext what size this slot is, so it can calculate the photocard's position
         // It seems like even though binder perforations are only 2px, the gradient extends 1px on each side
         data: {
+            slotId: id,
             width: logicalWidth,
             height: logicalHeight,
         },
@@ -234,7 +237,7 @@ function BinderSlot({
                 <div
                     ref={setNodeRef}
                     onClick={() => {
-                        if (field.value) {
+                        if (field.value && !flipped) {
                             onSelectSlot(id, logicalWidth, logicalHeight);
                         }
                     }}
@@ -247,11 +250,14 @@ function BinderSlot({
                     }}
                 >
                     {field.value && (
-                        <PhotocardWithSize
+                        <DraggableSlotContent
                             photocard={field.value.photocard}
+                            slotId={id}
+                            pageNum={pageNum}
                             showFront={field.value.showFront !== flipped}
                             width={field.value.width}
                             height={field.value.height}
+                            disabled={flipped}
                             className={flipped ? "flip-horizontal!" : ""}
                             style={{
                                 position: "absolute",
@@ -265,6 +271,54 @@ function BinderSlot({
                 </div>
             )}
         />
+    );
+}
+
+function DraggableSlotContent({
+    photocard,
+    slotId,
+    pageNum,
+    showFront,
+    width,
+    height,
+    style,
+    className,
+    disabled,
+}: {
+    photocard: Selectable<Photocards>;
+    slotId: string;
+    pageNum: number;
+    showFront: boolean;
+    width: number;
+    height: number;
+    style?: React.CSSProperties;
+    className?: string;
+    disabled?: boolean;
+}) {
+    const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+        id: `slot-${slotId}`,
+        disabled,
+        data: { photocard, sourceSlotId: slotId, sourcePageNum: pageNum },
+    });
+
+    return (
+        <div
+            ref={setNodeRef}
+            {...listeners}
+            {...attributes}
+            style={{
+                ...style,
+                opacity: isDragging ? 0 : style?.opacity,
+            }}
+        >
+            <PhotocardWithSize
+                photocard={photocard}
+                showFront={showFront}
+                width={width}
+                height={height}
+                className={className}
+            />
+        </div>
     );
 }
 
@@ -386,6 +440,11 @@ export default function BinderClient() {
     // The one being dragged & dropped
     const [activePhotocard, setActivePhotocard] =
         useState<Selectable<Photocards> | null>(null);
+    // Source slot when dragging from a slot (null when dragging from search panel)
+    const [dragSourceSlot, setDragSourceSlot] = useState<{
+        slotId: string;
+        pageNum: number;
+    } | null>(null);
     // The one in the binder that is now selected
     const [selectedSlot, setSelectedSlot] = useState<{
         id: string;
@@ -457,8 +516,14 @@ export default function BinderClient() {
     }, [setError]);
 
     function onDragStart(event: DragStartEvent) {
-        if (event.active.data.current?.photocard) {
-            setActivePhotocard(event.active.data.current.photocard);
+        const data = event.active.data.current;
+        if (data?.photocard) {
+            setActivePhotocard(data.photocard);
+        }
+        if (data?.sourceSlotId !== undefined) {
+            setDragSourceSlot({ slotId: data.sourceSlotId, pageNum: data.sourcePageNum });
+        } else {
+            setDragSourceSlot(null);
         }
     }
 
@@ -514,7 +579,11 @@ export default function BinderClient() {
     }
 
     function onDragEnd(event: DragEndEvent) {
-        if (!event.over) return;
+        if (!event.over) {
+            setActivePhotocard(null);
+            setDragSourceSlot(null);
+            return;
+        }
 
         const slotWidth = event.over.data.current!.width * scale;
         const width = activeCardSize!.width * scale;
@@ -529,7 +598,7 @@ export default function BinderClient() {
             0, // Rotation is 0 on drop
         );
 
-        form.setValue(`pages.${currentPage}.slots.${event.over.id}`, {
+        form.setValue(`pages.${currentPage}.slots.${event.over.data.current!.slotId}`, {
             photocard: activePhotocard!,
             snap: snapToGrid,
             showFront: true,
@@ -540,8 +609,18 @@ export default function BinderClient() {
             y,
             z,
         });
+
+        // Clear source slot if this was a slot-to-slot drag to a different slot
+        if (dragSourceSlot && String(event.over.data.current!.slotId) !== dragSourceSlot.slotId) {
+            form.setValue(
+                `pages.${dragSourceSlot.pageNum}.slots.${dragSourceSlot.slotId}`,
+                undefined,
+            );
+        }
+
         setNeedsSaving(true);
         setActivePhotocard(null);
+        setDragSourceSlot(null);
     }
 
     function onPreview() { }
