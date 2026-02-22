@@ -1,5 +1,0 @@
-return {
-  plugins = {
-    "user.community",
-  },
-}

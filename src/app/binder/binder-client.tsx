@@ -37,6 +37,7 @@ import { useEffect, useRef, useState } from "react";
 import {
     Controller,
     FormProvider,
+    useFieldArray,
     useForm,
     useFormContext,
     useWatch,
@@ -52,7 +53,8 @@ import {
     useDroppable,
     DragStartEvent,
 } from "@dnd-kit/core";
-import { DraggablePhotocard, PhotocardWithSize } from "../photocard";
+import { PhotocardWithSize } from "../photocard";
+import Image from "next/image";
 
 function BinderCoverComponent({
     binderType,
@@ -111,22 +113,22 @@ function BinderPageComponent({
     selectedSlotId?: string;
 }) {
     const { control } = useFormContext<z.infer<typeof formSchema>>();
-    const pageType = useWatch({ control, name: `pages.${index}.pageType` });
+    const page = useWatch({ control, name: `pages.${index}` });
 
-    if (index < 0 || !pageType) {
+    if (index < 0 || !page) {
         return null;
     }
 
     const width =
-        pageType.xPerforations[pageType.xPerforations.length - 1] +
+        page.pageType.xPerforations[page.pageType.xPerforations.length - 1] +
         BINDER_PERFORATION_DOT_SIZE;
     const height =
-        pageType.yPerforations[pageType.yPerforations.length - 1] +
+        page.pageType.yPerforations[page.pageType.yPerforations.length - 1] +
         BINDER_PERFORATION_DOT_SIZE;
     const widthPercent = (width / binderType.coverWidth) * 100;
 
-    const xPerfs = [0, ...pageType.xPerforations];
-    const yPerfs = [0, ...pageType.yPerforations];
+    const xPerfs = [0, ...page.pageType.xPerforations];
+    const yPerfs = [0, ...page.pageType.yPerforations];
 
     const colWidths = xPerfs.slice(1).map((x, i) => {
         // Last column gets needs extra space to draw the rightmost perforations
@@ -292,9 +294,9 @@ function SearchComponent({
             setWishlistedPhotocards(wishlistedPhotocards.data!);
         };
         fetchPhotocards();
-    }, []);
+    }, [setError]);
 
-    function onSearch() {}
+    function onSearch() { }
 
     return (
         <div className="rounded-2xl bg-third-lighter p-4 flex flex-col items-center gap-4 w-[75%]">
@@ -387,7 +389,6 @@ export default function BinderClient() {
         height: number;
     } | null>(null);
     const [cardSizes, setCardSizes] = useState<Selectable<CardSizes>[]>([]);
-    const [numPages, setNumPages] = useState(1);
 
     const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
@@ -402,6 +403,17 @@ export default function BinderClient() {
                 },
             ],
         },
+    });
+
+    // Pages
+    const [pageType, setPageType] = useState<BinderPage>(BinderPage.Standard9PP);
+    const {
+        fields: pages,
+        insert: insertPage,
+        remove: removePage,
+    } = useFieldArray({
+        control: form.control,
+        name: "pages",
     });
 
     // Resize Observer State
@@ -436,7 +448,7 @@ export default function BinderClient() {
             setCardSizes(result.data!);
         };
         fetchCardSizes();
-    }, []);
+    }, [setError]);
 
     function onDragStart(event: DragStartEvent) {
         if (event.active.data.current?.photocard) {
@@ -526,12 +538,20 @@ export default function BinderClient() {
         setActivePhotocard(null);
     }
 
-    function onPreview() {}
+    function onPreview() { }
 
-    function onShare() {}
+    function onShare() { }
 
     async function onSubmit(data: z.infer<typeof formSchema>) {
         console.log("Submitting:", data);
+    }
+
+    function addPage() {
+        insertPage(currentPage, {
+            pageType: pageType,
+            slots: {},
+        });
+        setCurrentPage(currentPage + 1);
     }
 
     function setPage(page: number) {
@@ -660,7 +680,22 @@ export default function BinderClient() {
                             )}
                         />
                         <div className="flex flex-row gap-4 items-center">
-                            <div className="flex flex-col gap-4 p-4 bg-main rounded-xl"></div>
+                            <div className="flex flex-col gap-4 p-4 bg-main rounded-xl">
+                                <Button
+                                    size="icon"
+                                    type="button"
+                                    variant="noShadow"
+                                    onClick={addPage}
+                                >
+                                    <Image
+                                        src="flipthru_addpage.svg"
+                                        className="size-7"
+                                        width={0}
+                                        height={0}
+                                        alt="Add a binder page"
+                                    />
+                                </Button>
+                            </div>
                             <div className="flex flex-col gap-4">
                                 <Button
                                     size="icon"
@@ -719,7 +754,7 @@ export default function BinderClient() {
                                     type="button"
                                     className="px-3"
                                     onClick={() => setPage(currentPage + 1)}
-                                    disabled={currentPage === numPages - 1}
+                                    disabled={currentPage === pages.length}
                                 >
                                     <ChevronRightIcon />
                                 </Button>
@@ -727,8 +762,8 @@ export default function BinderClient() {
                                     size="icon"
                                     type="button"
                                     className="px-3"
-                                    onClick={() => setPage(numPages - 1)}
-                                    disabled={currentPage === numPages - 1}
+                                    onClick={() => setPage(pages.length)}
+                                    disabled={currentPage === pages.length - 1}
                                 >
                                     <ChevronsRightIcon />
                                 </Button>
