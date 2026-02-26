@@ -33,7 +33,7 @@ import {
     Share2Icon,
     Trash2Icon,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
     Controller,
     FormProvider,
@@ -106,15 +106,36 @@ function BinderPageComponent({
     flipped,
     onSelectSlot,
     selectedSlotId,
+    disabled = false,
+    fixedHeight,
+    mainScale = 1,
 }: {
     binderType: BinderType;
     index: number;
     flipped: boolean;
     onSelectSlot: (id: string, width: number, height: number) => void;
     selectedSlotId?: string;
+    disabled?: boolean;
+    fixedHeight?: string;
+    mainScale?: number;
 }) {
     const { control } = useFormContext<z.infer<typeof formSchema>>();
     const page = useWatch({ control, name: `pages.${index}` });
+    const pageRef = useRef<HTMLDivElement>(null);
+    const [renderedWidth, setRenderedWidth] = useState(0);
+
+    useLayoutEffect(() => {
+        if (!fixedHeight || !pageRef.current) {
+            return;
+        }
+        const observer = new ResizeObserver((entries) => {
+            for (const entry of entries) {
+                setRenderedWidth(entry.contentRect.width);
+            }
+        });
+        observer.observe(pageRef.current);
+        return () => observer.disconnect();
+    }, [fixedHeight]);
 
     if (index < 0 || !page) {
         return null;
@@ -142,12 +163,20 @@ function BinderPageComponent({
 
     const gradient =
         "radial-gradient(circle, transparent 40%, white 40%, white 50%, transparent 50%)";
+    const previewScale =
+        fixedHeight && mainScale > 0
+            ? renderedWidth > 0
+                ? renderedWidth / width / mainScale
+                : 0
+            : 1;
 
     return (
         <div
+            ref={pageRef}
             className={`relative bg-white/50 border border-black/10 ${flipped ? "ml-auto flip-horizontal" : ""} grid`}
             style={{
-                width: `${widthPercent}%`,
+                width: fixedHeight ? "auto" : `${widthPercent}%`,
+                height: fixedHeight,
                 aspectRatio: `${width}/${height}`,
                 gridTemplateColumns: colWidths.map((w) => `${w}fr`).join(" "),
                 gridTemplateRows: rowHeights.map((h) => `${h}fr`).join(" "),
@@ -159,21 +188,23 @@ function BinderPageComponent({
                     const dotPctY = (BINDER_PERFORATION_DOT_SIZE / h) * 100;
                     const isLastCol = cIndex === colWidths.length - 1;
                     const key = `${index}-${rIndex}-${cIndex}`;
+                    const slotProps = {
+                        id: key,
+                        pageNum: index,
+                        width: w,
+                        height: h,
+                        gradient,
+                        isLastCol,
+                        dotPctX,
+                        dotPctY,
+                        onSelectSlot,
+                        isSelected: selectedSlotId === key,
+                        flipped,
+                        disabled,
+                        valueScale: previewScale,
+                    };
                     return (
-                        <BinderSlot
-                            key={key}
-                            id={key}
-                            pageNum={index}
-                            width={w}
-                            height={h}
-                            gradient={gradient}
-                            isLastCol={isLastCol}
-                            dotPctX={dotPctX}
-                            dotPctY={dotPctY}
-                            onSelectSlot={onSelectSlot}
-                            isSelected={selectedSlotId === key}
-                            flipped={flipped}
-                        />
+                        <BinderSlot key={key} {...slotProps} />
                     );
                 }),
             )}
@@ -193,6 +224,8 @@ function BinderSlot({
     onSelectSlot,
     isSelected,
     flipped,
+    disabled,
+    valueScale,
 }: {
     gradient: string;
     isLastCol: boolean;
@@ -205,6 +238,8 @@ function BinderSlot({
     onSelectSlot: (id: string, width: number, height: number) => void;
     isSelected: boolean;
     flipped: boolean;
+    disabled: boolean;
+    valueScale: number;
 }) {
     const { control } = useFormContext();
     const logicalWidth =
@@ -215,43 +250,59 @@ function BinderSlot({
         1;
     const logicalHeight = height - BINDER_PERFORATION_DOT_SIZE - 1;
 
-    const { setNodeRef, isOver } = useDroppable({
-        id: `${pageNum}-${id}`,
-        disabled: flipped,
-        // To tell the DndContext what size this slot is, so it can calculate the photocard's position
-        // It seems like even though binder perforations are only 2px, the gradient extends 1px on each side
-        data: {
-            slotId: id,
-            pageNum,
-            width: logicalWidth,
-            height: logicalHeight,
-        },
-    });
     const slotValue = useWatch({
         control,
         name: `pages.${pageNum}.slots.${id}`,
     });
-    // Left border for every cell
-    // Right border only for the last column
-    // Bottom border for every cell
+    const slotStyle = {
+        backgroundImage: `${gradient}, ${gradient} ${isLastCol ? ", " + gradient : ""}`,
+        backgroundPosition: `left bottom, left top ${isLastCol ? ", right top" : ""}`,
+        backgroundSize: `${dotPctX}% ${dotPctY}%, ${dotPctX}% ${dotPctY}% ${isLastCol ? `, ${dotPctX}% ${dotPctY}%` : ""}`,
+        backgroundRepeat: `repeat-x, repeat-y ${isLastCol ? ", repeat-y" : ""}`,
+    };
+
+    if (disabled) {
+        return (
+            <div className="relative" style={slotStyle}>
+                {slotValue && valueScale > 0 && (
+                    <div
+                        style={{
+                            position: "absolute",
+                            bottom: `calc(${slotValue.y * valueScale}px + ${dotPctY}%)`,
+                            left: `calc(${slotValue.x * valueScale}px + ${dotPctX}%)`,
+                            opacity: isSelected ? 1 : 0.6,
+                        }}
+                    >
+                        <PhotocardWithSize
+                            photocard={slotValue.photocard}
+                            showFront={slotValue.showFront !== flipped}
+                            width={slotValue.width * valueScale}
+                            height={slotValue.height * valueScale}
+                            className={flipped ? "flip-horizontal!" : ""}
+                            style={{
+                                transform: `rotate(${slotValue.rotation}deg)`,
+                                transformOrigin: "center center",
+                            }}
+                        />
+                    </div>
+                )}
+            </div>
+        );
+    }
+
     return (
-        <div
-            ref={setNodeRef}
-            onClick={() => {
-                if (slotValue && !flipped) {
-                    onSelectSlot(id, logicalWidth, logicalHeight);
-                }
-            }}
-            className={`${isOver && !flipped ? "bg-white/50" : ""} relative`}
-            style={{
-                backgroundImage: `${gradient}, ${gradient} ${isLastCol ? ", " + gradient : ""}`,
-                backgroundPosition: `left bottom, left top ${isLastCol ? ", right top" : ""}`,
-                backgroundSize: `${dotPctX}% ${dotPctY}%, ${dotPctX}% ${dotPctY}% ${isLastCol ? `, ${dotPctX}% ${dotPctY}%` : ""}`,
-                backgroundRepeat: `repeat-x, repeat-y ${isLastCol ? ", repeat-y" : ""}`,
-            }}
+        <InteractiveSlotContent
+            slotId={id}
+            pageNum={pageNum}
+            logicalWidth={logicalWidth}
+            logicalHeight={logicalHeight}
+            flipped={flipped}
+            slotValue={slotValue}
+            onSelectSlot={onSelectSlot}
+            slotStyle={slotStyle}
         >
-            {slotValue && (
-                <DraggableSlotContent
+            {slotValue && valueScale > 0 && (
+                <PhotocardWithDragContent
                     photocard={slotValue.photocard}
                     slotId={id}
                     pageNum={pageNum}
@@ -271,11 +322,69 @@ function BinderSlot({
                     }}
                 />
             )}
+        </InteractiveSlotContent>
+    );
+}
+
+function InteractiveSlotContent({
+    slotId,
+    pageNum,
+    logicalWidth,
+    logicalHeight,
+    flipped,
+    slotValue,
+    onSelectSlot,
+    slotStyle,
+    children,
+}: {
+    slotId: string;
+    pageNum: number;
+    logicalWidth: number;
+    logicalHeight: number;
+    flipped: boolean;
+    slotValue?: {
+        photocard: Selectable<Photocards>;
+        snap: SnapToGrid;
+        showFront: boolean;
+        rotation: number;
+        width: number;
+        height: number;
+        x: number;
+        y: number;
+        z: number;
+    };
+    onSelectSlot: (id: string, width: number, height: number) => void;
+    slotStyle: React.CSSProperties;
+    children?: React.ReactNode;
+}) {
+    const { setNodeRef, isOver } = useDroppable({
+        id: `${pageNum}-${slotId}`,
+        disabled: flipped,
+        data: {
+            slotId,
+            pageNum,
+            width: logicalWidth,
+            height: logicalHeight,
+        },
+    });
+
+    return (
+        <div
+            ref={setNodeRef}
+            onClick={() => {
+                if (slotValue && !flipped) {
+                    onSelectSlot(slotId, logicalWidth, logicalHeight);
+                }
+            }}
+            className={`${isOver && !flipped ? "bg-white/50" : ""} relative`}
+            style={slotStyle}
+        >
+            {children}
         </div>
     );
 }
 
-function DraggableSlotContent({
+function PhotocardWithDragContent({
     photocard,
     slotId,
     pageNum,
@@ -886,6 +995,40 @@ export default function BinderClient({
         setSelectedSlot(null);
     }
 
+    function PagePreviewComponent() {
+        return (
+            <div className="relative w-screen px-6">
+                <div className="mx-auto w-full rounded-xl bg-main p-4">
+                    <div className="overflow-x-auto">
+                        <div className="flex w-max flex-row gap-4">
+                            {pages.map((page, index) => (
+                                <button
+                                    key={page.id}
+                                    type="button"
+                                    onClick={() => setPage(index)}
+                                    className={`shrink-0 rounded-lg border-2 p-1 ${currentPage === index ? "border-third bg-third-lighter" : "border-transparent bg-white/60 hover:bg-white/80"}`}
+                                >
+                            <BinderPageComponent
+                                binderType={binderType}
+                                index={index}
+                                flipped={false}
+                                onSelectSlot={() => { }}
+                                disabled={true}
+                                fixedHeight="10vh"
+                                mainScale={scale}
+                            />
+                                    <span className="mt-1 block text-center text-xs font-semibold">
+                                        Page {index + 1}
+                                    </span>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <DndContext onDragStart={onDragStart} onDragEnd={onDragEnd}>
             <div className="flex flex-col gap-4 m-16 items-center">
@@ -1006,6 +1149,7 @@ export default function BinderClient({
                                                 selectedSlotId={
                                                     selectedSlot?.id
                                                 }
+                                                mainScale={scale}
                                             />
                                         }
                                         rightPage={
@@ -1017,6 +1161,7 @@ export default function BinderClient({
                                                 selectedSlotId={
                                                     selectedSlot?.id
                                                 }
+                                                mainScale={scale}
                                             />
                                         }
                                     />
@@ -1126,6 +1271,7 @@ export default function BinderClient({
                             </div>
                         </div>
                     </form>
+                    <PagePreviewComponent />
                 </FormProvider>
                 <SearchComponent
                     collections={collections}
