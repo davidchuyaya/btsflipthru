@@ -27,20 +27,21 @@ async function BinderContent({ params }: { params: Promise<{ id: string }> }) {
     if (
         collectionsRes.error ||
         cardTypesRes.error ||
-        cardSizesRes.error ||
-        ownedPhotocardsRes.error ||
-        wishlistedPhotocardsRes.error
+        cardSizesRes.error
     ) {
         throw new Error("Failed to load data for binder page");
     }
+
+    let ownedPhotocards = ownedPhotocardsRes.data || [];
+    let wishlistedPhotocards = wishlistedPhotocardsRes.data || [];
 
     return (
         <BinderClient
             collections={collectionsRes.data!}
             cardTypes={cardTypesRes.data!}
             cardSizes={cardSizesRes.data!}
-            ownedPhotocards={ownedPhotocardsRes.data!}
-            wishlistedPhotocards={wishlistedPhotocardsRes.data!}
+            ownedPhotocards={ownedPhotocards}
+            wishlistedPhotocards={wishlistedPhotocards}
         />
     );
 }
