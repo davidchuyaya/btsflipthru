@@ -1,10 +1,6 @@
 "use client";
 
-import {
-    getCardSizesFromDB,
-    getOwnedPhotocards,
-    getWishlistedPhotocards,
-} from "@/actions";
+import { cardSizeToString } from "@/actions-client";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -12,9 +8,12 @@ import {
     BINDER_PERFORATION_DOT_SIZE,
     BinderPage,
     BinderType,
+    collectionDisplayName,
+    ExclusiveCountry,
+    MemberToIntWithOT7,
 } from "@/constants";
-import { CardSizes, Photocards } from "@/db";
-import { useMetadata } from "@/metadata-context";
+import { CardSizes, CardTypes, Collections, Photocards } from "@/db";
+import { executeSearchLogic } from "@/natural-language-search";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Selectable } from "kysely";
 import {
@@ -32,6 +31,7 @@ import {
     RotateCcwIcon,
     SaveIcon,
     Share2Icon,
+    Trash2Icon,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -337,44 +337,141 @@ function DraggableSlotContent({
 }
 
 function SearchComponent({
+    collections,
+    cardTypes,
     cardSizes,
+    ownedPhotocards,
+    wishlistedPhotocards,
 }: {
+    collections: Selectable<Collections>[];
+    cardTypes: Selectable<CardTypes>[];
     cardSizes: Selectable<CardSizes>[];
+    ownedPhotocards: Selectable<Photocards>[];
+    wishlistedPhotocards: Selectable<Photocards>[];
 }) {
-    const { setError } = useMetadata();
-    const [ownedPhotocards, setOwnedPhotocards] = useState<
-        Selectable<Photocards>[]
-    >([]);
-    const [wishlistedPhotocards, setWishlistedPhotocards] = useState<
-        Selectable<Photocards>[]
-    >([]);
+    const [searchInput, setSearchInput] = useState("");
     const [searchType, setSearchType] = useState(SearchType.Owned);
+    const [shownPhotocards, setShownPhotocards] =
+        useState<Selectable<Photocards>[]>(ownedPhotocards);
 
-    useEffect(() => {
-        const fetchPhotocards = async () => {
-            const ownedPhotocards = await getOwnedPhotocards();
-            const wishlistedPhotocards = await getWishlistedPhotocards();
-            if (ownedPhotocards.error) {
-                setError(ownedPhotocards.error);
-                return;
-            }
-            if (wishlistedPhotocards.error) {
-                setError(wishlistedPhotocards.error);
-                return;
-            }
-            setOwnedPhotocards(ownedPhotocards.data!);
-            setWishlistedPhotocards(wishlistedPhotocards.data!);
-        };
-        fetchPhotocards();
-    }, [setError]);
+    function matchesMemberFilter(
+        photocardMembers: number[],
+        selectedMembers: Set<MemberToIntWithOT7>,
+    ): boolean {
+        if (selectedMembers.size === 0) return true;
+        if (
+            selectedMembers.has(MemberToIntWithOT7.OT7) &&
+            selectedMembers.size === 1
+        ) {
+            return photocardMembers.length === 7;
+        }
+        return photocardMembers.some((member) =>
+            selectedMembers.has(member as MemberToIntWithOT7),
+        );
+    }
 
-    function onSearch() {}
+    function runNaturalLanguageSearch(
+        photocards: Selectable<Photocards>[],
+    ): Selectable<Photocards>[] {
+        const trimmedInput = searchInput.trim();
+        if (!trimmedInput) {
+            return photocards;
+        }
+
+        const {
+            winningMembers,
+            winningTopCols,
+            winningCardTypes,
+            winningCardSizes,
+            winningCountries,
+        } = executeSearchLogic(
+            trimmedInput,
+            {
+                tops: collections,
+                subs: [] as Selectable<Collections>[],
+                cardTypes: cardTypes,
+                cardSizes: cardSizes,
+            },
+            {
+                topName: (collection: Selectable<Collections>) =>
+                    collectionDisplayName(collection),
+                subName: () => "",
+                cardTypeName: (cardType: Selectable<CardTypes>) =>
+                    cardType.name,
+                cardSizeName: (cardSize: Selectable<CardSizes>) =>
+                    cardSizeToString(cardSize),
+            },
+        );
+
+        const winningCollectionIds = new Set(
+            [...winningTopCols].map((collection) => collection.id!),
+        );
+        const winningCardTypeIds = new Set(
+            [...winningCardTypes].map((cardType) => cardType.id!),
+        );
+        const winningCardSizeIds = new Set(
+            [...winningCardSizes].map((cardSize) => cardSize.id!),
+        );
+
+        return photocards.filter((photocard) => {
+            if (
+                winningCollectionIds.size > 0 &&
+                !winningCollectionIds.has(photocard.collection_id)
+            ) {
+                return false;
+            }
+            if (
+                winningCardTypeIds.size > 0 &&
+                !winningCardTypeIds.has(photocard.card_type)
+            ) {
+                return false;
+            }
+            if (
+                winningCardSizeIds.size > 0 &&
+                !winningCardSizeIds.has(photocard.size_id)
+            ) {
+                return false;
+            }
+            if (
+                winningCountries.size > 0 &&
+                !winningCountries.has(photocard.exclusive_country)
+            ) {
+                return false;
+            }
+            if (
+                winningMembers.size > 0 &&
+                !matchesMemberFilter(photocard.members, winningMembers)
+            ) {
+                return false;
+            }
+            return true;
+        });
+    }
+
+    function onSearch(searchType: SearchType) {
+        const sourcePhotocards =
+            searchType === SearchType.Owned
+                ? ownedPhotocards
+                : wishlistedPhotocards;
+        setShownPhotocards(runNaturalLanguageSearch(sourcePhotocards));
+    }
 
     return (
         <div className="rounded-2xl bg-third-lighter p-4 flex flex-col items-center gap-4 w-[75%]">
             <div className="flex flex-row gap-3 w-full">
-                <Input type="text" placeholder="Search" />
-                <Button type="button" onClick={onSearch}>
+                <Input
+                    type="text"
+                    placeholder="Search"
+                    value={searchInput}
+                    onChange={(event) => setSearchInput(event.target.value)}
+                    onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                            event.preventDefault();
+                            onSearch(searchType);
+                        }
+                    }}
+                />
+                <Button type="button" onClick={() => onSearch(searchType)}>
                     Search
                 </Button>
             </div>
@@ -383,7 +480,11 @@ function SearchComponent({
                 type="single"
                 variant="outline"
                 value={searchType}
-                onValueChange={(v) => setSearchType(v as SearchType)}
+                onValueChange={(v) => {
+                    let newSearchType = v as SearchType;
+                    setSearchType(newSearchType);
+                    onSearch(newSearchType);
+                }}
             >
                 {Object.values(SearchType).map((type) => (
                     <ToggleGroupItem
@@ -395,14 +496,7 @@ function SearchComponent({
                     </ToggleGroupItem>
                 ))}
             </ToggleGroup>
-            <PhotocardGrid
-                photocards={
-                    searchType === SearchType.Owned
-                        ? ownedPhotocards
-                        : wishlistedPhotocards
-                }
-                draggable={true}
-            />
+            <PhotocardGrid photocards={shownPhotocards} draggable={true} />
         </div>
     );
 }
@@ -446,8 +540,19 @@ const formSchema = z.object({
     ),
 });
 
-export default function BinderClient() {
-    const { setError } = useMetadata();
+export default function BinderClient({
+    collections,
+    cardTypes,
+    cardSizes,
+    ownedPhotocards,
+    wishlistedPhotocards,
+}: {
+    collections: Selectable<Collections>[];
+    cardTypes: Selectable<CardTypes>[];
+    cardSizes: Selectable<CardSizes>[];
+    ownedPhotocards: Selectable<Photocards>[];
+    wishlistedPhotocards: Selectable<Photocards>[];
+}) {
     const [currentPage, setCurrentPage] = useState(0);
     const [needsSaving, setNeedsSaving] = useState(false);
     const [snapToGrid, setSnapToGrid] = useState<SnapToGrid>(SnapToGrid.Center);
@@ -468,8 +573,6 @@ export default function BinderClient() {
         width: number;
         height: number;
     } | null>(null);
-    const [cardSizes, setCardSizes] = useState<Selectable<CardSizes>[]>([]);
-
     const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
         defaultValues: {
@@ -519,18 +622,6 @@ export default function BinderClient() {
         observer.observe(binderRef.current);
         return () => observer.disconnect();
     }, []);
-
-    useEffect(() => {
-        const fetchCardSizes = async () => {
-            const result = await getCardSizesFromDB();
-            if (result.error) {
-                setError(result.error);
-                return;
-            }
-            setCardSizes(result.data!);
-        };
-        fetchCardSizes();
-    }, [setError]);
 
     function onDragStart(event: DragStartEvent) {
         const data = event.active.data.current;
@@ -617,6 +708,7 @@ export default function BinderClient() {
 
     function onDragEnd(event: DragEndEvent) {
         if (!event.over) {
+            deleteSelectedSlot();
             setActivePhotocard(null);
             setActivePhotocardRotation(0);
             setActivePhotocardShowFront(true);
@@ -629,8 +721,8 @@ export default function BinderClient() {
         const height = activeCardSize!.height * scale;
         const source = dragSourceSlot
             ? form.getValues(
-                  `pages.${dragSourceSlot.pageNum}.slots.${dragSourceSlot.slotId}`,
-              )
+                `pages.${dragSourceSlot.pageNum}.slots.${dragSourceSlot.slotId}`,
+            )
             : null;
         const sourceSnap = source?.snap ?? snapToGrid;
         const sourceRotation = source?.rotation ?? 0;
@@ -684,9 +776,9 @@ export default function BinderClient() {
         setDragSourceSlot(null);
     }
 
-    function onPreview() {}
+    function onPreview() { }
 
-    function onShare() {}
+    function onShare() { }
 
     async function onSubmit(data: z.infer<typeof formSchema>) {
         console.log("Submitting:", data);
@@ -781,6 +873,19 @@ export default function BinderClient() {
         }
     }
 
+    function deleteSelectedSlot() {
+        if (selectedSlot) {
+            form.unregister(`pages.${currentPage}.slots.${selectedSlot.id}`);
+            setSelectedSlot(null);
+            setNeedsSaving(true);
+        }
+    }
+
+    function deleteCurrentPage() {
+        removePage(currentPage);
+        setSelectedSlot(null);
+    }
+
     return (
         <DndContext onDragStart={onDragStart} onDragEnd={onDragEnd}>
             <div className="flex flex-col gap-4 m-16 items-center">
@@ -837,7 +942,7 @@ export default function BinderClient() {
                             )}
                         />
                         <div className="flex flex-row gap-4 items-center">
-                            <div className="flex flex-col gap-4 p-4 bg-main rounded-xl">
+                            <div className="flex flex-col gap-2 p-4 bg-main rounded-xl">
                                 <Button
                                     size="icon"
                                     type="button"
@@ -851,6 +956,18 @@ export default function BinderClient() {
                                         height={0}
                                         alt="Add a binder page"
                                     />
+                                </Button>
+                                <Button
+                                    size="icon"
+                                    type="button"
+                                    variant="noShadow"
+                                    onClick={deleteCurrentPage}
+                                    disabled={
+                                        pages.length === 1 ||
+                                        currentPage >= pages.length
+                                    }
+                                >
+                                    <Trash2Icon />
                                 </Button>
                             </div>
                             <div className="flex flex-col gap-4">
@@ -996,11 +1113,27 @@ export default function BinderClient() {
                                 >
                                     <PointerIcon />
                                 </Button>
+                                <Button
+                                    size="icon"
+                                    type="button"
+                                    variant="noShadow"
+                                    className="px-3"
+                                    onClick={() => deleteSelectedSlot()}
+                                    disabled={selectedSlot === null}
+                                >
+                                    <Trash2Icon />
+                                </Button>
                             </div>
                         </div>
                     </form>
                 </FormProvider>
-                <SearchComponent cardSizes={cardSizes} />
+                <SearchComponent
+                    collections={collections}
+                    cardTypes={cardTypes}
+                    cardSizes={cardSizes}
+                    ownedPhotocards={ownedPhotocards}
+                    wishlistedPhotocards={wishlistedPhotocards}
+                />
             </div>
             <DragOverlay dropAnimation={null}>
                 {activePhotocard && activeCardSize ? (

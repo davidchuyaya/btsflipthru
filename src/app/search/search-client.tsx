@@ -31,7 +31,7 @@ import {
     SidebarProvider,
     useSidebar,
 } from "@/components/ui/sidebar";
-import { cardSizeToString, executeSearchLogic } from "@/actions-client";
+import { cardSizeToString } from "@/actions-client";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -68,6 +68,7 @@ import {
 } from "@/db";
 import { Selectable } from "kysely";
 import Image from "next/image";
+import { executeSearchLogic } from "@/natural-language-search";
 
 function CollapsibleGroup({
     defaultOpen = true,
