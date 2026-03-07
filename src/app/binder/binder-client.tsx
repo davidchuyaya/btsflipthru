@@ -49,13 +49,24 @@ import z from "zod";
 import PhotocardGrid from "../photocard-grid";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
+    closestCenter,
     DndContext,
     DragEndEvent,
     DragOverlay,
+    KeyboardSensor,
+    PointerSensor,
     useDroppable,
     useDraggable,
     DragStartEvent,
+    useSensor,
+    useSensors,
 } from "@dnd-kit/core";
+import {
+    horizontalListSortingStrategy,
+    sortableKeyboardCoordinates,
+    SortableContext,
+    useSortable,
+} from "@dnd-kit/sortable";
 import { PhotocardWithSize } from "../photocard";
 import Image from "next/image";
 import { Separator } from "@/components/ui/separator";
@@ -114,6 +125,32 @@ function removeSlotCardByZ(
     return { cards: sorted, removed };
 }
 
+function translateTransformToString(
+    transform: {
+        x: number;
+        y: number;
+        scaleX?: number;
+        scaleY?: number;
+    } | null,
+): string | undefined {
+    if (!transform) {
+        return undefined;
+    }
+    const { x, y, scaleX = 1, scaleY = 1 } = transform;
+    return `translate3d(${x}px, ${y}px, 0) scaleX(${scaleX}) scaleY(${scaleY})`;
+}
+
+function getSlotCardsFromSlotsRecord(
+    slots: Record<string, BinderSlotCard[]> | undefined,
+    pageNum: number,
+    slotId: string,
+): BinderSlotCard[] | undefined {
+    if (!slots) {
+        return undefined;
+    }
+    return slots[slotId] ?? slots[`${pageNum}-${slotId}`];
+}
+
 function BinderCoverComponent({
     binderType,
     leftPage,
@@ -160,6 +197,7 @@ function BinderCoverComponent({
 function BinderPageComponent({
     binderType,
     index,
+    pageFieldId,
     flipped,
     onSelectSlot,
     selectedSlotId,
@@ -169,6 +207,7 @@ function BinderPageComponent({
 }: {
     binderType: BinderType;
     index: number;
+    pageFieldId: string;
     flipped: boolean;
     onSelectSlot: (id: string, width: number, height: number) => void;
     selectedSlotId?: string;
@@ -244,10 +283,11 @@ function BinderPageComponent({
                     const dotPctX = (BINDER_PERFORATION_DOT_SIZE / w) * 100;
                     const dotPctY = (BINDER_PERFORATION_DOT_SIZE / h) * 100;
                     const isLastCol = cIndex === colWidths.length - 1;
-                    const key = `${index}-${rIndex}-${cIndex}`;
+                    const key = `${rIndex}-${cIndex}`;
                     const slotProps = {
                         id: key,
                         pageNum: index,
+                        pageFieldId,
                         width: w,
                         height: h,
                         gradient,
@@ -276,6 +316,7 @@ function BinderSlot({
     height,
     id,
     pageNum,
+    pageFieldId,
     onSelectSlot,
     isSelected,
     flipped,
@@ -290,6 +331,7 @@ function BinderSlot({
     dotPctY: number;
     id: string;
     pageNum: number;
+    pageFieldId: string;
     onSelectSlot: (id: string, width: number, height: number) => void;
     isSelected: boolean;
     flipped: boolean;
@@ -305,10 +347,11 @@ function BinderSlot({
         1;
     const logicalHeight = height - BINDER_PERFORATION_DOT_SIZE - 1;
 
-    const slotCards = useWatch({
+    const pageSlots = useWatch({
         control,
-        name: `pages.${pageNum}.slots.${id}`,
-    });
+        name: `pages.${pageNum}.slots`,
+    }) as Record<string, BinderSlotCard[]> | undefined;
+    const slotCards = getSlotCardsFromSlotsRecord(pageSlots, pageNum, id);
     const visibleCard = getVisibleSlotCard(slotCards, flipped);
     const slotStyle = {
         backgroundImage: `${gradient}, ${gradient} ${isLastCol ? ", " + gradient : ""}`,
@@ -350,6 +393,7 @@ function BinderSlot({
         <InteractiveSlotContent
             slotId={id}
             pageNum={pageNum}
+            pageFieldId={pageFieldId}
             logicalWidth={logicalWidth}
             logicalHeight={logicalHeight}
             flipped={flipped}
@@ -362,6 +406,7 @@ function BinderSlot({
                     photocard={visibleCard.photocard}
                     slotId={id}
                     pageNum={pageNum}
+                    pageFieldId={pageFieldId}
                     showFront={visibleCard.showFront !== flipped}
                     width={visibleCard.width}
                     height={visibleCard.height}
@@ -386,6 +431,7 @@ function BinderSlot({
 function InteractiveSlotContent({
     slotId,
     pageNum,
+    pageFieldId,
     logicalWidth,
     logicalHeight,
     flipped,
@@ -396,6 +442,7 @@ function InteractiveSlotContent({
 }: {
     slotId: string;
     pageNum: number;
+    pageFieldId: string;
     logicalWidth: number;
     logicalHeight: number;
     flipped: boolean;
@@ -405,11 +452,12 @@ function InteractiveSlotContent({
     children?: React.ReactNode;
 }) {
     const { setNodeRef, isOver } = useDroppable({
-        id: `${pageNum}-${slotId}`,
+        id: `page-slot-${pageFieldId}-${slotId}`,
         disabled: flipped,
         data: {
             slotId,
             pageNum,
+            pageFieldId,
             width: logicalWidth,
             height: logicalHeight,
         },
@@ -435,6 +483,7 @@ function PhotocardWithDragContent({
     photocard,
     slotId,
     pageNum,
+    pageFieldId,
     showFront,
     width,
     height,
@@ -448,6 +497,7 @@ function PhotocardWithDragContent({
     photocard: Selectable<Photocards>;
     slotId: string;
     pageNum: number;
+    pageFieldId: string;
     showFront: boolean;
     width: number;
     height: number;
@@ -459,12 +509,13 @@ function PhotocardWithDragContent({
     disabled?: boolean;
 }) {
     const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
-        id: `slot-${slotId}`,
+        id: `slot-card-${pageFieldId}-${slotId}-${z}`,
         disabled,
         data: {
             photocard,
             sourceSlotId: slotId,
             sourcePageNum: pageNum,
+            sourcePageFieldId: pageFieldId,
             sourceSlotWidth: slotWidth,
             sourceSlotHeight: slotHeight,
             sourceCardZ: z,
@@ -492,6 +543,57 @@ function PhotocardWithDragContent({
                 />
             </div>
         </div>
+    );
+}
+
+function SortablePagePreview({
+    id,
+    index,
+    currentPage,
+    onSelect,
+    children,
+}: {
+    id: string;
+    index: number;
+    currentPage: number;
+    onSelect: (index: number) => void;
+    children: React.ReactNode;
+}) {
+    const {
+        attributes,
+        listeners,
+        setNodeRef,
+        transform,
+        transition,
+        isDragging,
+    } = useSortable({
+        id,
+        data: {
+            type: "page-preview",
+            index,
+        },
+        transition: {
+            duration: 150, // Animation duration in ms
+            easing: "cubic-bezier(0.25, 1, 0.5, 1)", // Animation easing
+        },
+    });
+
+    return (
+        <button
+            ref={setNodeRef}
+            type="button"
+            onClick={() => onSelect(index)}
+            style={{
+                transform: translateTransformToString(transform),
+                transition,
+                opacity: isDragging ? 0.7 : 1,
+            }}
+            className={`shrink-0 rounded-lg border-2 p-1 touch-none ${currentPage === index ? "border-third bg-third-lighter" : "border-transparent bg-white/60 hover:bg-white/80"}`}
+            {...attributes}
+            {...listeners}
+        >
+            {children}
+        </button>
     );
 }
 
@@ -769,6 +871,7 @@ export default function BinderClient({
         fields: pages,
         insert: insertPage,
         remove: removePage,
+        move: movePage,
     } = useFieldArray({
         control: form.control,
         name: "pages",
@@ -784,6 +887,16 @@ export default function BinderClient({
             : null;
     const totalLogicalWidth = binderType.coverWidth * 2 + binderType.spineWidth;
     const scale = binderWidth ? binderWidth / totalLogicalWidth : 0;
+    const sensors = useSensors(
+        useSensor(PointerSensor, {
+            activationConstraint: {
+                distance: 8,
+            },
+        }),
+        useSensor(KeyboardSensor, {
+            coordinateGetter: sortableKeyboardCoordinates,
+        }),
+    );
 
     useEffect(() => {
         if (!binderRef.current) return;
@@ -796,14 +909,45 @@ export default function BinderClient({
         return () => observer.disconnect();
     }, []);
 
+    function getSlotCards(pageNum: number, slotId: string) {
+        const slots = form.getValues(`pages.${pageNum}.slots`) as
+            | Record<string, BinderSlotCard[]>
+            | undefined;
+        return getSlotCardsFromSlotsRecord(slots, pageNum, slotId);
+    }
+
+    function setSlotCards(
+        pageNum: number,
+        slotId: string,
+        cards: BinderSlotCard[],
+    ) {
+        form.setValue(`pages.${pageNum}.slots.${slotId}`, cards);
+        const legacySlotId = `${pageNum}-${slotId}`;
+        const slots = form.getValues(`pages.${pageNum}.slots`) as
+            | Record<string, BinderSlotCard[]>
+            | undefined;
+        if (slots && legacySlotId in slots) {
+            form.unregister(`pages.${pageNum}.slots.${legacySlotId}`);
+        }
+    }
+
+    function unregisterSlot(pageNum: number, slotId: string) {
+        form.unregister(`pages.${pageNum}.slots.${slotId}`);
+        form.unregister(`pages.${pageNum}.slots.${pageNum}-${slotId}`);
+    }
+
     function onDragStart(event: DragStartEvent) {
         const data = event.active.data.current;
+        if (data?.type === "page-preview") {
+            return;
+        }
         if (data?.photocard) {
             setActivePhotocard(data.photocard);
         }
         if (data?.sourceSlotId !== undefined) {
-            const sourceSlotCards = form.getValues(
-                `pages.${data.sourcePageNum}.slots.${data.sourceSlotId}`,
+            const sourceSlotCards = getSlotCards(
+                data.sourcePageNum,
+                data.sourceSlotId,
             );
             const sourceCard = getVisibleSlotCard(sourceSlotCards, false);
             setActivePhotocardRotation(sourceCard?.rotation ?? 0);
@@ -880,6 +1024,34 @@ export default function BinderClient({
     }
 
     function onDragEnd(event: DragEndEvent) {
+        const activeData = event.active.data.current;
+        if (activeData?.type === "page-preview" && event.over) {
+            const oldIndex = pages.findIndex(
+                (page) => page.id === event.active.id,
+            );
+            const newIndex = pages.findIndex(
+                (page) => page.id === event.over?.id,
+            );
+
+            if (oldIndex !== -1 && newIndex !== -1 && oldIndex !== newIndex) {
+                movePage(oldIndex, newIndex);
+                setCurrentPage((current) => {
+                    if (current === oldIndex) {
+                        return newIndex;
+                    }
+                    if (oldIndex < current && current <= newIndex) {
+                        return current - 1;
+                    }
+                    if (newIndex <= current && current < oldIndex) {
+                        return current + 1;
+                    }
+                    return current;
+                });
+                setNeedsSaving(true);
+            }
+            return;
+        }
+
         if (!event.over) {
             if (dragSourceSlot) {
                 deleteSelectedSlot();
@@ -895,9 +1067,7 @@ export default function BinderClient({
         const width = activeCardSize!.width * scale;
         const height = activeCardSize!.height * scale;
         const sourceCards = dragSourceSlot
-            ? form.getValues(
-                `pages.${dragSourceSlot.pageNum}.slots.${dragSourceSlot.slotId}`,
-            )
+            ? getSlotCards(dragSourceSlot.pageNum, dragSourceSlot.slotId)
             : null;
         const source = getVisibleSlotCard(sourceCards ?? undefined, false);
         const sourceSnap = source?.snap ?? snapToGrid;
@@ -916,8 +1086,7 @@ export default function BinderClient({
         const overPageNum = Number(event.over.data.current!.pageNum);
         const overSlotWidth = Number(event.over.data.current!.width);
         const overSlotHeight = Number(event.over.data.current!.height);
-        const existingCards =
-            form.getValues(`pages.${overPageNum}.slots.${overSlotId}`) ?? [];
+        const existingCards = getSlotCards(overPageNum, overSlotId) ?? [];
         let nextCards = sortSlotCards(existingCards);
 
         if (dragSourceSlot) {
@@ -930,12 +1099,14 @@ export default function BinderClient({
                 nextCards = removal.cards;
             } else {
                 if (removal.cards.length === 0) {
-                    form.unregister(
-                        `pages.${dragSourceSlot.pageNum}.slots.${dragSourceSlot.slotId}`,
+                    unregisterSlot(
+                        dragSourceSlot.pageNum,
+                        dragSourceSlot.slotId,
                     );
                 } else {
-                    form.setValue(
-                        `pages.${dragSourceSlot.pageNum}.slots.${dragSourceSlot.slotId}`,
+                    setSlotCards(
+                        dragSourceSlot.pageNum,
+                        dragSourceSlot.slotId,
                         removal.cards,
                     );
                 }
@@ -947,7 +1118,7 @@ export default function BinderClient({
             -1,
         );
 
-        form.setValue(`pages.${overPageNum}.slots.${overSlotId}`, [
+        setSlotCards(overPageNum, overSlotId, [
             ...nextCards,
             {
                 photocard: activePhotocard!,
@@ -1004,7 +1175,7 @@ export default function BinderClient({
 
     function onSelectSlot(id: string, width: number, height: number) {
         setSelectedSlot({ id, width, height });
-        const slotCards = form.getValues(`pages.${currentPage}.slots.${id}`);
+        const slotCards = getSlotCards(currentPage, id);
         const slotData = getVisibleSlotCard(slotCards, false);
         if (slotData) {
             setSnapToGrid(slotData.snap);
@@ -1013,9 +1184,7 @@ export default function BinderClient({
 
     function alignSelectedSlot(snapToGrid: SnapToGrid) {
         if (selectedSlot) {
-            const slotCards = form.getValues(
-                `pages.${currentPage}.slots.${selectedSlot.id}`,
-            );
+            const slotCards = getSlotCards(currentPage, selectedSlot.id);
             const slotData = getVisibleSlotCard(slotCards, false);
             if (slotData) {
                 const slotWidth = selectedSlot.width * scale;
@@ -1028,8 +1197,9 @@ export default function BinderClient({
                     slotData.height,
                     slotData.rotation,
                 );
-                form.setValue(
-                    `pages.${currentPage}.slots.${selectedSlot.id}`,
+                setSlotCards(
+                    currentPage,
+                    selectedSlot.id,
                     updateSlotCardByZ(slotCards, slotData.z, (card) => ({
                         ...card,
                         snap: snapToGrid,
@@ -1045,13 +1215,12 @@ export default function BinderClient({
 
     function flipSelectedSlot() {
         if (selectedSlot) {
-            const slotCards = form.getValues(
-                `pages.${currentPage}.slots.${selectedSlot.id}`,
-            );
+            const slotCards = getSlotCards(currentPage, selectedSlot.id);
             const slotData = getVisibleSlotCard(slotCards, false);
             if (slotData) {
-                form.setValue(
-                    `pages.${currentPage}.slots.${selectedSlot.id}`,
+                setSlotCards(
+                    currentPage,
+                    selectedSlot.id,
                     updateSlotCardByZ(slotCards, slotData.z, (card) => ({
                         ...card,
                         showFront: !card.showFront,
@@ -1064,14 +1233,13 @@ export default function BinderClient({
 
     function rotateSelectedSlot() {
         if (selectedSlot) {
-            const slotCards = form.getValues(
-                `pages.${currentPage}.slots.${selectedSlot.id}`,
-            );
+            const slotCards = getSlotCards(currentPage, selectedSlot.id);
             const slotData = getVisibleSlotCard(slotCards, false);
             if (slotData) {
                 // Rotate 90 degrees counter-clockwise
-                form.setValue(
-                    `pages.${currentPage}.slots.${selectedSlot.id}`,
+                setSlotCards(
+                    currentPage,
+                    selectedSlot.id,
                     updateSlotCardByZ(slotCards, slotData.z, (card) => ({
                         ...card,
                         rotation: (card.rotation - 90) % 360,
@@ -1088,9 +1256,7 @@ export default function BinderClient({
         if (!selectedSlot) {
             return;
         }
-        const slotCards = form.getValues(
-            `pages.${currentPage}.slots.${selectedSlot.id}`,
-        );
+        const slotCards = getSlotCards(currentPage, selectedSlot.id);
         const slotData = getVisibleSlotCard(slotCards, false);
         if (!slotData) {
             return;
@@ -1105,8 +1271,9 @@ export default function BinderClient({
             slotData.z,
         );
         const nextZ = position === "top" ? highestZ + 1 : lowestZ - 1;
-        form.setValue(
-            `pages.${currentPage}.slots.${selectedSlot.id}`,
+        setSlotCards(
+            currentPage,
+            selectedSlot.id,
             updateSlotCardByZ(slotCards, slotData.z, (card) => ({
                 ...card,
                 z: nextZ,
@@ -1117,9 +1284,7 @@ export default function BinderClient({
 
     function deleteSelectedSlot() {
         if (selectedSlot) {
-            const slotCards = form.getValues(
-                `pages.${currentPage}.slots.${selectedSlot.id}`,
-            );
+            const slotCards = getSlotCards(currentPage, selectedSlot.id);
             const slotData = getVisibleSlotCard(slotCards, false);
             if (slotData) {
                 const updatedCards = removeSlotCardByZ(
@@ -1127,15 +1292,10 @@ export default function BinderClient({
                     slotData.z,
                 ).cards;
                 if (updatedCards.length === 0) {
-                    form.unregister(
-                        `pages.${currentPage}.slots.${selectedSlot.id}`,
-                    );
+                    unregisterSlot(currentPage, selectedSlot.id);
                     setSelectedSlot(null);
                 } else {
-                    form.setValue(
-                        `pages.${currentPage}.slots.${selectedSlot.id}`,
-                        updatedCards,
-                    );
+                    setSlotCards(currentPage, selectedSlot.id, updatedCards);
                 }
                 setNeedsSaving(true);
             }
@@ -1152,29 +1312,36 @@ export default function BinderClient({
             <div className="relative w-screen px-6">
                 <div className="mx-auto w-full rounded-xl bg-main p-4">
                     <div className="overflow-x-auto">
-                        <div className="flex w-max flex-row gap-4">
-                            {pages.map((page, index) => (
-                                <button
-                                    key={page.id}
-                                    type="button"
-                                    onClick={() => setPage(index)}
-                                    className={`shrink-0 rounded-lg border-2 p-1 ${currentPage === index ? "border-third bg-third-lighter" : "border-transparent bg-white/60 hover:bg-white/80"}`}
-                                >
-                                    <BinderPageComponent
-                                        binderType={binderType}
+                        <SortableContext
+                            items={pages.map((page) => page.id)}
+                            strategy={horizontalListSortingStrategy}
+                        >
+                            <div className="flex w-max flex-row gap-4">
+                                {pages.map((page, index) => (
+                                    <SortablePagePreview
+                                        key={page.id}
+                                        id={page.id}
                                         index={index}
-                                        flipped={false}
-                                        onSelectSlot={() => { }}
-                                        disabled={true}
-                                        fixedHeight="10vh"
-                                        mainScale={scale}
-                                    />
-                                    <span className="mt-1 block text-center text-xs font-semibold">
-                                        Page {index + 1}
-                                    </span>
-                                </button>
-                            ))}
-                        </div>
+                                        currentPage={currentPage}
+                                        onSelect={setPage}
+                                    >
+                                        <BinderPageComponent
+                                            binderType={binderType}
+                                            index={index}
+                                            pageFieldId={page.id}
+                                            flipped={false}
+                                            onSelectSlot={() => { }}
+                                            disabled={true}
+                                            fixedHeight="10vh"
+                                            mainScale={scale}
+                                        />
+                                        <span className="mt-1 block text-center text-xs font-semibold">
+                                            Page {index + 1}
+                                        </span>
+                                    </SortablePagePreview>
+                                ))}
+                            </div>
+                        </SortableContext>
                     </div>
                 </div>
             </div>
@@ -1182,7 +1349,12 @@ export default function BinderClient({
     }
 
     return (
-        <DndContext onDragStart={onDragStart} onDragEnd={onDragEnd}>
+        <DndContext
+            collisionDetection={closestCenter}
+            sensors={sensors}
+            onDragStart={onDragStart}
+            onDragEnd={onDragEnd}
+        >
             <div className="flex flex-col gap-4 m-6 items-center">
                 <h1>Work in Progress!</h1>
                 <FormProvider {...form}>
@@ -1379,6 +1551,11 @@ export default function BinderClient({
                                                     <BinderPageComponent
                                                         binderType={field.value}
                                                         index={currentPage - 1}
+                                                        pageFieldId={
+                                                            pages[
+                                                                currentPage - 1
+                                                            ]?.id ?? "left-page"
+                                                        }
                                                         flipped={true}
                                                         onSelectSlot={
                                                             onSelectSlot
@@ -1393,6 +1570,11 @@ export default function BinderClient({
                                                     <BinderPageComponent
                                                         binderType={field.value}
                                                         index={currentPage}
+                                                        pageFieldId={
+                                                            pages[currentPage]
+                                                                ?.id ??
+                                                            "right-page"
+                                                        }
                                                         flipped={false}
                                                         onSelectSlot={
                                                             onSelectSlot
