@@ -17,10 +17,11 @@ import { executeSearchLogic } from "@/natural-language-search";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Selectable } from "kysely";
 import {
-    AlignCenterVertical,
     AlignCenterVerticalIcon,
     AlignEndVerticalIcon,
     AlignStartVerticalIcon,
+    ArrowDownToLineIcon,
+    ArrowUpToLineIcon,
     ChevronLeftIcon,
     ChevronRightIcon,
     ChevronsLeftIcon,
@@ -57,6 +58,61 @@ import {
 } from "@dnd-kit/core";
 import { PhotocardWithSize } from "../photocard";
 import Image from "next/image";
+import { Separator } from "@/components/ui/separator";
+
+type BinderSlotCard = {
+    photocard: Selectable<Photocards>;
+    snap: SnapToGrid;
+    showFront: boolean;
+    rotation: number;
+    width: number;
+    height: number;
+    x: number;
+    y: number;
+    z: number;
+};
+
+function sortSlotCards(cards: BinderSlotCard[] = []): BinderSlotCard[] {
+    return [...cards].sort((a, b) => a.z - b.z);
+}
+
+function getVisibleSlotCard(
+    cards: BinderSlotCard[] | undefined,
+    flipped: boolean,
+): BinderSlotCard | undefined {
+    if (!cards || cards.length === 0) {
+        return undefined;
+    }
+    const sorted = sortSlotCards(cards);
+    return flipped ? sorted[0] : sorted[sorted.length - 1];
+}
+
+function updateSlotCardByZ(
+    cards: BinderSlotCard[] | undefined,
+    z: number,
+    update: (card: BinderSlotCard) => BinderSlotCard,
+): BinderSlotCard[] {
+    const sorted = sortSlotCards(cards);
+    const index = sorted.findIndex((card) => card.z === z);
+    if (index === -1) {
+        return sorted;
+    }
+    sorted[index] = update(sorted[index]);
+    return sortSlotCards(sorted);
+}
+
+function removeSlotCardByZ(
+    cards: BinderSlotCard[] | undefined,
+    z: number,
+): { cards: BinderSlotCard[]; removed?: BinderSlotCard } {
+    const sorted = sortSlotCards(cards);
+    const index = sorted.findIndex((card) => card.z === z);
+    if (index === -1) {
+        return { cards: sorted };
+    }
+    const [removed] = sorted.splice(index, 1);
+    return { cards: sorted, removed };
+}
 
 function BinderCoverComponent({
     binderType,
@@ -249,10 +305,11 @@ function BinderSlot({
         1;
     const logicalHeight = height - BINDER_PERFORATION_DOT_SIZE - 1;
 
-    const slotValue = useWatch({
+    const slotCards = useWatch({
         control,
         name: `pages.${pageNum}.slots.${id}`,
     });
+    const visibleCard = getVisibleSlotCard(slotCards, flipped);
     const slotStyle = {
         backgroundImage: `${gradient}, ${gradient} ${isLastCol ? ", " + gradient : ""}`,
         backgroundPosition: `left bottom, left top ${isLastCol ? ", right top" : ""}`,
@@ -263,23 +320,23 @@ function BinderSlot({
     if (disabled) {
         return (
             <div className="relative" style={slotStyle}>
-                {slotValue && valueScale > 0 && (
+                {visibleCard && valueScale > 0 && (
                     <div
                         style={{
                             position: "absolute",
-                            bottom: `calc(${slotValue.y * valueScale}px + ${dotPctY}%)`,
-                            left: `calc(${slotValue.x * valueScale}px + ${dotPctX}%)`,
+                            bottom: `calc(${visibleCard.y * valueScale}px + ${dotPctY}%)`,
+                            left: `calc(${visibleCard.x * valueScale}px + ${dotPctX}%)`,
                             opacity: isSelected ? 1 : 0.6,
                         }}
                     >
                         <PhotocardWithSize
-                            photocard={slotValue.photocard}
-                            showFront={slotValue.showFront !== flipped}
-                            width={slotValue.width * valueScale}
-                            height={slotValue.height * valueScale}
+                            photocard={visibleCard.photocard}
+                            showFront={visibleCard.showFront !== flipped}
+                            width={visibleCard.width * valueScale}
+                            height={visibleCard.height * valueScale}
                             className={flipped ? "flip-horizontal!" : ""}
                             style={{
-                                transform: `rotate(${slotValue.rotation}deg)`,
+                                transform: `rotate(${visibleCard.rotation}deg)`,
                                 transformOrigin: "center center",
                             }}
                         />
@@ -296,28 +353,29 @@ function BinderSlot({
             logicalWidth={logicalWidth}
             logicalHeight={logicalHeight}
             flipped={flipped}
-            slotValue={slotValue}
+            slotCards={slotCards}
             onSelectSlot={onSelectSlot}
             slotStyle={slotStyle}
         >
-            {slotValue && valueScale > 0 && (
+            {visibleCard && valueScale > 0 && (
                 <PhotocardWithDragContent
-                    photocard={slotValue.photocard}
+                    photocard={visibleCard.photocard}
                     slotId={id}
                     pageNum={pageNum}
-                    showFront={slotValue.showFront !== flipped}
-                    width={slotValue.width}
-                    height={slotValue.height}
+                    showFront={visibleCard.showFront !== flipped}
+                    width={visibleCard.width}
+                    height={visibleCard.height}
                     slotWidth={logicalWidth}
                     slotHeight={logicalHeight}
+                    z={visibleCard.z}
                     disabled={flipped}
                     className={flipped ? "flip-horizontal!" : ""}
                     style={{
                         position: "absolute",
-                        bottom: `calc(${slotValue.y}px + ${dotPctY}%)`,
-                        left: `calc(${slotValue.x}px + ${dotPctX}%)`,
+                        bottom: `calc(${visibleCard.y}px + ${dotPctY}%)`,
+                        left: `calc(${visibleCard.x}px + ${dotPctX}%)`,
                         opacity: isSelected ? 1 : 0.6,
-                        transform: `rotate(${slotValue.rotation}deg)`,
+                        transform: `rotate(${visibleCard.rotation}deg)`,
                     }}
                 />
             )}
@@ -331,7 +389,7 @@ function InteractiveSlotContent({
     logicalWidth,
     logicalHeight,
     flipped,
-    slotValue,
+    slotCards,
     onSelectSlot,
     slotStyle,
     children,
@@ -341,17 +399,7 @@ function InteractiveSlotContent({
     logicalWidth: number;
     logicalHeight: number;
     flipped: boolean;
-    slotValue?: {
-        photocard: Selectable<Photocards>;
-        snap: SnapToGrid;
-        showFront: boolean;
-        rotation: number;
-        width: number;
-        height: number;
-        x: number;
-        y: number;
-        z: number;
-    };
+    slotCards?: BinderSlotCard[];
     onSelectSlot: (id: string, width: number, height: number) => void;
     slotStyle: React.CSSProperties;
     children?: React.ReactNode;
@@ -371,7 +419,7 @@ function InteractiveSlotContent({
         <div
             ref={setNodeRef}
             onClick={() => {
-                if (slotValue && !flipped) {
+                if (slotCards && slotCards.length > 0 && !flipped) {
                     onSelectSlot(slotId, logicalWidth, logicalHeight);
                 }
             }}
@@ -392,6 +440,7 @@ function PhotocardWithDragContent({
     height,
     slotWidth,
     slotHeight,
+    z,
     style,
     className,
     disabled,
@@ -404,6 +453,7 @@ function PhotocardWithDragContent({
     height: number;
     slotWidth: number;
     slotHeight: number;
+    z: number;
     style?: React.CSSProperties;
     className?: string;
     disabled?: boolean;
@@ -417,6 +467,7 @@ function PhotocardWithDragContent({
             sourcePageNum: pageNum,
             sourceSlotWidth: slotWidth,
             sourceSlotHeight: slotHeight,
+            sourceCardZ: z,
         },
     });
     const { transform, ...containerStyle } = style ?? {};
@@ -579,7 +630,12 @@ function SearchComponent({
                         }
                     }}
                 />
-                <Button type="button" size="icon" className="px-3" onClick={() => onSearch(searchType)}>
+                <Button
+                    type="button"
+                    size="icon"
+                    className="px-3"
+                    onClick={() => onSearch(searchType)}
+                >
                     <SearchIcon />
                 </Button>
             </div>
@@ -638,17 +694,19 @@ const formSchema = z.object({
             slots: z.record(
                 z.string(), // Slot ID
                 z
-                    .object({
-                        photocard: z.custom<Selectable<Photocards>>(),
-                        snap: z.custom<SnapToGrid>(),
-                        showFront: z.boolean(),
-                        rotation: z.number(),
-                        width: z.number(),
-                        height: z.number(),
-                        x: z.number(),
-                        y: z.number(),
-                        z: z.number(),
-                    })
+                    .array(
+                        z.object({
+                            photocard: z.custom<Selectable<Photocards>>(),
+                            snap: z.custom<SnapToGrid>(),
+                            showFront: z.boolean(),
+                            rotation: z.number(),
+                            width: z.number(),
+                            height: z.number(),
+                            x: z.number(),
+                            y: z.number(),
+                            z: z.number(),
+                        }),
+                    )
                     .optional(),
             ),
         }),
@@ -744,11 +802,12 @@ export default function BinderClient({
             setActivePhotocard(data.photocard);
         }
         if (data?.sourceSlotId !== undefined) {
-            const sourceSlotData = form.getValues(
+            const sourceSlotCards = form.getValues(
                 `pages.${data.sourcePageNum}.slots.${data.sourceSlotId}`,
             );
-            setActivePhotocardRotation(sourceSlotData?.rotation ?? 0);
-            setActivePhotocardShowFront(sourceSlotData?.showFront ?? true);
+            const sourceCard = getVisibleSlotCard(sourceSlotCards, false);
+            setActivePhotocardRotation(sourceCard?.rotation ?? 0);
+            setActivePhotocardShowFront(sourceCard?.showFront ?? true);
             setDragSourceSlot({
                 slotId: data.sourceSlotId,
                 pageNum: data.sourcePageNum,
@@ -777,10 +836,9 @@ export default function BinderClient({
         cardWidth: number,
         cardHeight: number,
         rotation: number,
-    ): { x: number; y: number; z: number } {
+    ): { x: number; y: number } {
         let x = 0;
         let y = 0;
-        const z = 0;
 
         const isSideways = Math.abs(rotation) % 180 === 90;
 
@@ -818,12 +876,14 @@ export default function BinderClient({
             }
         }
 
-        return { x, y, z };
+        return { x, y };
     }
 
     function onDragEnd(event: DragEndEvent) {
         if (!event.over) {
-            deleteSelectedSlot();
+            if (dragSourceSlot) {
+                deleteSelectedSlot();
+            }
             setActivePhotocard(null);
             setActivePhotocardRotation(0);
             setActivePhotocardShowFront(true);
@@ -834,15 +894,16 @@ export default function BinderClient({
         const slotWidth = event.over.data.current!.width * scale;
         const width = activeCardSize!.width * scale;
         const height = activeCardSize!.height * scale;
-        const source = dragSourceSlot
+        const sourceCards = dragSourceSlot
             ? form.getValues(
                 `pages.${dragSourceSlot.pageNum}.slots.${dragSourceSlot.slotId}`,
             )
             : null;
+        const source = getVisibleSlotCard(sourceCards ?? undefined, false);
         const sourceSnap = source?.snap ?? snapToGrid;
         const sourceRotation = source?.rotation ?? 0;
 
-        const { x, y, z } = calculatePhotocardPosition(
+        const { x, y } = calculatePhotocardPosition(
             sourceSnap,
             slotWidth,
             0, // slotHeight not needed for x calculation currently, but good to have in sig if y needed later
@@ -855,34 +916,56 @@ export default function BinderClient({
         const overPageNum = Number(event.over.data.current!.pageNum);
         const overSlotWidth = Number(event.over.data.current!.width);
         const overSlotHeight = Number(event.over.data.current!.height);
+        const existingCards =
+            form.getValues(`pages.${overPageNum}.slots.${overSlotId}`) ?? [];
+        let nextCards = sortSlotCards(existingCards);
 
-        form.setValue(`pages.${overPageNum}.slots.${overSlotId}`, {
-            photocard: activePhotocard!,
-            snap: sourceSnap,
-            showFront: source?.showFront ?? true,
-            rotation: sourceRotation,
-            width,
-            height,
-            x,
-            y,
-            z,
-        });
+        if (dragSourceSlot) {
+            const sourceCardZ = Number(event.active.data.current?.sourceCardZ);
+            const removal = removeSlotCardByZ(sourceCards ?? [], sourceCardZ);
+            if (
+                dragSourceSlot.slotId === overSlotId &&
+                dragSourceSlot.pageNum === overPageNum
+            ) {
+                nextCards = removal.cards;
+            } else {
+                if (removal.cards.length === 0) {
+                    form.unregister(
+                        `pages.${dragSourceSlot.pageNum}.slots.${dragSourceSlot.slotId}`,
+                    );
+                } else {
+                    form.setValue(
+                        `pages.${dragSourceSlot.pageNum}.slots.${dragSourceSlot.slotId}`,
+                        removal.cards,
+                    );
+                }
+            }
+        }
+
+        const highestZ = nextCards.reduce(
+            (maxZ, card) => Math.max(maxZ, card.z),
+            -1,
+        );
+
+        form.setValue(`pages.${overPageNum}.slots.${overSlotId}`, [
+            ...nextCards,
+            {
+                photocard: activePhotocard!,
+                snap: sourceSnap,
+                showFront: source?.showFront ?? true,
+                rotation: sourceRotation,
+                width,
+                height,
+                x,
+                y,
+                z: highestZ + 1,
+            },
+        ]);
         setSelectedSlot({
             id: overSlotId,
             width: overSlotWidth,
             height: overSlotHeight,
         });
-
-        // Clear source slot if this was a slot-to-slot drag to a different slot
-        if (
-            dragSourceSlot &&
-            (overSlotId !== dragSourceSlot.slotId ||
-                overPageNum !== dragSourceSlot.pageNum)
-        ) {
-            form.unregister(
-                `pages.${dragSourceSlot.pageNum}.slots.${dragSourceSlot.slotId}`,
-            );
-        }
 
         setNeedsSaving(true);
         setActivePhotocard(null);
@@ -921,7 +1004,8 @@ export default function BinderClient({
 
     function onSelectSlot(id: string, width: number, height: number) {
         setSelectedSlot({ id, width, height });
-        const slotData = form.getValues(`pages.${currentPage}.slots.${id}`);
+        const slotCards = form.getValues(`pages.${currentPage}.slots.${id}`);
+        const slotData = getVisibleSlotCard(slotCards, false);
         if (slotData) {
             setSnapToGrid(slotData.snap);
         }
@@ -929,13 +1013,14 @@ export default function BinderClient({
 
     function alignSelectedSlot(snapToGrid: SnapToGrid) {
         if (selectedSlot) {
-            const slotData = form.getValues(
+            const slotCards = form.getValues(
                 `pages.${currentPage}.slots.${selectedSlot.id}`,
             );
+            const slotData = getVisibleSlotCard(slotCards, false);
             if (slotData) {
                 const slotWidth = selectedSlot.width * scale;
                 const slotHeight = selectedSlot.height * scale;
-                const { x, y, z } = calculatePhotocardPosition(
+                const { x, y } = calculatePhotocardPosition(
                     snapToGrid,
                     slotWidth,
                     slotHeight,
@@ -943,13 +1028,15 @@ export default function BinderClient({
                     slotData.height,
                     slotData.rotation,
                 );
-                form.setValue(`pages.${currentPage}.slots.${selectedSlot.id}`, {
-                    ...slotData,
-                    snap: snapToGrid,
-                    x,
-                    y,
-                    z,
-                });
+                form.setValue(
+                    `pages.${currentPage}.slots.${selectedSlot.id}`,
+                    updateSlotCardByZ(slotCards, slotData.z, (card) => ({
+                        ...card,
+                        snap: snapToGrid,
+                        x,
+                        y,
+                    })),
+                );
                 setNeedsSaving(true);
             }
         }
@@ -958,14 +1045,18 @@ export default function BinderClient({
 
     function flipSelectedSlot() {
         if (selectedSlot) {
-            const slotData = form.getValues(
+            const slotCards = form.getValues(
                 `pages.${currentPage}.slots.${selectedSlot.id}`,
             );
+            const slotData = getVisibleSlotCard(slotCards, false);
             if (slotData) {
-                form.setValue(`pages.${currentPage}.slots.${selectedSlot.id}`, {
-                    ...slotData,
-                    showFront: !slotData.showFront,
-                });
+                form.setValue(
+                    `pages.${currentPage}.slots.${selectedSlot.id}`,
+                    updateSlotCardByZ(slotCards, slotData.z, (card) => ({
+                        ...card,
+                        showFront: !card.showFront,
+                    })),
+                );
                 setNeedsSaving(true);
             }
         }
@@ -973,26 +1064,81 @@ export default function BinderClient({
 
     function rotateSelectedSlot() {
         if (selectedSlot) {
-            const slotData = form.getValues(
+            const slotCards = form.getValues(
                 `pages.${currentPage}.slots.${selectedSlot.id}`,
             );
+            const slotData = getVisibleSlotCard(slotCards, false);
             if (slotData) {
                 // Rotate 90 degrees counter-clockwise
-                form.setValue(`pages.${currentPage}.slots.${selectedSlot.id}`, {
-                    ...slotData,
-                    rotation: (slotData.rotation - 90) % 360,
-                });
+                form.setValue(
+                    `pages.${currentPage}.slots.${selectedSlot.id}`,
+                    updateSlotCardByZ(slotCards, slotData.z, (card) => ({
+                        ...card,
+                        rotation: (card.rotation - 90) % 360,
+                    })),
+                );
                 // Immediately realign according to existing snap
                 alignSelectedSlot(slotData.snap);
+                setNeedsSaving(true);
             }
         }
     }
 
+    function changeSelectedSlotZ(position: "top" | "bottom") {
+        if (!selectedSlot) {
+            return;
+        }
+        const slotCards = form.getValues(
+            `pages.${currentPage}.slots.${selectedSlot.id}`,
+        );
+        const slotData = getVisibleSlotCard(slotCards, false);
+        if (!slotData) {
+            return;
+        }
+        const sorted = sortSlotCards(slotCards);
+        const highestZ = sorted.reduce(
+            (maxZ, card) => Math.max(maxZ, card.z),
+            slotData.z,
+        );
+        const lowestZ = sorted.reduce(
+            (minZ, card) => Math.min(minZ, card.z),
+            slotData.z,
+        );
+        const nextZ = position === "top" ? highestZ + 1 : lowestZ - 1;
+        form.setValue(
+            `pages.${currentPage}.slots.${selectedSlot.id}`,
+            updateSlotCardByZ(slotCards, slotData.z, (card) => ({
+                ...card,
+                z: nextZ,
+            })),
+        );
+        setNeedsSaving(true);
+    }
+
     function deleteSelectedSlot() {
         if (selectedSlot) {
-            form.unregister(`pages.${currentPage}.slots.${selectedSlot.id}`);
-            setSelectedSlot(null);
-            setNeedsSaving(true);
+            const slotCards = form.getValues(
+                `pages.${currentPage}.slots.${selectedSlot.id}`,
+            );
+            const slotData = getVisibleSlotCard(slotCards, false);
+            if (slotData) {
+                const updatedCards = removeSlotCardByZ(
+                    slotCards,
+                    slotData.z,
+                ).cards;
+                if (updatedCards.length === 0) {
+                    form.unregister(
+                        `pages.${currentPage}.slots.${selectedSlot.id}`,
+                    );
+                    setSelectedSlot(null);
+                } else {
+                    form.setValue(
+                        `pages.${currentPage}.slots.${selectedSlot.id}`,
+                        updatedCards,
+                    );
+                }
+                setNeedsSaving(true);
+            }
         }
     }
 
@@ -1115,13 +1261,49 @@ export default function BinderClient({
                                     >
                                         <RotateCcwIcon />
                                     </Button>
+                                    <Separator
+                                        orientation="vertical"
+                                        className="w-0.5! mx-3"
+                                    />
+                                    <Button
+                                        size="icon"
+                                        type="button"
+                                        variant="noShadow"
+                                        className="px-3"
+                                        onClick={() =>
+                                            changeSelectedSlotZ("top")
+                                        }
+                                        disabled={selectedSlot === null}
+                                        tooltip="Move to top"
+                                    >
+                                        <ArrowUpToLineIcon />
+                                    </Button>
+                                    <Button
+                                        size="icon"
+                                        type="button"
+                                        variant="noShadow"
+                                        className="px-3"
+                                        onClick={() =>
+                                            changeSelectedSlotZ("bottom")
+                                        }
+                                        disabled={selectedSlot === null}
+                                        tooltip="Move to bottom"
+                                    >
+                                        <ArrowDownToLineIcon />
+                                    </Button>
+                                    <Separator
+                                        orientation="vertical"
+                                        className="w-0.5! mx-3"
+                                    />
                                     <Button
                                         size="icon"
                                         type="button"
                                         variant="noShadow"
                                         className={`px-3 ${selectedSlot && snapToGrid === SnapToGrid.BottomLeft ? "bg-white!" : ""}`}
                                         onClick={() =>
-                                            alignSelectedSlot(SnapToGrid.BottomLeft)
+                                            alignSelectedSlot(
+                                                SnapToGrid.BottomLeft,
+                                            )
                                         }
                                         disabled={selectedSlot === null}
                                         tooltip="Align to bottom left"
@@ -1169,6 +1351,10 @@ export default function BinderClient({
                                     >
                                         <PointerIcon />
                                     </Button>
+                                    <Separator
+                                        orientation="vertical"
+                                        className="w-0.5! mx-3"
+                                    />
                                     <Button
                                         size="icon"
                                         type="button"
@@ -1194,7 +1380,9 @@ export default function BinderClient({
                                                         binderType={field.value}
                                                         index={currentPage - 1}
                                                         flipped={true}
-                                                        onSelectSlot={onSelectSlot}
+                                                        onSelectSlot={
+                                                            onSelectSlot
+                                                        }
                                                         selectedSlotId={
                                                             selectedSlot?.id
                                                         }
@@ -1206,7 +1394,9 @@ export default function BinderClient({
                                                         binderType={field.value}
                                                         index={currentPage}
                                                         flipped={false}
-                                                        onSelectSlot={onSelectSlot}
+                                                        onSelectSlot={
+                                                            onSelectSlot
+                                                        }
                                                         selectedSlotId={
                                                             selectedSlot?.id
                                                         }
@@ -1297,7 +1487,9 @@ export default function BinderClient({
                                         cardTypes={cardTypes}
                                         cardSizes={cardSizes}
                                         ownedPhotocards={ownedPhotocards}
-                                        wishlistedPhotocards={wishlistedPhotocards}
+                                        wishlistedPhotocards={
+                                            wishlistedPhotocards
+                                        }
                                     />
                                 </div>
                             </div>
