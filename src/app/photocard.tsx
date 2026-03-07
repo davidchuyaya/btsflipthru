@@ -285,8 +285,8 @@ export function PhotocardWithSize({
 }: {
     photocard: Selectable<Photocards>;
     showFront: boolean;
-    width?: number;
-    height?: number;
+    width?: React.CSSProperties["width"];
+    height?: React.CSSProperties["height"];
     style?: React.CSSProperties;
     className?: string;
 }) {
@@ -298,15 +298,14 @@ export function PhotocardWithSize({
         : null;
     const src = showFront ? frontSrc : backSrc;
 
+    const cardStyle: React.CSSProperties = {
+        width,
+        height,
+        ...style,
+    };
+
     return (
-        <div
-            style={{
-                width,
-                height,
-                ...style,
-            }}
-            className={className}
-        >
+        <div style={cardStyle} className={className}>
             {src ? (
                 <img
                     src={src}
@@ -342,8 +341,8 @@ export function DraggablePhotocard({
 }: {
     photocard: Selectable<Photocards>;
     showFront: boolean;
-    width?: number;
-    height?: number;
+    width?: React.CSSProperties["width"];
+    height?: React.CSSProperties["height"];
 }) {
     const { attributes, listeners, setNodeRef } = useDraggable({
         id: photocard.id,
@@ -357,26 +356,11 @@ export function DraggablePhotocard({
             {...attributes}
             style={{ width, height }}
         >
-            <PhotocardComponent
-                src={
-                    showFront
-                        ? photocard.image_id
-                            ? thumbnailUrl(photocard.image_id)
-                            : null
-                        : photocard.back_image_id
-                          ? thumbnailUrl(photocard.back_image_id)
-                          : null
-                }
-                fallbackSrc={
-                    showFront
-                        ? photocard.back_image_id
-                            ? thumbnailUrl(photocard.back_image_id)
-                            : null
-                        : photocard.image_id
-                          ? thumbnailUrl(photocard.image_id)
-                          : null
-                }
-                effects={photocard.effects}
+            <PhotocardWithSize
+                photocard={photocard}
+                showFront={showFront}
+                width={width}
+                height={height}
             />
         </div>
     );

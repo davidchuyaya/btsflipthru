@@ -30,6 +30,7 @@ import {
     PointerIcon,
     RotateCcwIcon,
     SaveIcon,
+    SearchIcon,
     Share2Icon,
     Trash2Icon,
 } from "lucide-react";
@@ -203,9 +204,7 @@ function BinderPageComponent({
                         disabled,
                         valueScale: previewScale,
                     };
-                    return (
-                        <BinderSlot key={key} {...slotProps} />
-                    );
+                    return <BinderSlot key={key} {...slotProps} />;
                 }),
             )}
         </div>
@@ -566,8 +565,8 @@ function SearchComponent({
     }
 
     return (
-        <div className="rounded-2xl bg-third-lighter p-4 flex flex-col items-center gap-4 w-[75%]">
-            <div className="flex flex-row gap-3 w-full">
+        <div className="rounded-2xl bg-third-lighter p-4 flex h-full min-h-0 flex-col items-stretch gap-4 overflow-hidden">
+            <div className="flex w-full shrink-0 flex-row gap-3">
                 <Input
                     type="text"
                     placeholder="Search"
@@ -580,12 +579,12 @@ function SearchComponent({
                         }
                     }}
                 />
-                <Button type="button" onClick={() => onSearch(searchType)}>
-                    Search
+                <Button type="button" size="icon" className="px-3" onClick={() => onSearch(searchType)}>
+                    <SearchIcon />
                 </Button>
             </div>
             <ToggleGroup
-                className="w-auto!"
+                className="w-auto! shrink-0"
                 type="single"
                 variant="outline"
                 value={searchType}
@@ -605,7 +604,13 @@ function SearchComponent({
                     </ToggleGroupItem>
                 ))}
             </ToggleGroup>
-            <PhotocardGrid photocards={shownPhotocards} draggable={true} />
+            <PhotocardGrid
+                photocards={shownPhotocards}
+                draggable={true}
+                scrollable={true}
+                className="grid grid-cols-1 gap-4 justify-items-stretch px-4"
+                draggablePhotocardWidth="100%"
+            />
         </div>
     );
 }
@@ -1008,15 +1013,15 @@ export default function BinderClient({
                                     onClick={() => setPage(index)}
                                     className={`shrink-0 rounded-lg border-2 p-1 ${currentPage === index ? "border-third bg-third-lighter" : "border-transparent bg-white/60 hover:bg-white/80"}`}
                                 >
-                            <BinderPageComponent
-                                binderType={binderType}
-                                index={index}
-                                flipped={false}
-                                onSelectSlot={() => { }}
-                                disabled={true}
-                                fixedHeight="10vh"
-                                mainScale={scale}
-                            />
+                                    <BinderPageComponent
+                                        binderType={binderType}
+                                        index={index}
+                                        flipped={false}
+                                        onSelectSlot={() => { }}
+                                        disabled={true}
+                                        fixedHeight="10vh"
+                                        mainScale={scale}
+                                    />
                                     <span className="mt-1 block text-center text-xs font-semibold">
                                         Page {index + 1}
                                     </span>
@@ -1031,7 +1036,7 @@ export default function BinderClient({
 
     return (
         <DndContext onDragStart={onDragStart} onDragEnd={onDragEnd}>
-            <div className="flex flex-col gap-4 m-16 items-center">
+            <div className="flex flex-col gap-4 m-6 items-center">
                 <h1>Work in Progress!</h1>
                 <FormProvider {...form}>
                     <form
@@ -1084,202 +1089,208 @@ export default function BinderClient({
                                 </Field>
                             )}
                         />
-                        <div className="flex flex-row gap-4 items-center">
-                            <div className="flex flex-col gap-2 p-4 bg-main rounded-xl">
-                                <Button
-                                    size="icon"
-                                    type="button"
-                                    variant="noShadow"
-                                    onClick={addPage}
-                                >
-                                    <Image
-                                        src="flipthru_addpage.svg"
-                                        className="size-7"
-                                        width={0}
-                                        height={0}
-                                        alt="Add a binder page"
-                                    />
-                                </Button>
-                                <Button
-                                    size="icon"
-                                    type="button"
-                                    variant="noShadow"
-                                    onClick={deleteCurrentPage}
-                                    disabled={
-                                        pages.length === 1 ||
-                                        currentPage >= pages.length
-                                    }
-                                >
-                                    <Trash2Icon />
-                                </Button>
-                            </div>
-                            <div className="flex flex-col gap-4">
-                                <Button
-                                    size="icon"
-                                    type="button"
-                                    className="px-3"
-                                    onClick={() => setPage(currentPage - 1)}
-                                    disabled={currentPage === 0}
-                                >
-                                    <ChevronLeftIcon />
-                                </Button>
-                                <Button
-                                    size="icon"
-                                    type="button"
-                                    className="px-3"
-                                    onClick={() => setPage(0)}
-                                    disabled={currentPage === 0}
-                                >
-                                    <ChevronsLeftIcon />
-                                </Button>
-                            </div>
-                            <Controller
-                                name="binderType"
-                                control={form.control}
-                                render={({ field }) => (
-                                    <BinderCoverComponent
-                                        binderType={field.value}
-                                        binderRef={binderRef}
-                                        leftPage={
-                                            <BinderPageComponent
-                                                binderType={field.value}
-                                                index={currentPage - 1}
-                                                flipped={true}
-                                                onSelectSlot={onSelectSlot}
-                                                selectedSlotId={
-                                                    selectedSlot?.id
-                                                }
-                                                mainScale={scale}
-                                            />
+                        <div className="flex flex-row w-full gap-4 items-stretch min-h-0">
+                            <div className="w-[85%] flex flex-col gap-4 items-center">
+                                <div className="flex flex-row gap-2 p-4 bg-main rounded-xl">
+                                    <Button
+                                        size="icon"
+                                        type="button"
+                                        variant="noShadow"
+                                        className="px-3"
+                                        onClick={flipSelectedSlot}
+                                        disabled={selectedSlot === null}
+                                    >
+                                        <FlipHorizontalIcon />
+                                    </Button>
+                                    <Button
+                                        size="icon"
+                                        type="button"
+                                        variant="noShadow"
+                                        className="px-3"
+                                        onClick={rotateSelectedSlot}
+                                        disabled={selectedSlot === null}
+                                    >
+                                        <RotateCcwIcon />
+                                    </Button>
+                                    <Button
+                                        size="icon"
+                                        type="button"
+                                        variant="noShadow"
+                                        className={`px-3 ${selectedSlot && snapToGrid === SnapToGrid.BottomLeft ? "!bg-white" : ""}`}
+                                        onClick={() =>
+                                            alignSelectedSlot(SnapToGrid.BottomLeft)
                                         }
-                                        rightPage={
-                                            <BinderPageComponent
-                                                binderType={field.value}
-                                                index={currentPage}
-                                                flipped={false}
-                                                onSelectSlot={onSelectSlot}
-                                                selectedSlotId={
-                                                    selectedSlot?.id
-                                                }
-                                                mainScale={scale}
-                                            />
+                                        disabled={selectedSlot === null}
+                                    >
+                                        <AlignStartVerticalIcon />
+                                    </Button>
+                                    <Button
+                                        size="icon"
+                                        type="button"
+                                        variant="noShadow"
+                                        className={`px-3 ${selectedSlot && snapToGrid === SnapToGrid.Center ? "!bg-white" : ""}`}
+                                        onClick={() =>
+                                            alignSelectedSlot(SnapToGrid.Center)
                                         }
+                                        disabled={selectedSlot === null}
+                                    >
+                                        <AlignCenterVerticalIcon />
+                                    </Button>
+                                    <Button
+                                        size="icon"
+                                        type="button"
+                                        variant="noShadow"
+                                        className={`px-3 ${selectedSlot && snapToGrid === SnapToGrid.BottomRight ? "!bg-white" : ""}`}
+                                        onClick={() =>
+                                            alignSelectedSlot(
+                                                SnapToGrid.BottomRight,
+                                            )
+                                        }
+                                        disabled={selectedSlot === null}
+                                    >
+                                        <AlignEndVerticalIcon />
+                                    </Button>
+                                    <Button
+                                        size="icon"
+                                        type="button"
+                                        variant="noShadow"
+                                        className={`px-3 ${selectedSlot && snapToGrid === SnapToGrid.Manual ? "!bg-white" : ""}`}
+                                        onClick={() =>
+                                            alignSelectedSlot(SnapToGrid.Manual)
+                                        }
+                                        disabled={selectedSlot === null}
+                                    >
+                                        <PointerIcon />
+                                    </Button>
+                                    <Button
+                                        size="icon"
+                                        type="button"
+                                        variant="noShadow"
+                                        className="px-3"
+                                        onClick={() => deleteSelectedSlot()}
+                                        disabled={selectedSlot === null}
+                                    >
+                                        <Trash2Icon />
+                                    </Button>
+                                </div>
+                                <div className="w-full">
+                                    <Controller
+                                        name="binderType"
+                                        control={form.control}
+                                        render={({ field }) => (
+                                            <BinderCoverComponent
+                                                binderType={field.value}
+                                                binderRef={binderRef}
+                                                leftPage={
+                                                    <BinderPageComponent
+                                                        binderType={field.value}
+                                                        index={currentPage - 1}
+                                                        flipped={true}
+                                                        onSelectSlot={onSelectSlot}
+                                                        selectedSlotId={
+                                                            selectedSlot?.id
+                                                        }
+                                                        mainScale={scale}
+                                                    />
+                                                }
+                                                rightPage={
+                                                    <BinderPageComponent
+                                                        binderType={field.value}
+                                                        index={currentPage}
+                                                        flipped={false}
+                                                        onSelectSlot={onSelectSlot}
+                                                        selectedSlotId={
+                                                            selectedSlot?.id
+                                                        }
+                                                        mainScale={scale}
+                                                    />
+                                                }
+                                            />
+                                        )}
                                     />
-                                )}
-                            />
-                            <div className="flex flex-col gap-4">
-                                <Button
-                                    size="icon"
-                                    type="button"
-                                    className="px-3"
-                                    onClick={() => setPage(currentPage + 1)}
-                                    disabled={currentPage === pages.length}
-                                >
-                                    <ChevronRightIcon />
-                                </Button>
-                                <Button
-                                    size="icon"
-                                    type="button"
-                                    className="px-3"
-                                    onClick={() => setPage(pages.length)}
-                                    disabled={currentPage === pages.length}
-                                >
-                                    <ChevronsRightIcon />
-                                </Button>
+                                </div>
+                                <div className="flex flex-row gap-4">
+                                    <Button
+                                        size="icon"
+                                        type="button"
+                                        className="px-3"
+                                        onClick={() => setPage(0)}
+                                        disabled={currentPage === 0}
+                                    >
+                                        <ChevronsLeftIcon />
+                                    </Button>
+                                    <Button
+                                        size="icon"
+                                        type="button"
+                                        className="px-3"
+                                        onClick={() => setPage(currentPage - 1)}
+                                        disabled={currentPage === 0}
+                                    >
+                                        <ChevronLeftIcon />
+                                    </Button>
+                                    <p className="self-center mx-4">
+                                        {currentPage + 1}
+                                    </p>
+                                    <Button
+                                        size="icon"
+                                        type="button"
+                                        className="px-3"
+                                        onClick={() => setPage(currentPage + 1)}
+                                        disabled={currentPage === pages.length}
+                                    >
+                                        <ChevronRightIcon />
+                                    </Button>
+                                    <Button
+                                        size="icon"
+                                        type="button"
+                                        className="px-3"
+                                        onClick={() => setPage(pages.length)}
+                                        disabled={currentPage === pages.length}
+                                    >
+                                        <ChevronsRightIcon />
+                                    </Button>
+                                    <Button
+                                        size="icon"
+                                        type="button"
+                                        onClick={addPage}
+                                    >
+                                        <Image
+                                            src="flipthru_addpage.svg"
+                                            className="size-7"
+                                            width={0}
+                                            height={0}
+                                            alt="Add a binder page"
+                                        />
+                                    </Button>
+                                    <Button
+                                        size="icon"
+                                        type="button"
+                                        className="px-3"
+                                        onClick={deleteCurrentPage}
+                                        disabled={
+                                            pages.length === 1 ||
+                                            currentPage >= pages.length
+                                        }
+                                    >
+                                        <Trash2Icon />
+                                    </Button>
+                                </div>
                             </div>
-                            <div className="flex flex-col gap-2 p-4 bg-main rounded-xl">
-                                <Button
-                                    size="icon"
-                                    type="button"
-                                    variant="noShadow"
-                                    className="px-3"
-                                    onClick={flipSelectedSlot}
-                                    disabled={selectedSlot === null}
-                                >
-                                    <FlipHorizontalIcon />
-                                </Button>
-                                <Button
-                                    size="icon"
-                                    type="button"
-                                    variant="noShadow"
-                                    className="px-3"
-                                    onClick={rotateSelectedSlot}
-                                    disabled={selectedSlot === null}
-                                >
-                                    <RotateCcwIcon />
-                                </Button>
-                                <Button
-                                    size="icon"
-                                    type="button"
-                                    variant="noShadow"
-                                    className={`px-3 ${selectedSlot && snapToGrid === SnapToGrid.BottomLeft ? "!bg-white" : ""}`}
-                                    onClick={() =>
-                                        alignSelectedSlot(SnapToGrid.BottomLeft)
-                                    }
-                                    disabled={selectedSlot === null}
-                                >
-                                    <AlignStartVerticalIcon />
-                                </Button>
-                                <Button
-                                    size="icon"
-                                    type="button"
-                                    variant="noShadow"
-                                    className={`px-3 ${selectedSlot && snapToGrid === SnapToGrid.Center ? "!bg-white" : ""}`}
-                                    onClick={() =>
-                                        alignSelectedSlot(SnapToGrid.Center)
-                                    }
-                                    disabled={selectedSlot === null}
-                                >
-                                    <AlignCenterVerticalIcon />
-                                </Button>
-                                <Button
-                                    size="icon"
-                                    type="button"
-                                    variant="noShadow"
-                                    className={`px-3 ${selectedSlot && snapToGrid === SnapToGrid.BottomRight ? "!bg-white" : ""}`}
-                                    onClick={() =>
-                                        alignSelectedSlot(
-                                            SnapToGrid.BottomRight,
-                                        )
-                                    }
-                                    disabled={selectedSlot === null}
-                                >
-                                    <AlignEndVerticalIcon />
-                                </Button>
-                                <Button
-                                    size="icon"
-                                    type="button"
-                                    variant="noShadow"
-                                    className={`px-3 ${selectedSlot && snapToGrid === SnapToGrid.Manual ? "!bg-white" : ""}`}
-                                    onClick={() =>
-                                        alignSelectedSlot(SnapToGrid.Manual)
-                                    }
-                                    disabled={selectedSlot === null}
-                                >
-                                    <PointerIcon />
-                                </Button>
-                                <Button
-                                    size="icon"
-                                    type="button"
-                                    variant="noShadow"
-                                    className="px-3"
-                                    onClick={() => deleteSelectedSlot()}
-                                    disabled={selectedSlot === null}
-                                >
-                                    <Trash2Icon />
-                                </Button>
+                            <div className="relative w-[15%]">
+                                <div className="absolute inset-0 overflow-hidden">
+                                    <SearchComponent
+                                        collections={collections}
+                                        cardTypes={cardTypes}
+                                        cardSizes={cardSizes}
+                                        ownedPhotocards={ownedPhotocards}
+                                        wishlistedPhotocards={wishlistedPhotocards}
+                                    />
+                                </div>
                             </div>
                         </div>
                     </form>
                     <PagePreviewComponent />
                 </FormProvider>
-                <SearchComponent
-                    collections={collections}
-                    cardTypes={cardTypes}
-                    cardSizes={cardSizes}
-                    ownedPhotocards={ownedPhotocards}
-                    wishlistedPhotocards={wishlistedPhotocards}
-                />
             </div>
             <DragOverlay dropAnimation={null}>
                 {activePhotocard && activeCardSize ? (

@@ -16,6 +16,7 @@ import { deleteCollection } from "@/actions";
 function PhotocardGridWithoutCollections({
     photocards,
     className,
+    scrollable,
     showFront,
     collections,
     isSelectionMode,
@@ -24,9 +25,12 @@ function PhotocardGridWithoutCollections({
     draggable,
     ownedIds,
     wishlistedIds,
+    draggablePhotocardWidth,
+    draggablePhotocardHeight,
 }: {
     photocards: Selectable<Photocards>[];
     className?: string;
+    scrollable?: boolean;
     showFront: boolean;
     collections?: Selectable<Collections>[];
     isSelectionMode?: boolean;
@@ -35,8 +39,10 @@ function PhotocardGridWithoutCollections({
     draggable?: boolean;
     ownedIds?: Set<number>;
     wishlistedIds?: Set<number>;
+    draggablePhotocardWidth?: React.CSSProperties["width"];
+    draggablePhotocardHeight?: React.CSSProperties["height"];
 }) {
-    return (
+    const content = (
         <div
             className={`flex flex-row flex-wrap gap-4 justify-center ${className}`}
         >
@@ -46,6 +52,8 @@ function PhotocardGridWithoutCollections({
                         key={photocard.id}
                         photocard={photocard}
                         showFront={showFront}
+                        width={draggablePhotocardWidth}
+                        height={draggablePhotocardHeight}
                     />
                 ) : (
                     <PhotocardComponent
@@ -56,8 +64,8 @@ function PhotocardGridWithoutCollections({
                                     ? thumbnailUrl(photocard.image_id)
                                     : null
                                 : photocard.back_image_id
-                                  ? thumbnailUrl(photocard.back_image_id)
-                                  : null
+                                    ? thumbnailUrl(photocard.back_image_id)
+                                    : null
                         }
                         fallbackSrc={
                             showFront
@@ -65,8 +73,8 @@ function PhotocardGridWithoutCollections({
                                     ? thumbnailUrl(photocard.back_image_id)
                                     : null
                                 : photocard.image_id
-                                  ? thumbnailUrl(photocard.image_id)
-                                  : null
+                                    ? thumbnailUrl(photocard.image_id)
+                                    : null
                         }
                         effects={photocard.effects}
                         selectable={isSelectionMode}
@@ -100,6 +108,12 @@ function PhotocardGridWithoutCollections({
             )}
         </div>
     );
+
+    if (scrollable) {
+        return <div className="min-h-0 overflow-y-auto">{content}</div>;
+    }
+
+    return content;
 }
 
 export default function PhotocardGrid({
@@ -107,6 +121,7 @@ export default function PhotocardGrid({
     collections,
     displayCollections = false,
     className,
+    scrollable = false,
     showFront = true,
     isSelectionMode = false,
     selectedIds,
@@ -115,11 +130,14 @@ export default function PhotocardGrid({
     draggable = false,
     ownedIds,
     wishlistedIds,
+    draggablePhotocardWidth,
+    draggablePhotocardHeight,
 }: {
     photocards: Selectable<Photocards>[]; // Will be displayed in order provided
     collections?: Selectable<Collections>[]; // Will be displayed in order provided
     displayCollections?: boolean;
     className?: string;
+    scrollable?: boolean;
     showFront?: boolean;
     isSelectionMode?: boolean;
     selectedIds?: Set<number>;
@@ -128,6 +146,8 @@ export default function PhotocardGrid({
     draggable?: boolean;
     ownedIds?: Set<number>;
     wishlistedIds?: Set<number>;
+    draggablePhotocardWidth?: React.CSSProperties["width"];
+    draggablePhotocardHeight?: React.CSSProperties["height"];
 }) {
     return displayCollections ? (
         <div
@@ -177,6 +197,7 @@ export default function PhotocardGrid({
                             photocards={children}
                             showFront={showFront}
                             className={hidden ? "hidden" : ""}
+                            scrollable={scrollable}
                             collections={collections}
                             isSelectionMode={isSelectionMode}
                             selectedIds={selectedIds}
@@ -184,6 +205,8 @@ export default function PhotocardGrid({
                             draggable={draggable}
                             ownedIds={ownedIds}
                             wishlistedIds={wishlistedIds}
+                            draggablePhotocardWidth={draggablePhotocardWidth}
+                            draggablePhotocardHeight={draggablePhotocardHeight}
                         />
                     </React.Fragment>
                 );
@@ -193,6 +216,7 @@ export default function PhotocardGrid({
         <PhotocardGridWithoutCollections
             photocards={photocards}
             className={className}
+            scrollable={scrollable}
             showFront={showFront}
             collections={collections}
             isSelectionMode={isSelectionMode}
@@ -201,6 +225,8 @@ export default function PhotocardGrid({
             draggable={draggable}
             ownedIds={ownedIds}
             wishlistedIds={wishlistedIds}
+            draggablePhotocardWidth={draggablePhotocardWidth}
+            draggablePhotocardHeight={draggablePhotocardHeight}
         />
     );
 }
