@@ -3,6 +3,12 @@ import { cva, type VariantProps } from "class-variance-authority";
 
 import * as React from "react";
 
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
@@ -44,20 +50,41 @@ function Button({
     className,
     variant,
     size,
+    tooltip,
     asChild = false,
     ...props
 }: React.ComponentProps<"button"> &
     VariantProps<typeof buttonVariants> & {
         asChild?: boolean;
+        tooltip?: string | React.ComponentProps<typeof TooltipContent>;
     }) {
     const Comp = asChild ? Slot : "button";
 
-    return (
+    const button = (
         <Comp
             data-slot="button"
             className={cn(buttonVariants({ variant, size, className }))}
             {...props}
         />
+    );
+
+    if (!tooltip) {
+        return button;
+    }
+
+    if (typeof tooltip === "string") {
+        tooltip = {
+            children: tooltip,
+        };
+    }
+
+    return (
+        <TooltipProvider>
+            <Tooltip>
+                <TooltipTrigger asChild>{button}</TooltipTrigger>
+                <TooltipContent className="font-bold px-3 py-2" {...tooltip} />
+            </Tooltip>
+        </TooltipProvider>
     );
 }
 

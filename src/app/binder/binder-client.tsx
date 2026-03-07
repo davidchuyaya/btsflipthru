@@ -587,6 +587,7 @@ function SearchComponent({
                 className="w-auto! shrink-0"
                 type="single"
                 variant="outline"
+                orientation="vertical"
                 value={searchType}
                 onValueChange={(v) => {
                     let newSearchType = v as SearchType;
@@ -1099,6 +1100,7 @@ export default function BinderClient({
                                         className="px-3"
                                         onClick={flipSelectedSlot}
                                         disabled={selectedSlot === null}
+                                        tooltip="Flip card"
                                     >
                                         <FlipHorizontalIcon />
                                     </Button>
@@ -1109,6 +1111,7 @@ export default function BinderClient({
                                         className="px-3"
                                         onClick={rotateSelectedSlot}
                                         disabled={selectedSlot === null}
+                                        tooltip="Rotate card 90° CCW"
                                     >
                                         <RotateCcwIcon />
                                     </Button>
@@ -1116,11 +1119,12 @@ export default function BinderClient({
                                         size="icon"
                                         type="button"
                                         variant="noShadow"
-                                        className={`px-3 ${selectedSlot && snapToGrid === SnapToGrid.BottomLeft ? "!bg-white" : ""}`}
+                                        className={`px-3 ${selectedSlot && snapToGrid === SnapToGrid.BottomLeft ? "bg-white!" : ""}`}
                                         onClick={() =>
                                             alignSelectedSlot(SnapToGrid.BottomLeft)
                                         }
                                         disabled={selectedSlot === null}
+                                        tooltip="Align to bottom left"
                                     >
                                         <AlignStartVerticalIcon />
                                     </Button>
@@ -1133,6 +1137,7 @@ export default function BinderClient({
                                             alignSelectedSlot(SnapToGrid.Center)
                                         }
                                         disabled={selectedSlot === null}
+                                        tooltip="Align to center"
                                     >
                                         <AlignCenterVerticalIcon />
                                     </Button>
@@ -1147,6 +1152,7 @@ export default function BinderClient({
                                             )
                                         }
                                         disabled={selectedSlot === null}
+                                        tooltip="Align to bottom right"
                                     >
                                         <AlignEndVerticalIcon />
                                     </Button>
@@ -1159,6 +1165,7 @@ export default function BinderClient({
                                             alignSelectedSlot(SnapToGrid.Manual)
                                         }
                                         disabled={selectedSlot === null}
+                                        tooltip="Manually position"
                                     >
                                         <PointerIcon />
                                     </Button>
@@ -1169,6 +1176,7 @@ export default function BinderClient({
                                         className="px-3"
                                         onClick={() => deleteSelectedSlot()}
                                         disabled={selectedSlot === null}
+                                        tooltip="Delete card from slot"
                                     >
                                         <Trash2Icon />
                                     </Button>
@@ -1216,6 +1224,7 @@ export default function BinderClient({
                                         className="px-3"
                                         onClick={() => setPage(0)}
                                         disabled={currentPage === 0}
+                                        tooltip="Go to first page"
                                     >
                                         <ChevronsLeftIcon />
                                     </Button>
@@ -1225,6 +1234,7 @@ export default function BinderClient({
                                         className="px-3"
                                         onClick={() => setPage(currentPage - 1)}
                                         disabled={currentPage === 0}
+                                        tooltip="Go to previous page"
                                     >
                                         <ChevronLeftIcon />
                                     </Button>
@@ -1237,6 +1247,7 @@ export default function BinderClient({
                                         className="px-3"
                                         onClick={() => setPage(currentPage + 1)}
                                         disabled={currentPage === pages.length}
+                                        tooltip="Go to next page"
                                     >
                                         <ChevronRightIcon />
                                     </Button>
@@ -1246,6 +1257,7 @@ export default function BinderClient({
                                         className="px-3"
                                         onClick={() => setPage(pages.length)}
                                         disabled={currentPage === pages.length}
+                                        tooltip="Go to last page"
                                     >
                                         <ChevronsRightIcon />
                                     </Button>
@@ -1253,6 +1265,7 @@ export default function BinderClient({
                                         size="icon"
                                         type="button"
                                         onClick={addPage}
+                                        tooltip="Add a page"
                                     >
                                         <Image
                                             src="flipthru_addpage.svg"
@@ -1271,6 +1284,7 @@ export default function BinderClient({
                                             pages.length === 1 ||
                                             currentPage >= pages.length
                                         }
+                                        tooltip="Delete current page"
                                     >
                                         <Trash2Icon />
                                     </Button>
