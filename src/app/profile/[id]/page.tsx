@@ -1,16 +1,22 @@
-import { getCollectionsFromDB, getUserProfileDataFromDB } from "@/actions";
+import { getCollectionsFromDB, getUserBindersFromDB, getUserDataFromDB } from "@/actions";
 import ProfileClient from "./profile-client";
 import { notFound } from "next/navigation";
 import { Suspense, cache } from "react";
 
-const getUserProfileData = cache(getUserProfileDataFromDB);
+const getUserData = cache(getUserDataFromDB);
+const getUserBinders = cache(getUserBindersFromDB);
 
 async function ProfileContent({ params }: { params: Promise<{ id: string }> }) {
     const { id } = await params;
-    const userData = await getUserProfileData(id);
+    const userData = await getUserData(id);
     const collections = await getCollectionsFromDB();
 
     if (userData.error || collections.error) {
+        notFound();
+    }
+
+    const binders = await getUserBinders(userData.data!.binders);
+    if (binders.error) {
         notFound();
     }
 
@@ -18,6 +24,7 @@ async function ProfileContent({ params }: { params: Promise<{ id: string }> }) {
         <ProfileClient
             userData={userData.data!}
             collections={collections.data!}
+            binders={binders.data!}
         />
     );
 }
@@ -44,7 +51,7 @@ export async function generateMetadata({
     params: Promise<{ id: string }>;
 }) {
     const { id } = await params;
-    const userData = await getUserProfileData(id);
+    const userData = await getUserData(id);
     if (userData.error) {
         return {
             title: "Profile | BTS Flipthru",

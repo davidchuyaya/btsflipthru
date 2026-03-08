@@ -37,6 +37,8 @@ import {
     ViewMostContributions,
     ViewMostOwnedPhotocards,
     ViewMostWishlistedPhotocards,
+    UserBinders,
+    BinderPages,
 } from "./db";
 import { cacheTag, updateTag } from "next/cache";
 
@@ -45,6 +47,8 @@ const CACHE_TAG_COLLECTION_TYPES = "collection-types";
 const CACHE_TAG_CARD_TYPES = "card-types";
 const CACHE_TAG_CARD_SIZES = "card-sizes";
 const CACHE_TAG_HOME_STATS = "home-stats";
+const CACHE_TAG_USER_DATA = "user-data";
+const CACHE_TAG_USER_BINDERS = "user-binders";
 
 export async function getDate(): Promise<Date> {
     "use cache";
@@ -59,10 +63,11 @@ export async function addUserDataToDB(
         .values(user_data)
         .executeTakeFirstOrThrow()
         .then(
-            (result) => {
+            (_result) => {
+                updateTag(CACHE_TAG_USER_DATA);
                 return { data: true };
             },
-            (reason) => ({
+            (_reason) => ({
                 error: "Could not add user data",
             }),
         );
@@ -71,6 +76,8 @@ export async function addUserDataToDB(
 export async function getUserDataFromDB(
     userId: string,
 ): Promise<Result<Selectable<UserData>>> {
+    "use cache";
+    cacheTag(CACHE_TAG_USER_DATA);
     return await db
         .selectFrom("user_data")
         .where("user_id", "=", userId)
@@ -111,7 +118,7 @@ export async function addCollectionTypeToDB(
                 updateTag(CACHE_TAG_COLLECTION_TYPES);
                 return { data: result.id };
             },
-            (reason) => ({
+            (_reason) => ({
                 error: "Could not add collection type",
             }),
         );
@@ -836,22 +843,6 @@ export async function getPhotocardsInDB(
     return { data: { cards, query: queryString, owned, wishlisted } };
 }
 
-export async function getUserProfileDataFromDB(
-    id: string,
-): Promise<Result<Selectable<UserData>>> {
-    return db
-        .selectFrom("user_data")
-        .selectAll()
-        .where("user_id", "=", id)
-        .executeTakeFirstOrThrow()
-        .then(
-            (data): Result<Selectable<UserData>> => ({ data }),
-            (reason): Result<Selectable<UserData>> => ({
-                error: "Could not fetch user data: " + reason,
-            }),
-        );
-}
-
 export async function updateUserDataInDB(
     userData: Updateable<UserData>,
     withImage: boolean,
@@ -948,7 +939,10 @@ export async function updateUserDataInDB(
         .where("user_id", "=", userData.user_id)
         .executeTakeFirstOrThrow()
         .then(
-            (data) => ({ data: null }),
+            (_data) => {
+                updateTag(CACHE_TAG_USER_DATA);
+                return { data: null };
+            },
             (reason) => ({ error: "Could not update user data: " + reason }),
         );
 
@@ -1038,7 +1032,7 @@ export async function addPhotocardsToOwned(
             .values(values)
             .executeTakeFirstOrThrow()
             .then(
-                (data) => ({ data: true }),
+                (_data) => ({ data: true }),
                 (reason) => ({
                     error: "Could not add photocards to owned: " + reason,
                 }),
@@ -1071,7 +1065,7 @@ export async function addPhotocardsToWishlist(
             .values(values)
             .executeTakeFirstOrThrow()
             .then(
-                (data) => ({ data: true }),
+                (_data) => ({ data: true }),
                 (reason) => ({
                     error: "Could not add photocards to wishlist: " + reason,
                 }),
@@ -1099,7 +1093,7 @@ export async function removePhotocardsFromOwned(
         .where("photocard_id", "in", photocardIds)
         .executeTakeFirstOrThrow()
         .then(
-            (data) => ({ data: true }),
+            (_data) => ({ data: true }),
             (reason) => ({
                 error: "Could not remove photocards from owned: " + reason,
             }),
@@ -1120,7 +1114,7 @@ export async function removePhotocardsFromWishlist(
         .where("photocard_id", "in", photocardIds)
         .executeTakeFirstOrThrow()
         .then(
-            (data) => ({ data: true }),
+            (_data) => ({ data: true }),
             (reason) => ({
                 error: "Could not remove photocards from wishlist: " + reason,
             }),
@@ -1141,7 +1135,7 @@ export async function markPhotocardAsFavorite(
         .where("user_id", "=", session.data!.user.id)
         .executeTakeFirstOrThrow()
         .then(
-            (data) => ({ data: true }),
+            (_data) => ({ data: true }),
             (reason) => ({
                 error: "Could not mark photocard as favorite: " + reason,
             }),
@@ -1194,4 +1188,146 @@ export async function getWishlistedPhotocards(): Promise<
                 error: "Could not get wishlisted photocards: " + reason,
             }),
         );
+}
+
+export async function getUserBindersFromDB(
+    binderIds: string[],
+): Promise<Result<Selectable<UserBinders>[]>> {
+    "use cache";
+    cacheTag(CACHE_TAG_USER_BINDERS);
+    if (binderIds.length === 0) {
+        return { data: [] };
+    }
+
+    const binderIdsNum = binderIds
+        .map((id) => parseInt(id))
+        .filter((id) => !isNaN(id));
+    return await db
+        .selectFrom("user_binders")
+        .selectAll()
+        .where("id", "in", binderIdsNum)
+        .execute()
+        .then(
+            (data) => ({ data }),
+            (reason) => ({
+                error: "Could not get binders: " + reason,
+            }),
+        );
+}
+
+export async function createBinder(): Promise<Result<number>> {
+    const session = await getSession();
+    if (session.error) {
+        return { error: session.error };
+    }
+
+    return await db
+        .transaction()
+        .execute(async (trx) => {
+            const userData = await trx
+                .selectFrom("user_data")
+                .select("binders")
+                .where("user_id", "=", session.data!.user.id)
+                .executeTakeFirst();
+            const existingBinders = userData?.binders ?? [];
+            const binderNum = existingBinders.length + 1;
+
+            const data = await trx
+                .insertInto("user_binders")
+                .values({
+                    user_id: session.data!.user.id,
+                    name: `Binder ${binderNum}`,
+                })
+                .returning("id")
+                .executeTakeFirstOrThrow();
+
+            await trx
+                .updateTable("user_data")
+                .set({ binders: [...existingBinders, String(data.id)] })
+                .where("user_id", "=", session.data!.user.id)
+                .executeTakeFirstOrThrow();
+
+            updateTag(CACHE_TAG_USER_DATA);
+            updateTag(CACHE_TAG_USER_BINDERS);
+            return { data: data.id };
+        })
+        .catch((reason) => ({
+            error: "Could not create binder: " + reason,
+        }));
+}
+
+export async function saveBinder(
+    binder: Updateable<UserBinders>,
+    pages: Selectable<BinderPages>[],
+): Promise<Result<number>> {
+    const session = await getSession();
+    if (session.error) {
+        return { error: session.error };
+    }
+    if (binder.id === undefined) {
+        return { error: "Binder ID is required to save binder." };
+    }
+
+    return await db
+        .transaction()
+        .execute(async (trx) => {
+            const existingBinder = await trx
+                .selectFrom("user_binders")
+                .select(["id", "binder_pages"])
+                .where("id", "=", binder.id!)
+                .where("user_id", "=", session.data!.user.id)
+                .executeTakeFirst();
+
+            if (!existingBinder) {
+                return { error: "Could not save binder: binder not found" };
+            }
+
+            const savedPageIds: number[] = [];
+
+            for (const page of pages) {
+                const pageWithBinder: Insertable<BinderPages> = {
+                    ...page,
+                    binder_id: binder.id!,
+                    id: undefined, // Erase the ID to avoid malicious injection
+                };
+
+                const insertedPage = await trx
+                    .insertInto("binder_pages")
+                    .values(pageWithBinder)
+                    .returning("id")
+                    .executeTakeFirstOrThrow();
+                savedPageIds.push(insertedPage.id);
+            }
+
+            // Delete previous pages
+            if (
+                existingBinder.binder_pages != null &&
+                existingBinder.binder_pages.length > 0
+            ) {
+                await trx
+                    .deleteFrom("binder_pages")
+                    .where("binder_id", "=", binder.id!)
+                    .where("id", "in", existingBinder.binder_pages)
+                    .execute();
+            }
+
+            // Update binder and add new pages
+            await trx
+                .updateTable("user_binders")
+                .set({
+                    ...binder,
+                    user_id: session.data!.user.id,
+                    binder_pages: savedPageIds,
+                    updated_at: new Date(),
+                })
+                .where("id", "=", binder.id!)
+                .where("user_id", "=", session.data!.user.id)
+                .executeTakeFirstOrThrow();
+            updateTag(CACHE_TAG_USER_BINDERS);
+
+            return { data: binder.id! };
+        })
+        .catch((reason) => ({
+            error: "Could not save binder: " + reason,
+        }));
 }

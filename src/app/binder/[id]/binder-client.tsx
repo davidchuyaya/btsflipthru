@@ -1,5 +1,6 @@
 "use client";
 
+import { saveBinder } from "@/actions";
 import { cardSizeToString } from "@/actions-client";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
@@ -10,10 +11,15 @@ import {
     BinderPage,
     BinderType,
     collectionDisplayName,
-    ExclusiveCountry,
     MemberToIntWithOT7,
 } from "@/constants";
-import { CardSizes, CardTypes, Collections, Photocards } from "@/db";
+import {
+    CardSizes,
+    CardTypes,
+    Collections,
+    Photocards,
+    UserBinders,
+} from "@/db";
 import { executeSearchLogic } from "@/natural-language-search";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Selectable } from "kysely";
@@ -48,7 +54,7 @@ import {
 } from "react-hook-form";
 import z from "zod";
 
-import PhotocardGrid from "../photocard-grid";
+import PhotocardGrid from "../../photocard-grid";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
     closestCenter,
@@ -69,9 +75,9 @@ import {
     SortableContext,
     useSortable,
 } from "@dnd-kit/sortable";
-import { PhotocardWithSize } from "../photocard";
-import Image from "next/image";
+import { PhotocardWithSize } from "../../photocard";
 import { Separator } from "@/components/ui/separator";
+import { toast } from "sonner";
 
 type BinderSlotCard = {
     photocard: Selectable<Photocards>;
@@ -925,12 +931,14 @@ const formSchema = z.object({
 });
 
 export default function BinderClient({
+    userBinder,
     collections,
     cardTypes,
     cardSizes,
     ownedPhotocards,
     wishlistedPhotocards,
 }: {
+    userBinder: Selectable<UserBinders>;
     collections: Selectable<Collections>[];
     cardTypes: Selectable<CardTypes>[];
     cardSizes: Selectable<CardSizes>[];
@@ -961,12 +969,12 @@ export default function BinderClient({
         resolver: zodResolver(formSchema),
         defaultValues: {
             binderType: BinderType.OneInch,
-            name: "",
-            description: "",
+            name: userBinder.name,
+            description: userBinder.description ?? "",
             pages: [
                 {
                     pageType: BinderPage.Standard9PP,
-                    slots: {},
+                    slots: {}, // TODO: Load slots from userBinder
                 },
             ],
         },
@@ -1259,7 +1267,57 @@ export default function BinderClient({
     function onShare() { }
 
     async function onSubmit(data: z.infer<typeof formSchema>) {
-        console.log("Submitting:", data);
+        const pageRows = data.pages.map((page) => {
+            const slotCards = Object.values(page.slots).flatMap((slotCards) =>
+                slotCards ? sortSlotCards(slotCards) : [],
+            );
+
+            return {
+                page_type: page.pageType.id,
+                description: null,
+                creation_ids: [],
+                creation_rotations: [],
+                creation_show_front: [],
+                creation_x_positions: [],
+                creation_y_positions: [],
+                creation_z_indices: [],
+                photocard_ids: slotCards.map((card) => card.photocard.id!),
+                photocard_rotations: slotCards.map((card) => card.rotation),
+                photocard_show_front: slotCards.map((card) => card.showFront),
+                photocard_x_positions: slotCards.map((card) => card.x),
+                photocard_y_positions: slotCards.map((card) => card.y),
+                photocard_z_indices: slotCards.map((card) => card.z),
+            };
+        });
+
+        toast.promise(
+            async () => {
+                const result = await saveBinder(
+                    {
+                        id: userBinder.id,
+                        name: data.name,
+                        description: data.description ?? null,
+                        updated_at: new Date(),
+                    },
+                    pageRows.map((page) => ({
+                        id: undefined as never,
+                        binder_id: userBinder.id,
+                        ...page,
+                    })),
+                );
+
+                if (result.error) {
+                    throw new Error(result.error);
+                }
+
+                setNeedsSaving(false);
+            },
+            {
+                loading: "Saving binder...",
+                success: "Binder saved",
+                error: (error) => error.message,
+            },
+        );
     }
 
     function addPage() {
@@ -1607,7 +1665,7 @@ export default function BinderClient({
                                         size="icon"
                                         type="button"
                                         variant="noShadow"
-                                        className={`px-3 ${selectedSlot && snapToGrid === SnapToGrid.Center ? "!bg-white" : ""}`}
+                                        className={`px-3 ${selectedSlot && snapToGrid === SnapToGrid.Center ? "bg-white!" : ""}`}
                                         onClick={() =>
                                             alignSelectedSlot(SnapToGrid.Center)
                                         }
@@ -1620,7 +1678,7 @@ export default function BinderClient({
                                         size="icon"
                                         type="button"
                                         variant="noShadow"
-                                        className={`px-3 ${selectedSlot && snapToGrid === SnapToGrid.BottomRight ? "!bg-white" : ""}`}
+                                        className={`px-3 ${selectedSlot && snapToGrid === SnapToGrid.BottomRight ? "bg-white!" : ""}`}
                                         onClick={() =>
                                             alignSelectedSlot(
                                                 SnapToGrid.BottomRight,
@@ -1635,7 +1693,7 @@ export default function BinderClient({
                                         size="icon"
                                         type="button"
                                         variant="noShadow"
-                                        className={`px-3 ${selectedSlot && snapToGrid === SnapToGrid.Manual ? "!bg-white" : ""}`}
+                                        className={`px-3 ${selectedSlot && snapToGrid === SnapToGrid.Manual ? "bg-white!" : ""}`}
                                         onClick={() =>
                                             alignSelectedSlot(SnapToGrid.Manual)
                                         }

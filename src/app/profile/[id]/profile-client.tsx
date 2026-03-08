@@ -19,7 +19,7 @@ import {
 import { useMetadata } from "@/metadata-context";
 import { Button } from "@/components/ui/button";
 import { Selectable, Updateable } from "kysely";
-import { Collections, UserData } from "@/db";
+import { Collections, UserBinders, UserData } from "@/db";
 import { useState, useMemo } from "react";
 import { Input } from "@/components/ui/input";
 import { z } from "zod";
@@ -52,6 +52,7 @@ import {
 } from "@/components/ui/field";
 import { uploadImage } from "@/actions-client";
 import { toast } from "sonner";
+import BindersComponent from "@/app/binder/binders";
 
 const formSchema = z.object({
     username: z
@@ -88,12 +89,131 @@ const formSchema = z.object({
     image: z.instanceof(File).nullish(),
 });
 
+type SocialFieldName =
+    | "bcd_id"
+    | "bluesky_id"
+    | "twitter_id"
+    | "instagram_id"
+    | "discord_id";
+
+function SocialsComponent({
+    fieldName,
+    userData,
+    isEditing,
+    control,
+}: {
+    fieldName: SocialFieldName;
+    userData: Selectable<UserData>;
+    isEditing: boolean;
+    control: ReturnType<typeof useForm<z.infer<typeof formSchema>>>["control"];
+}) {
+    let logo = "";
+    switch (fieldName) {
+        case "instagram_id":
+            logo = "/instagram.svg";
+            break;
+        case "twitter_id":
+            logo = "/twitter.svg";
+            break;
+        case "bluesky_id":
+            logo = "/bluesky.svg";
+            break;
+        case "bcd_id":
+            logo = "/b-cd.png";
+            break;
+        case "discord_id":
+            logo = "/discord.svg";
+            break;
+    }
+    let id = userData[fieldName];
+    // Strip the beginning @ if it exists
+    if (id?.startsWith("@")) {
+        id = id.substring(1);
+    }
+    let url = "";
+    switch (fieldName) {
+        case "instagram_id":
+            url = "https://www.instagram.com/";
+            break;
+        case "twitter_id":
+            url = "https://x.com/";
+            break;
+        case "bluesky_id":
+            url = "https://bsky.app/profile/";
+            break;
+        case "bcd_id":
+        case "discord_id":
+            // Can't link
+            url = "";
+            break;
+    }
+    let placeholder = "";
+    switch (fieldName) {
+        case "bluesky_id":
+            placeholder = "@btsflipthru.bsky.social";
+            break;
+        case "bcd_id":
+        case "twitter_id":
+        case "instagram_id":
+        case "discord_id":
+            placeholder = "@btsflipthru";
+            break;
+    }
+    return (
+        <div
+            className="flex flex-row items-center justify-center gap-4"
+            hidden={!id && !isEditing}
+        >
+            <Image
+                src={logo}
+                alt={fieldName}
+                width={32}
+                height={32}
+                className="size-8"
+            />
+            {isEditing ? (
+                <Controller
+                    control={control}
+                    name={fieldName}
+                    render={({ field, fieldState }) => (
+                        <>
+                            <Input
+                                value={field.value ?? ""}
+                                onChange={field.onChange}
+                                placeholder={placeholder}
+                            />
+                            {fieldState.error && (
+                                <FieldError errors={[fieldState.error]} />
+                            )}
+                        </>
+                    )}
+                />
+            ) : (
+                <Button variant="underline" className="-ml-4" asChild>
+                    {url === "" || id === null ? (
+                        <p>@{id}</p>
+                    ) : (
+                        <Link
+                            href={`${url}${encodeURIComponent(id)}`}
+                            target="_blank"
+                        >
+                            @{id}
+                        </Link>
+                    )}
+                </Button>
+            )}
+        </div>
+    );
+}
+
 export default function ProfileClient({
     userData: serverUserData,
     collections,
+    binders,
 }: {
     userData: Selectable<UserData>;
     collections: Selectable<Collections>[];
+    binders: Selectable<UserBinders>[];
 }) {
     const {
         userData: freshestUserData,
@@ -134,115 +254,6 @@ export default function ProfileClient({
         }
         return Array.from(unique.values());
     }, [collections]);
-
-    function SocialsComponent({
-        fieldName,
-    }: {
-        fieldName:
-            | "bcd_id"
-            | "bluesky_id"
-            | "twitter_id"
-            | "instagram_id"
-            | "discord_id";
-    }) {
-        let logo = "";
-        switch (fieldName) {
-            case "instagram_id":
-                logo = "/instagram.svg";
-                break;
-            case "twitter_id":
-                logo = "/twitter.svg";
-                break;
-            case "bluesky_id":
-                logo = "/bluesky.svg";
-                break;
-            case "bcd_id":
-                logo = "/b-cd.png";
-                break;
-            case "discord_id":
-                logo = "/discord.svg";
-                break;
-        }
-        let id = userData[fieldName];
-        // Strip the beginning @ if it exists
-        if (id?.startsWith("@")) {
-            id = id.substring(1);
-        }
-        let url = "";
-        switch (fieldName) {
-            case "instagram_id":
-                url = "https://www.instagram.com/";
-                break;
-            case "twitter_id":
-                url = "https://x.com/";
-                break;
-            case "bluesky_id":
-                url = "https://bsky.app/profile/";
-                break;
-            case "bcd_id":
-            case "discord_id":
-                // Can't link
-                url = "";
-                break;
-        }
-        let placeholder = "";
-        switch (fieldName) {
-            case "bluesky_id":
-                placeholder = "@btsflipthru.bsky.social";
-                break;
-            case "bcd_id":
-            case "twitter_id":
-            case "instagram_id":
-            case "discord_id":
-                placeholder = "@btsflipthru";
-                break;
-        }
-        return (
-            <div
-                className="flex flex-row items-center justify-center gap-4"
-                hidden={!id && !isEditing}
-            >
-                <Image
-                    src={logo}
-                    alt={fieldName}
-                    width={32}
-                    height={32}
-                    className="size-8"
-                />
-                {isEditing ? (
-                    <Controller
-                        control={form.control}
-                        name={fieldName}
-                        render={({ field, fieldState }) => (
-                            <>
-                                <Input
-                                    value={field.value ?? ""}
-                                    onChange={field.onChange}
-                                    placeholder={placeholder}
-                                />
-                                {fieldState.error && (
-                                    <FieldError errors={[fieldState.error]} />
-                                )}
-                            </>
-                        )}
-                    />
-                ) : (
-                    <Button variant="underline" className="-ml-4" asChild>
-                        {url === "" || id === null ? (
-                            <p>@{id}</p>
-                        ) : (
-                            <Link
-                                href={`${url}${encodeURIComponent(id)}`}
-                                target="_blank"
-                            >
-                                @{id}
-                            </Link>
-                        )}
-                    </Button>
-                )}
-            </div>
-        );
-    }
 
     async function onSubmit(values: z.infer<typeof formSchema>) {
         const hasImage = values.image !== undefined && values.image !== null;
@@ -325,8 +336,8 @@ export default function ProfileClient({
                                                 field.value === undefined
                                                     ? userData.image_id
                                                         ? fullSizeUrl(
-                                                              userData.image_id,
-                                                          )
+                                                            userData.image_id,
+                                                        )
                                                         : null
                                                     : field.value
                                             }
@@ -360,11 +371,36 @@ export default function ProfileClient({
                             />
                         )}
                         <div className="flex flex-col gap-2 items-center">
-                            <SocialsComponent fieldName="bcd_id" />
-                            <SocialsComponent fieldName="bluesky_id" />
-                            <SocialsComponent fieldName="instagram_id" />
-                            <SocialsComponent fieldName="twitter_id" />
-                            <SocialsComponent fieldName="discord_id" />
+                            <SocialsComponent
+                                fieldName="bcd_id"
+                                userData={userData}
+                                isEditing={isEditing}
+                                control={form.control}
+                            />
+                            <SocialsComponent
+                                fieldName="bluesky_id"
+                                userData={userData}
+                                isEditing={isEditing}
+                                control={form.control}
+                            />
+                            <SocialsComponent
+                                fieldName="instagram_id"
+                                userData={userData}
+                                isEditing={isEditing}
+                                control={form.control}
+                            />
+                            <SocialsComponent
+                                fieldName="twitter_id"
+                                userData={userData}
+                                isEditing={isEditing}
+                                control={form.control}
+                            />
+                            <SocialsComponent
+                                fieldName="discord_id"
+                                userData={userData}
+                                isEditing={isEditing}
+                                control={form.control}
+                            />
                         </div>
                     </div>
                     <div className="flex flex-col gap-4 w-1/2">
@@ -518,10 +554,10 @@ export default function ProfileClient({
                                         <p>
                                             {userData.army_since
                                                 ? uniqueCollections.find(
-                                                      (col) =>
-                                                          col.id ===
-                                                          userData.army_since,
-                                                  )?.name
+                                                    (col) =>
+                                                        col.id ===
+                                                        userData.army_since,
+                                                )?.name
                                                 : "N/A"}
                                         </p>
                                     )}
@@ -589,8 +625,8 @@ export default function ProfileClient({
                                         <p>
                                             {userData.bias
                                                 ? memberIntsToName([
-                                                      userData.bias,
-                                                  ])
+                                                    userData.bias,
+                                                ])
                                                 : "N/A"}
                                         </p>
                                     )}
@@ -610,7 +646,7 @@ export default function ProfileClient({
                                     <p>
                                         {session &&
                                             Object.keys(Role)[
-                                                session.user.role
+                                            session.user.role
                                             ]}
                                     </p>
                                     {session &&
@@ -651,8 +687,10 @@ export default function ProfileClient({
                                         <FieldDescription>
                                             Go to your Spotify playlist in the
                                             browser. Copy the text that comes
-                                            after
-                                            "https://open.spotify.com/playlist/"
+                                            after{" "}
+                                            <code>
+                                                &quot;https://open.spotify.com/playlist/&quot;
+                                            </code>{" "}
                                             in the URL.
                                         </FieldDescription>
                                     </Field>
@@ -696,7 +734,7 @@ export default function ProfileClient({
             </form>
             <div className="flex flex-col gap-4 items-center justify-center">
                 <h2>Binders</h2>
-                <p>Coming soon!</p>
+                <BindersComponent binders={binders} isSelf={isSelf} />
             </div>
             <div className="flex flex-col gap-4 items-center justify-center">
                 <h2>Wishlist</h2>
