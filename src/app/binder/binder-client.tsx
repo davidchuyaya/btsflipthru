@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import {
+    BINDER_MAX_RENDERING_PAGE_DEPTH,
     BINDER_PERFORATION_DOT_SIZE,
     BinderPage,
     BinderType,
@@ -27,6 +28,7 @@ import {
     ChevronsLeftIcon,
     ChevronsRightIcon,
     EyeIcon,
+    FilePlusIcon,
     FlipHorizontalIcon,
     PointerIcon,
     RotateCcwIcon,
@@ -199,6 +201,8 @@ function BinderPageComponent({
     index,
     pageFieldId,
     flipped,
+    stackPages = [],
+    photocardRenderAnchorIndex = index,
     onSelectSlot,
     selectedSlotId,
     disabled = false,
@@ -209,6 +213,106 @@ function BinderPageComponent({
     index: number;
     pageFieldId: string;
     flipped: boolean;
+    stackPages?: Array<{ index: number; pageFieldId: string }>;
+    photocardRenderAnchorIndex?: number;
+    onSelectSlot: (id: string, width: number, height: number) => void;
+    selectedSlotId?: string;
+    disabled?: boolean;
+    fixedHeight?: string;
+    mainScale?: number;
+}) {
+    const layers = [
+        ...stackPages.map((stackPage, stackIndex) => ({
+            key: `stack-${stackPage.pageFieldId}`,
+            index: stackPage.index,
+            pageFieldId: stackPage.pageFieldId,
+            disabled: true,
+            offsetX: (stackPages.length - stackIndex) * (flipped ? -4 : 4),
+            offsetY: 0,
+            pointerEvents: "none" as const,
+        })),
+        {
+            key: `page-${pageFieldId}`,
+            index,
+            pageFieldId,
+            disabled,
+            offsetX: 0,
+            offsetY: 0,
+            pointerEvents: "auto" as const,
+        },
+    ];
+
+    return (
+        <div className="relative overflow-visible">
+            {layers.map((layer) => (
+                <div
+                    key={layer.key}
+                    aria-hidden={layer.disabled}
+                    className="absolute inset-0"
+                    style={{
+                        transform:
+                            layer.offsetX !== 0 || layer.offsetY !== 0
+                                ? `translate(${layer.offsetX}px, ${layer.offsetY}px)`
+                                : undefined,
+                        pointerEvents: layer.pointerEvents,
+                    }}
+                >
+                    <BinderPageLayer
+                        binderType={binderType}
+                        index={layer.index}
+                        pageFieldId={layer.pageFieldId}
+                        flipped={flipped}
+                        renderPhotocards={
+                            Math.abs(
+                                layer.index - photocardRenderAnchorIndex,
+                            ) <= BINDER_MAX_RENDERING_PAGE_DEPTH
+                        }
+                        onSelectSlot={onSelectSlot}
+                        selectedSlotId={selectedSlotId}
+                        disabled={layer.disabled}
+                        fixedHeight={fixedHeight}
+                        mainScale={mainScale}
+                    />
+                </div>
+            ))}
+            <div className="invisible">
+                <BinderPageLayer
+                    binderType={binderType}
+                    index={index}
+                    pageFieldId={pageFieldId}
+                    flipped={flipped}
+                    renderPhotocards={
+                        Math.abs(index - photocardRenderAnchorIndex) <=
+                        BINDER_MAX_RENDERING_PAGE_DEPTH
+                    }
+                    onSelectSlot={onSelectSlot}
+                    selectedSlotId={selectedSlotId}
+                    disabled={true}
+                    fixedHeight={fixedHeight}
+                    mainScale={mainScale}
+                />
+            </div>
+        </div>
+    );
+}
+
+function BinderPageLayer({
+    binderType,
+    index,
+    pageFieldId,
+    flipped,
+    renderPhotocards = true,
+    onSelectSlot,
+    selectedSlotId,
+    disabled = false,
+    fixedHeight,
+    mainScale = 1,
+}: {
+    binderType: BinderType;
+    index: number;
+    pageFieldId: string;
+    flipped: boolean;
+    renderPhotocards?: boolean;
     onSelectSlot: (id: string, width: number, height: number) => void;
     selectedSlotId?: string;
     disabled?: boolean;
@@ -265,44 +369,47 @@ function BinderPageComponent({
                 ? renderedWidth / width / mainScale
                 : 0
             : 1;
+    const pageStyle: React.CSSProperties = {
+        width: fixedHeight ? "auto" : `${widthPercent}%`,
+        height: fixedHeight,
+        aspectRatio: `${width}/${height}`,
+        gridTemplateColumns: colWidths.map((w) => `${w}fr`).join(" "),
+        gridTemplateRows: rowHeights.map((h) => `${h}fr`).join(" "),
+    };
+    const pageClassName = `relative bg-white/20 border border-black/10 ${flipped ? "ml-auto flip-horizontal" : ""} grid`;
+
+    function renderPageContent() {
+        return rowHeights.map((h, rIndex) =>
+            colWidths.map((w, cIndex) => {
+                const dotPctX = (BINDER_PERFORATION_DOT_SIZE / w) * 100;
+                const dotPctY = (BINDER_PERFORATION_DOT_SIZE / h) * 100;
+                const isLastCol = cIndex === colWidths.length - 1;
+                const key = `${rIndex}-${cIndex}`;
+                const slotProps = {
+                    id: key,
+                    pageNum: index,
+                    pageFieldId,
+                    width: w,
+                    height: h,
+                    gradient,
+                    isLastCol,
+                    dotPctX,
+                    dotPctY,
+                    onSelectSlot,
+                    isSelected: selectedSlotId === key,
+                    flipped,
+                    disabled,
+                    renderPhotocards,
+                    valueScale: previewScale,
+                };
+                return <BinderSlot key={key} {...slotProps} />;
+            }),
+        );
+    }
 
     return (
-        <div
-            ref={pageRef}
-            className={`relative bg-white/50 border border-black/10 ${flipped ? "ml-auto flip-horizontal" : ""} grid`}
-            style={{
-                width: fixedHeight ? "auto" : `${widthPercent}%`,
-                height: fixedHeight,
-                aspectRatio: `${width}/${height}`,
-                gridTemplateColumns: colWidths.map((w) => `${w}fr`).join(" "),
-                gridTemplateRows: rowHeights.map((h) => `${h}fr`).join(" "),
-            }}
-        >
-            {rowHeights.map((h, rIndex) =>
-                colWidths.map((w, cIndex) => {
-                    const dotPctX = (BINDER_PERFORATION_DOT_SIZE / w) * 100;
-                    const dotPctY = (BINDER_PERFORATION_DOT_SIZE / h) * 100;
-                    const isLastCol = cIndex === colWidths.length - 1;
-                    const key = `${rIndex}-${cIndex}`;
-                    const slotProps = {
-                        id: key,
-                        pageNum: index,
-                        pageFieldId,
-                        width: w,
-                        height: h,
-                        gradient,
-                        isLastCol,
-                        dotPctX,
-                        dotPctY,
-                        onSelectSlot,
-                        isSelected: selectedSlotId === key,
-                        flipped,
-                        disabled,
-                        valueScale: previewScale,
-                    };
-                    return <BinderSlot key={key} {...slotProps} />;
-                }),
-            )}
+        <div ref={pageRef} className={pageClassName} style={pageStyle}>
+            {renderPageContent()}
         </div>
     );
 }
@@ -321,6 +428,7 @@ function BinderSlot({
     isSelected,
     flipped,
     disabled,
+    renderPhotocards,
     valueScale,
 }: {
     gradient: string;
@@ -336,6 +444,7 @@ function BinderSlot({
     isSelected: boolean;
     flipped: boolean;
     disabled: boolean;
+    renderPhotocards: boolean;
     valueScale: number;
 }) {
     const { control } = useFormContext();
@@ -363,7 +472,7 @@ function BinderSlot({
     if (disabled) {
         return (
             <div className="relative" style={slotStyle}>
-                {visibleCard && valueScale > 0 && (
+                {renderPhotocards && visibleCard && valueScale > 0 && (
                     <div
                         style={{
                             position: "absolute",
@@ -401,7 +510,7 @@ function BinderSlot({
             onSelectSlot={onSelectSlot}
             slotStyle={slotStyle}
         >
-            {visibleCard && valueScale > 0 && (
+            {renderPhotocards && visibleCard && valueScale > 0 && (
                 <PhotocardWithDragContent
                     photocard={visibleCard.photocard}
                     slotId={id}
@@ -471,7 +580,7 @@ function InteractiveSlotContent({
                     onSelectSlot(slotId, logicalWidth, logicalHeight);
                 }
             }}
-            className={`${isOver && !flipped ? "bg-white/50" : ""} relative`}
+            className={`${isOver && !flipped ? "bg-third" : ""} relative`}
             style={slotStyle}
         >
             {children}
@@ -1325,16 +1434,28 @@ export default function BinderClient({
                                         currentPage={currentPage}
                                         onSelect={setPage}
                                     >
-                                        <BinderPageComponent
-                                            binderType={binderType}
-                                            index={index}
-                                            pageFieldId={page.id}
-                                            flipped={false}
-                                            onSelectSlot={() => { }}
-                                            disabled={true}
-                                            fixedHeight="10vh"
-                                            mainScale={scale}
-                                        />
+                                        <div className="flex flex-row">
+                                            <BinderPageComponent
+                                                binderType={binderType}
+                                                index={index}
+                                                pageFieldId={page.id}
+                                                flipped={false}
+                                                onSelectSlot={() => { }}
+                                                disabled={true}
+                                                fixedHeight="10vh"
+                                                mainScale={scale}
+                                            />
+                                            <BinderPageComponent
+                                                binderType={binderType}
+                                                index={index}
+                                                pageFieldId={page.id}
+                                                flipped={true}
+                                                onSelectSlot={() => { }}
+                                                disabled={true}
+                                                fixedHeight="10vh"
+                                                mainScale={scale}
+                                            />
+                                        </div>
                                         <span className="mt-1 block text-center text-xs font-semibold">
                                             Page {index + 1}
                                         </span>
@@ -1557,6 +1678,28 @@ export default function BinderClient({
                                                             ]?.id ?? "left-page"
                                                         }
                                                         flipped={true}
+                                                        photocardRenderAnchorIndex={
+                                                            currentPage
+                                                        }
+                                                        stackPages={pages
+                                                            .slice(
+                                                                0,
+                                                                Math.max(
+                                                                    0,
+                                                                    currentPage -
+                                                                    1,
+                                                                ),
+                                                            )
+                                                            .map(
+                                                                (
+                                                                    page,
+                                                                    index,
+                                                                ) => ({
+                                                                    index,
+                                                                    pageFieldId:
+                                                                        page.id,
+                                                                }),
+                                                            )}
                                                         onSelectSlot={
                                                             onSelectSlot
                                                         }
@@ -1576,6 +1719,29 @@ export default function BinderClient({
                                                             "right-page"
                                                         }
                                                         flipped={false}
+                                                        photocardRenderAnchorIndex={
+                                                            currentPage
+                                                        }
+                                                        stackPages={[
+                                                            ...pages
+                                                                .slice(
+                                                                    currentPage +
+                                                                    1,
+                                                                )
+                                                                .map(
+                                                                    (
+                                                                        page,
+                                                                        index,
+                                                                    ) => ({
+                                                                        index:
+                                                                            currentPage +
+                                                                            1 +
+                                                                            index,
+                                                                        pageFieldId:
+                                                                            page.id,
+                                                                    }),
+                                                                ),
+                                                        ].reverse()}
                                                         onSelectSlot={
                                                             onSelectSlot
                                                         }
@@ -1611,7 +1777,7 @@ export default function BinderClient({
                                         <ChevronLeftIcon />
                                     </Button>
                                     <p className="self-center mx-4">
-                                        {currentPage + 1}
+                                        Page {currentPage + 1}
                                     </p>
                                     <Button
                                         size="icon"
@@ -1639,13 +1805,7 @@ export default function BinderClient({
                                         onClick={addPage}
                                         tooltip="Add a page"
                                     >
-                                        <Image
-                                            src="flipthru_addpage.svg"
-                                            className="size-7"
-                                            width={0}
-                                            height={0}
-                                            alt="Add a binder page"
-                                        />
+                                        <FilePlusIcon />
                                     </Button>
                                     <Button
                                         size="icon"
