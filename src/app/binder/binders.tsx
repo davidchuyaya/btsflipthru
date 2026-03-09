@@ -44,7 +44,7 @@ export default function BindersComponent({
     return (
         <div className="flex flex-row items-center justify-center gap-8">
             {binders
-                .sort((a, b) => a.updated_at.getTime() - b.updated_at.getTime())
+                .sort((a, b) => b.updated_at.getTime() - a.updated_at.getTime())
                 .map((binder) => (
                     <Link
                         key={binder.id}
