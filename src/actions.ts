@@ -1300,6 +1300,50 @@ export async function createBinder(): Promise<Result<number>> {
         }));
 }
 
+export async function deleteBinder(binderId: number): Promise<Result<number>> {
+    const session = await getSession();
+    if (session.error) {
+        return { error: session.error };
+    }
+
+    return await db
+        .transaction()
+        .execute(async (trx) => {
+            const userData = await trx
+                .selectFrom("user_data")
+                .select("binders")
+                .where("user_id", "=", session.data!.user.id)
+                .executeTakeFirst();
+
+            const deletedBinder = await trx
+                .deleteFrom("user_binders")
+                .where("id", "=", binderId)
+                .where("user_id", "=", session.data!.user.id)
+                .returning("id")
+                .executeTakeFirst();
+
+            if (!deletedBinder) {
+                return { error: "Binder not found" };
+            }
+
+            await trx
+                .updateTable("user_data")
+                .set({
+                    binders:
+                        userData?.binders.filter((id) => id !== binderId) ?? [],
+                })
+                .where("user_id", "=", session.data!.user.id)
+                .executeTakeFirstOrThrow();
+
+            updateTag(CACHE_TAG_USER_DATA);
+            updateTag(CACHE_TAG_USER_BINDERS);
+            return { data: binderId };
+        })
+        .catch((reason) => ({
+            error: "Could not delete binder: " + reason,
+        }));
+}
+
 export async function saveBinder(
     binder: Updateable<UserBinders>,
     pages: Selectable<BinderPages>[],

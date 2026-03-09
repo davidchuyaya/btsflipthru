@@ -1,11 +1,14 @@
 "use client";
 
-import { createBinder } from "@/actions";
+import { createBinder, deleteBinder } from "@/actions";
 import SignInRequiredDialog from "@/components/sign-in-required-dialog";
+import {
+    AlertDialogWithButton,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { UserBinders } from "@/db";
 import { Selectable } from "kysely";
-import { FolderPlusIcon } from "lucide-react";
+import { Trash2Icon } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -41,25 +44,63 @@ export default function BindersComponent({
         );
     }
 
+    async function onDeleteBinder(binderId: number) {
+        toast.promise(
+            async () => {
+                const result = await deleteBinder(binderId);
+
+                if (result.error) {
+                    throw new Error(result.error);
+                }
+
+                router.refresh();
+            },
+            {
+                loading: "Deleting binder...",
+                success: "Binder deleted",
+                error: (error) => error.message,
+            },
+        );
+    }
+
     return (
         <div className="flex flex-row items-center justify-center gap-8">
             {binders
                 .sort((a, b) => b.updated_at.getTime() - a.updated_at.getTime())
                 .map((binder) => (
-                    <Link
+                    <div
                         key={binder.id}
-                        href={`/binder/${binder.id}`}
                         className="flex flex-col items-center gap-4"
                     >
-                        <Image
-                            src="/binder_done.svg"
-                            className="size-32"
-                            width="216"
-                            height="214"
-                            alt="Binder Icon"
-                        />
-                        <h4 className="text-3xl">{binder.name}</h4>
-                    </Link>
+                        <Link
+                            href={`/binder/${binder.id}`}
+                            className="flex flex-col items-center gap-4"
+                        >
+                            <Image
+                                src="/binder_done.svg"
+                                className="size-32"
+                                width="216"
+                                height="214"
+                                alt="Binder Icon"
+                            />
+                            <h4 className="text-3xl">{binder.name}</h4>
+                        </Link>
+                        {isSelf && (
+                            <AlertDialogWithButton
+                                title="Delete Binder?"
+                                description={`This will permanently delete ${binder.name} and all of its pages. Your owned/wishlisted photocards will not be deleted, but they will be removed from this binder. This action cannot be undone.`}
+                                submit="Delete"
+                                onSubmit={() => onDeleteBinder(binder.id)}
+                            >
+                                <Button
+                                    size="icon"
+                                    tooltip="Delete binder"
+                                >
+                                    <Trash2Icon />
+                                </Button>
+                            </AlertDialogWithButton>
+                        )}
+                    </div>
                 ))}
             {binders.length === 0 && <p>No binders yet!</p>}
             {!isSignedIn ? (

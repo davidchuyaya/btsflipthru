@@ -42,18 +42,7 @@ async function BinderPageContent() {
 
 export default function BinderPage() {
     return (
-        <Suspense
-            fallback={
-                <div className="page max-w-7/10!">
-                    <h1>Tutorial on making binders coming soon!</h1>
-                    <BindersComponent
-                        binders={[]}
-                        isSelf={true}
-                        isSignedIn={false}
-                    />
-                </div>
-            }
-        >
+        <Suspense fallback={renderPage()}>
             <BinderPageContent />
         </Suspense>
     );

@@ -1231,9 +1231,9 @@ export default function BinderClient({
         ? getStackedSlots(currentPage, selectedSlot.id)
         : [];
     const canReorderSelectedSlot = selectedSlotCards.length > 1;
+    const currentPageSlots = currentPageData?.slots ?? {};
     const currentPageHasCards =
-        !!currentPageData &&
-        Object.values(currentPageData.slots).some((stack) => stack.length > 0);
+        Object.values(currentPageSlots).some((stack) => stack.length > 0);
     const [isPageTypeDialogOpen, setIsPageTypeDialogOpen] = useState(false);
     const [selectedPageType, setSelectedPageType] =
         useState<BinderPageDimensions>(currentPageData?.pageType ?? pageType);
@@ -1284,6 +1284,9 @@ export default function BinderClient({
 
         for (let pageNum = 0; pageNum < pages.length; pageNum++) {
             const page = pages[pageNum];
+            if (!page?.slots) {
+                continue;
+            }
             for (const [slotId, stackedSlots] of Object.entries(page.slots)) {
                 const next = stackedSlots.map((card) => {
                     const cardSize = cardSizes.find(
@@ -1940,6 +1943,7 @@ export default function BinderClient({
 
     function deleteCurrentPage() {
         removePage(currentPage);
+        setCurrentPage((page) => Math.max(0, Math.min(page, pages.length - 2)));
         setSelectedSlot(null);
         setNeedsSaving(true);
     }
