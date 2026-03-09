@@ -1094,7 +1094,7 @@ export default function BinderClient({
     // Resize Observer State
     const [binderWidth, setBinderWidth] = useState(0);
     const binderRef = useRef<HTMLDivElement>(null);
-    const initializedLoadedCardDimensionsRef = useRef(false);
+    const previousScaleRef = useRef<number | null>(null);
     const binderType = form.watch("binderType");
     const activeCardSize =
         activePhotocard && cardSizes.length > 0
@@ -1124,13 +1124,17 @@ export default function BinderClient({
         return () => observer.disconnect();
     }, []);
 
-    // Reset card sizes after the scale has been calculated
+    // Normalize card dimensions on first render, then rescale cards if the binder width changes.
     useEffect(() => {
-        if (scale <= 0 || initializedLoadedCardDimensionsRef.current) {
+        if (scale <= 0) {
             return;
         }
 
         const pages = form.getValues("pages");
+        const previousScale = previousScaleRef.current;
+        const scaleRatio =
+            previousScale && previousScale > 0 ? scale / previousScale : null;
+
         for (let pageNum = 0; pageNum < pages.length; pageNum++) {
             const page = pages[pageNum];
             for (const [slotId, stackedSlots] of Object.entries(page.slots)) {
@@ -1141,17 +1145,29 @@ export default function BinderClient({
                     if (!cardSize) {
                         return card;
                     }
+                    if (scaleRatio !== null) {
+                        return {
+                            ...card,
+                            width: card.width * scaleRatio,
+                            height: card.height * scaleRatio,
+                            x: card.x * scaleRatio,
+                            y: card.y * scaleRatio,
+                        };
+                    }
                     return {
                         ...card,
                         width: cardSize.width * scale,
                         height: cardSize.height * scale,
                     };
                 });
-                setStackedSlots(pageNum, slotId, next);
+                form.setValue(
+                    `pages.${pageNum}.slots.${slotId}`,
+                    sortStackedSlots(next),
+                );
             }
         }
 
-        initializedLoadedCardDimensionsRef.current = true;
+        previousScaleRef.current = scale;
     }, [cardSizes, form, scale]);
 
     useEffect(() => {
@@ -1495,6 +1511,7 @@ export default function BinderClient({
 
     function onPreview() {
         setIsPreview(true);
+        setSelectedSlot(null);
     }
 
     function onShare() {
@@ -1572,6 +1589,25 @@ export default function BinderClient({
             },
         );
     }
+
+    const handleSaveSubmit = form.handleSubmit(onSubmit, (error) =>
+        console.error(error),
+    );
+
+    useEffect(() => {
+        function handleKeyDown(event: KeyboardEvent) {
+            if (previewMode || !isOwner || !needsSaving) {
+                return;
+            }
+            if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
+                event.preventDefault();
+                void handleSaveSubmit();
+            }
+        }
+
+        window.addEventListener("keydown", handleKeyDown);
+        return () => window.removeEventListener("keydown", handleKeyDown);
+    }, [handleSaveSubmit, isOwner, needsSaving, previewMode]);
 
     function addPage() {
         insertPage(currentPage + 1, {
@@ -1808,9 +1844,7 @@ export default function BinderClient({
                 <FormProvider {...form}>
                     <form
                         className="w-full flex flex-col gap-4"
-                        onSubmit={form.handleSubmit(onSubmit, (error) =>
-                            console.error(error),
-                        )}
+                        onSubmit={handleSaveSubmit}
                     >
                         <Controller
                             name="name"
