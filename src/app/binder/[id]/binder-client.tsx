@@ -41,7 +41,6 @@ import {
     AlignEndVerticalIcon,
     AlignStartVerticalIcon,
     ArrowDownToLineIcon,
-    ArrowUpToLineIcon,
     ChevronLeftIcon,
     ChevronRightIcon,
     ChevronsLeftIcon,
@@ -418,7 +417,8 @@ function PagePerforationGrid({
         colIndex: number;
     }) => React.ReactNode;
 }) {
-    const { width, height, colWidths, rowHeights } = getPageGridMetrics(pageType);
+    const { width, height, colWidths, rowHeights } =
+        getPageGridMetrics(pageType);
     const gradient = `radial-gradient(circle, transparent 40%, ${perforationColor} 40%, ${perforationColor} 50%, transparent 50%)`;
 
     return (
@@ -441,42 +441,44 @@ function PagePerforationGrid({
                     const sharedCellStyle =
                         previewStyle === "lines"
                             ? {
-                                  backgroundColor: "transparent",
-                                  borderLeft: `1px solid ${perforationColor}`,
-                                  borderTop: `1px solid ${perforationColor}`,
-                                  ...(isLastCol
-                                      ? {
-                                            borderRight: `1px solid ${perforationColor}`,
-                                        }
-                                      : {}),
-                                  ...(rIndex === rowHeights.length - 1
-                                      ? {
-                                            borderBottom: `1px solid ${perforationColor}`,
-                                        }
-                                      : {}),
-                              }
+                                backgroundColor: "transparent",
+                                borderLeft: `1px solid ${perforationColor}`,
+                                borderTop: `1px solid ${perforationColor}`,
+                                ...(isLastCol
+                                    ? {
+                                        borderRight: `1px solid ${perforationColor}`,
+                                    }
+                                    : {}),
+                                ...(rIndex === rowHeights.length - 1
+                                    ? {
+                                        borderBottom: `1px solid ${perforationColor}`,
+                                    }
+                                    : {}),
+                            }
                             : {
-                                  backgroundImage: `${gradient}, ${gradient} ${isLastCol ? ", " + gradient : ""}`,
-                                  backgroundPosition: `left bottom, left top ${isLastCol ? ", right top" : ""}`,
-                                  backgroundSize: `${dotPctX}% ${dotPctY}%, ${dotPctX}% ${dotPctY}% ${isLastCol ? `, ${dotPctX}% ${dotPctY}%` : ""}`,
-                                  backgroundRepeat: `repeat-x, repeat-y ${isLastCol ? ", repeat-y" : ""}`,
-                              };
+                                backgroundImage: `${gradient}, ${gradient} ${isLastCol ? ", " + gradient : ""}`,
+                                backgroundPosition: `left bottom, left top ${isLastCol ? ", right top" : ""}`,
+                                backgroundSize: `${dotPctX}% ${dotPctY}%, ${dotPctX}% ${dotPctY}% ${isLastCol ? `, ${dotPctX}% ${dotPctY}%` : ""}`,
+                                backgroundRepeat: `repeat-x, repeat-y ${isLastCol ? ", repeat-y" : ""}`,
+                            };
 
-                    return renderCell({
-                        key,
-                        width: w,
-                        height: h,
-                        dotPctX,
-                        dotPctY,
-                        isLastCol,
-                        rowIndex: rIndex,
-                        colIndex: cIndex,
-                    }) ?? (
-                        <div
-                            key={key}
-                            className="relative"
-                            style={sharedCellStyle}
-                        />
+                    return (
+                        renderCell({
+                            key,
+                            width: w,
+                            height: h,
+                            dotPctX,
+                            dotPctY,
+                            isLastCol,
+                            rowIndex: rIndex,
+                            colIndex: cIndex,
+                        }) ?? (
+                            <div
+                                key={key}
+                                className="relative"
+                                style={sharedCellStyle}
+                            />
+                        )
                     );
                 }),
             )}
@@ -1144,11 +1146,6 @@ enum SnapToGrid {
     Manual,
 }
 
-enum ZPosition {
-    Top,
-    Bottom,
-}
-
 export default function BinderClient({
     userBinder,
     binderPages,
@@ -1230,6 +1227,10 @@ export default function BinderClient({
         name: "pages",
     });
     const currentPageData = watchedPages?.[currentPage];
+    const selectedSlotCards = selectedSlot
+        ? getStackedSlots(currentPage, selectedSlot.id)
+        : [];
+    const canReorderSelectedSlot = selectedSlotCards.length > 1;
     const currentPageHasCards =
         !!currentPageData &&
         Object.values(currentPageData.slots).some((stack) => stack.length > 0);
@@ -1751,7 +1752,10 @@ export default function BinderClient({
             if (previewMode || !isOwner || !needsSaving) {
                 return;
             }
-            if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
+            if (
+                (event.metaKey || event.ctrlKey) &&
+                event.key.toLowerCase() === "s"
+            ) {
                 event.preventDefault();
                 void handleSaveSubmit();
             }
@@ -1886,7 +1890,7 @@ export default function BinderClient({
         }
     }
 
-    function changeSelectedSlotZ(position: ZPosition) {
+    function moveSelectedSlotToBottom() {
         if (!selectedSlot) {
             return;
         }
@@ -1900,19 +1904,14 @@ export default function BinderClient({
             return;
         }
         const sorted = sortStackedSlots(stackedSlots);
-        const highestZ = sorted.reduce(
-            (maxZ, card) => Math.max(maxZ, card.z),
-            slotData.z,
-        );
         const lowestZ = sorted.reduce(
             (minZ, card) => Math.min(minZ, card.z),
             slotData.z,
         );
-        const nextZ = position === ZPosition.Top ? highestZ + 1 : lowestZ - 1;
         const next = [...stackedSlots];
         next[visibleIndex] = {
             ...slotData,
-            z: nextZ,
+            z: lowestZ - 1,
         };
         setStackedSlots(currentPage, selectedSlot.id, next);
         setNeedsSaving(true);
@@ -2142,27 +2141,11 @@ export default function BinderClient({
                                             type="button"
                                             variant="noShadow"
                                             className="px-3"
-                                            onClick={() =>
-                                                changeSelectedSlotZ(
-                                                    ZPosition.Top,
-                                                )
+                                            onClick={moveSelectedSlotToBottom}
+                                            disabled={
+                                                selectedSlot === null ||
+                                                !canReorderSelectedSlot
                                             }
-                                            disabled={selectedSlot === null}
-                                            tooltip="Move to top"
-                                        >
-                                            <ArrowUpToLineIcon />
-                                        </Button>
-                                        <Button
-                                            size="icon"
-                                            type="button"
-                                            variant="noShadow"
-                                            className="px-3"
-                                            onClick={() =>
-                                                changeSelectedSlotZ(
-                                                    ZPosition.Bottom,
-                                                )
-                                            }
-                                            disabled={selectedSlot === null}
                                             tooltip="Move to bottom"
                                         >
                                             <ArrowDownToLineIcon />
@@ -2226,8 +2209,8 @@ export default function BinderClient({
                                                     SnapToGrid.Manual,
                                                 )
                                             }
-                                            disabled={selectedSlot === null}
-                                            tooltip="Manually position"
+                                            disabled={true}
+                                            tooltip="Manually position (not available yet)"
                                         >
                                             <PointerIcon />
                                         </Button>
@@ -2496,26 +2479,30 @@ export default function BinderClient({
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <div className="grid max-h-[70vh] grid-cols-1 gap-4 overflow-y-auto pr-1 sm:grid-cols-2 lg:grid-cols-3">
-                        {Object.values(BinderPageDimensions).map((dimension) => {
-                            const isSelected =
-                                selectedPageType.id === dimension.id;
+                        {Object.values(BinderPageDimensions).map(
+                            (dimension) => {
+                                const isSelected =
+                                    selectedPageType.id === dimension.id;
 
-                            return (
-                                <button
-                                    key={dimension.id}
-                                    type="button"
-                                    className={`rounded-base border-2 p-4 text-center transition ${isSelected ? "border-main bg-main/10" : "border-border bg-background"}`}
-                                    onClick={() => setSelectedPageType(dimension)}
-                                >
-                                    <EmptyBinderPageDimensionPreview
-                                        pageType={dimension}
-                                    />
-                                    <p className="mt-3 text-sm font-semibold">
-                                        {dimension.name}
-                                    </p>
-                                </button>
-                            );
-                        })}
+                                return (
+                                    <button
+                                        key={dimension.id}
+                                        type="button"
+                                        className={`rounded-base border-2 p-4 text-center transition ${isSelected ? "border-main bg-main/10" : "border-border bg-background"}`}
+                                        onClick={() =>
+                                            setSelectedPageType(dimension)
+                                        }
+                                    >
+                                        <EmptyBinderPageDimensionPreview
+                                            pageType={dimension}
+                                        />
+                                        <p className="mt-3 text-sm font-semibold">
+                                            {dimension.name}
+                                        </p>
+                                    </button>
+                                );
+                            },
+                        )}
                     </div>
                     <AlertDialogFooter>
                         <AlertDialogCancel>Cancel</AlertDialogCancel>
