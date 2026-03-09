@@ -6,6 +6,7 @@ import {
     thumbnailUrl,
 } from "@/constants";
 import { CheckboxWithoutLabel } from "@/components/ui/checkbox";
+import TooltipComponent from "@/components/ui/tooltip";
 import { useEffect, useState } from "react";
 import { useMetadata } from "@/metadata-context";
 import { Photocards } from "@/db";
@@ -260,16 +261,22 @@ export default function PhotocardComponent({
                 </div>
             )}
             {isOwned && (
-                <div className="absolute -top-2 -right-2 z-20 pointer-events-none drop-shadow-md">
-                    <img
-                        src="/binder_done.svg"
-                        alt="Owned"
-                        className="w-8 h-8"
-                    />
-                </div>
+                <TooltipComponent tooltip="You own this photocard">
+                    <div className="absolute -top-2 -right-2 z-20 drop-shadow-md">
+                        <img
+                            src="/binder_done.svg"
+                            alt="Owned"
+                            className="pointer-events-none w-8 h-8"
+                        />
+                    </div>
+                </TooltipComponent>
             )}
             {isWishlisted && (
-                <HeartIcon className="absolute -top-2 -right-2 z-20 pointer-events-none drop-shadow-md w-6 h-6 fill-main" />
+                <TooltipComponent tooltip="You've wishlisted this photocard">
+                    <div className="absolute -top-2 -right-2 z-20 drop-shadow-md">
+                        <HeartIcon className="pointer-events-none w-6 h-6 fill-main" />
+                    </div>
+                </TooltipComponent>
             )}
         </div>
     );

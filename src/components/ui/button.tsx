@@ -89,7 +89,7 @@ function Button({
         <TooltipProvider>
             <Tooltip>
                 <TooltipTrigger asChild>{tooltipTrigger}</TooltipTrigger>
-                <TooltipContent className="font-bold px-3 py-2" {...tooltip} />
+                <TooltipContent {...tooltip} />
             </Tooltip>
         </TooltipProvider>
     );

@@ -64,18 +64,17 @@ export default function BindersComponent({
             {binders.length === 0 && <p>No binders yet!</p>}
             {!isSignedIn ? (
                 <SignInRequiredDialog callbackURL="/binder">
-                    <Button size="icon" className="px-3" hidden={!isSelf}>
-                        <FolderPlusIcon />
+                    <Button hidden={!isSelf} className="w-fit self-center">
+                        Create a Binder
                     </Button>
                 </SignInRequiredDialog>
             ) : (
                 <Button
-                    size="icon"
-                    className="px-3"
+                    className="w-fit self-center"
                     hidden={!isSelf}
                     onClick={onCreateBinder}
                 >
-                    <FolderPlusIcon />
+                    Create a Binder
                 </Button>
             )}
         </div>
