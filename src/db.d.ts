@@ -39,10 +39,13 @@ export interface BinderPages {
   creation_z_indices: Generated<number[]>;
   description: string | null;
   id: Generated<number>;
+  page_key: number;
   page_type: number;
   photocard_ids: Generated<number[]>;
   photocard_rotations: Generated<number[]>;
   photocard_show_front: Generated<boolean[]>;
+  photocard_slot_ids: Generated<string[]>;
+  photocard_snaps: Generated<number[]>;
   photocard_x_positions: Generated<number[]>;
   photocard_y_positions: Generated<number[]>;
   photocard_z_indices: Generated<number[]>;
@@ -138,7 +141,7 @@ export interface User {
 }
 
 export interface UserBinders {
-  binder_pages: number[] | null;
+  binder_pages: Generated<number[]>;
   cover_id: string | null;
   created_at: Generated<Timestamp>;
   description: string | null;
@@ -152,7 +155,7 @@ export interface UserData {
   army_since: number | null;
   bcd_id: string | null;
   bias: number | null;
-  binders: Generated<string[]>;
+  binders: Generated<number[]>;
   bluesky_id: string | null;
   contributions: Generated<number>;
   description: string | null;

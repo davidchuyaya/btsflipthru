@@ -8,12 +8,15 @@ import { Input } from "@/components/ui/input";
 import {
     BINDER_MAX_RENDERING_PAGE_DEPTH,
     BINDER_PERFORATION_DOT_SIZE,
-    BinderPage,
+    BINDER_STACKED_PAGE_X_OFFSET,
+    BinderPageDimensions,
+    BinderPageDimensionsById,
     BinderType,
     collectionDisplayName,
     MemberToIntWithOT7,
 } from "@/constants";
 import {
+    BinderPages,
     CardSizes,
     CardTypes,
     Collections,
@@ -33,6 +36,7 @@ import {
     ChevronRightIcon,
     ChevronsLeftIcon,
     ChevronsRightIcon,
+    EditIcon,
     EyeIcon,
     FilePlusIcon,
     FlipHorizontalIcon,
@@ -77,86 +81,124 @@ import {
 } from "@dnd-kit/sortable";
 import { PhotocardWithSize } from "../../photocard";
 import { Separator } from "@/components/ui/separator";
+import { usePathname, useRouter } from "next/navigation";
 import { toast } from "sonner";
 
-type BinderSlotCard = {
-    photocard: Selectable<Photocards>;
-    snap: SnapToGrid;
-    showFront: boolean;
-    rotation: number;
-    width: number;
-    height: number;
-    x: number;
-    y: number;
-    z: number;
-};
+const DEFAULT_BINDER_PAGE_DIMENSIONS = BinderPageDimensions.Standard9PP;
 
-function sortSlotCards(cards: BinderSlotCard[] = []): BinderSlotCard[] {
+const stackedSlotSchema = z.object({
+    photocard: z.custom<Selectable<Photocards>>(),
+    snap: z.custom<SnapToGrid>(),
+    showFront: z.boolean(),
+    rotation: z.number(),
+    width: z.number(),
+    height: z.number(),
+    x: z.number(),
+    y: z.number(),
+    z: z.number(),
+});
+
+const formSchema = z.object({
+    binderType: z.custom<BinderType>(),
+    name: z.string(),
+    description: z.string().optional(),
+    pages: z.array(
+        z.object({
+            pageKey: z.number().int().nonnegative(),
+            pageType: z.custom<BinderPageDimensions>(),
+            description: z.string().optional(),
+            slots: z.record(z.string(), z.array(stackedSlotSchema)),
+        }),
+    ),
+});
+
+function sortStackedSlots(
+    cards: z.infer<typeof stackedSlotSchema>[] = [],
+): z.infer<typeof stackedSlotSchema>[] {
     return [...cards].sort((a, b) => a.z - b.z);
 }
 
-function getVisibleSlotCard(
-    cards: BinderSlotCard[] | undefined,
+function getVisibleStackedSlotIndex(
+    cards: z.infer<typeof stackedSlotSchema>[],
     flipped: boolean,
-): BinderSlotCard | undefined {
-    if (!cards || cards.length === 0) {
+): number | undefined {
+    if (cards.length === 0) {
         return undefined;
     }
-    const sorted = sortSlotCards(cards);
-    return flipped ? sorted[0] : sorted[sorted.length - 1];
+    return flipped ? 0 : cards.length - 1;
 }
 
-function updateSlotCardByZ(
-    cards: BinderSlotCard[] | undefined,
-    z: number,
-    update: (card: BinderSlotCard) => BinderSlotCard,
-): BinderSlotCard[] {
-    const sorted = sortSlotCards(cards);
-    const index = sorted.findIndex((card) => card.z === z);
-    if (index === -1) {
-        return sorted;
+function buildDefaultPages(
+    binderPages: Selectable<BinderPages>[],
+    savedPhotocards: Selectable<Photocards>[],
+    cardSizes: Selectable<CardSizes>[],
+): z.infer<typeof formSchema>["pages"] {
+    if (binderPages.length === 0) {
+        return [
+            {
+                pageKey: 0,
+                pageType: DEFAULT_BINDER_PAGE_DIMENSIONS,
+                description: "",
+                slots: {},
+            },
+        ];
     }
-    sorted[index] = update(sorted[index]);
-    return sortSlotCards(sorted);
-}
 
-function removeSlotCardByZ(
-    cards: BinderSlotCard[] | undefined,
-    z: number,
-): { cards: BinderSlotCard[]; removed?: BinderSlotCard } {
-    const sorted = sortSlotCards(cards);
-    const index = sorted.findIndex((card) => card.z === z);
-    if (index === -1) {
-        return { cards: sorted };
+    const photocardsById = new Map<number, Selectable<Photocards>>();
+    for (const photocard of savedPhotocards) {
+        photocardsById.set(photocard.id, photocard);
     }
-    const [removed] = sorted.splice(index, 1);
-    return { cards: sorted, removed };
-}
 
-function translateTransformToString(
-    transform: {
-        x: number;
-        y: number;
-        scaleX?: number;
-        scaleY?: number;
-    } | null,
-): string | undefined {
-    if (!transform) {
-        return undefined;
+    const cardSizesById = new Map<number, Selectable<CardSizes>>();
+    for (const cardSize of cardSizes) {
+        cardSizesById.set(cardSize.id, cardSize);
     }
-    const { x, y, scaleX = 1, scaleY = 1 } = transform;
-    return `translate3d(${x}px, ${y}px, 0) scaleX(${scaleX}) scaleY(${scaleY})`;
-}
 
-function getSlotCardsFromSlotsRecord(
-    slots: Record<string, BinderSlotCard[]> | undefined,
-    pageNum: number,
-    slotId: string,
-): BinderSlotCard[] | undefined {
-    if (!slots) {
-        return undefined;
-    }
-    return slots[slotId] ?? slots[`${pageNum}-${slotId}`];
+    return binderPages.map((page) => {
+        const pageType = BinderPageDimensionsById[page.page_type];
+        const stackedSlotGroups = new Map<
+            string,
+            z.infer<typeof stackedSlotSchema>[]
+        >();
+
+        for (let index = 0; index < page.photocard_ids.length; index++) {
+            const photocard = photocardsById.get(page.photocard_ids[index]);
+            if (!photocard) {
+                continue;
+            }
+
+            const cardSize = cardSizesById.get(photocard.size_id);
+            if (!cardSize) {
+                continue;
+            }
+
+            const z = page.photocard_z_indices[index];
+            const slotId = page.photocard_slot_ids[index];
+            let stackedSlots = stackedSlotGroups.get(slotId);
+            if (!stackedSlots) {
+                stackedSlots = [];
+                stackedSlotGroups.set(slotId, stackedSlots);
+            }
+            stackedSlots.push({
+                photocard,
+                snap: page.photocard_snaps[index] as SnapToGrid,
+                showFront: page.photocard_show_front[index],
+                rotation: page.photocard_rotations[index],
+                width: cardSize.width,
+                height: cardSize.height,
+                x: page.photocard_x_positions[index],
+                y: page.photocard_y_positions[index],
+                z,
+            });
+        }
+
+        return {
+            pageKey: page.page_key,
+            pageType,
+            description: page.description ?? "",
+            slots: Object.fromEntries(stackedSlotGroups),
+        };
+    });
 }
 
 function BinderCoverComponent({
@@ -205,42 +247,50 @@ function BinderCoverComponent({
 function BinderPageComponent({
     binderType,
     index,
-    pageFieldId,
+    pageKey,
     flipped,
     stackPages = [],
     photocardRenderAnchorIndex = index,
     onSelectSlot,
     selectedSlotId,
     disabled = false,
+    previewMode = false,
+    onOpenPhotocard,
     fixedHeight,
     mainScale = 1,
 }: {
     binderType: BinderType;
     index: number;
-    pageFieldId: string;
+    pageKey: number;
     flipped: boolean;
-    stackPages?: Array<{ index: number; pageFieldId: string }>;
+    stackPages?: Array<{ index: number; pageKey: number }>;
     photocardRenderAnchorIndex?: number;
     onSelectSlot: (id: string, width: number, height: number) => void;
     selectedSlotId?: string;
     disabled?: boolean;
+    previewMode?: boolean;
+    onOpenPhotocard: (photocardId: number) => void;
     fixedHeight?: string;
     mainScale?: number;
 }) {
     const layers = [
         ...stackPages.map((stackPage, stackIndex) => ({
-            key: `stack-${stackPage.pageFieldId}`,
+            key: stackPage.pageKey,
             index: stackPage.index,
-            pageFieldId: stackPage.pageFieldId,
+            pageKey: stackPage.pageKey,
             disabled: true,
-            offsetX: (stackPages.length - stackIndex) * (flipped ? -4 : 4),
+            offsetX:
+                (stackPages.length - stackIndex) *
+                (flipped
+                    ? -BINDER_STACKED_PAGE_X_OFFSET
+                    : BINDER_STACKED_PAGE_X_OFFSET),
             offsetY: 0,
             pointerEvents: "none" as const,
         })),
         {
-            key: `page-${pageFieldId}`,
+            key: pageKey,
             index,
-            pageFieldId,
+            pageKey,
             disabled,
             offsetX: 0,
             offsetY: 0,
@@ -266,7 +316,7 @@ function BinderPageComponent({
                     <BinderPageLayer
                         binderType={binderType}
                         index={layer.index}
-                        pageFieldId={layer.pageFieldId}
+                        pageKey={layer.pageKey}
                         flipped={flipped}
                         renderPhotocards={
                             Math.abs(
@@ -276,6 +326,8 @@ function BinderPageComponent({
                         onSelectSlot={onSelectSlot}
                         selectedSlotId={selectedSlotId}
                         disabled={layer.disabled}
+                        previewMode={previewMode}
+                        onOpenPhotocard={onOpenPhotocard}
                         fixedHeight={fixedHeight}
                         mainScale={mainScale}
                     />
@@ -285,7 +337,7 @@ function BinderPageComponent({
                 <BinderPageLayer
                     binderType={binderType}
                     index={index}
-                    pageFieldId={pageFieldId}
+                    pageKey={pageKey}
                     flipped={flipped}
                     renderPhotocards={
                         Math.abs(index - photocardRenderAnchorIndex) <=
@@ -294,6 +346,8 @@ function BinderPageComponent({
                     onSelectSlot={onSelectSlot}
                     selectedSlotId={selectedSlotId}
                     disabled={true}
+                    previewMode={previewMode}
+                    onOpenPhotocard={onOpenPhotocard}
                     fixedHeight={fixedHeight}
                     mainScale={mainScale}
                 />
@@ -305,23 +359,27 @@ function BinderPageComponent({
 function BinderPageLayer({
     binderType,
     index,
-    pageFieldId,
+    pageKey,
     flipped,
     renderPhotocards = true,
     onSelectSlot,
     selectedSlotId,
     disabled = false,
+    previewMode = false,
+    onOpenPhotocard,
     fixedHeight,
     mainScale = 1,
 }: {
     binderType: BinderType;
     index: number;
-    pageFieldId: string;
+    pageKey: number;
     flipped: boolean;
     renderPhotocards?: boolean;
     onSelectSlot: (id: string, width: number, height: number) => void;
     selectedSlotId?: string;
     disabled?: boolean;
+    previewMode?: boolean;
+    onOpenPhotocard: (photocardId: number) => void;
     fixedHeight?: string;
     mainScale?: number;
 }) {
@@ -390,11 +448,11 @@ function BinderPageLayer({
                 const dotPctX = (BINDER_PERFORATION_DOT_SIZE / w) * 100;
                 const dotPctY = (BINDER_PERFORATION_DOT_SIZE / h) * 100;
                 const isLastCol = cIndex === colWidths.length - 1;
-                const key = `${rIndex}-${cIndex}`;
+                const key = `${page.pageKey}-${rIndex}-${cIndex}`;
                 const slotProps = {
                     id: key,
                     pageNum: index,
-                    pageFieldId,
+                    pageKey,
                     width: w,
                     height: h,
                     gradient,
@@ -405,8 +463,10 @@ function BinderPageLayer({
                     isSelected: selectedSlotId === key,
                     flipped,
                     disabled,
+                    previewMode,
                     renderPhotocards,
                     valueScale: previewScale,
+                    onOpenPhotocard,
                 };
                 return <BinderSlot key={key} {...slotProps} />;
             }),
@@ -429,13 +489,15 @@ function BinderSlot({
     height,
     id,
     pageNum,
-    pageFieldId,
+    pageKey,
     onSelectSlot,
     isSelected,
     flipped,
     disabled,
+    previewMode,
     renderPhotocards,
     valueScale,
+    onOpenPhotocard,
 }: {
     gradient: string;
     isLastCol: boolean;
@@ -445,13 +507,15 @@ function BinderSlot({
     dotPctY: number;
     id: string;
     pageNum: number;
-    pageFieldId: string;
+    pageKey: number;
     onSelectSlot: (id: string, width: number, height: number) => void;
     isSelected: boolean;
     flipped: boolean;
     disabled: boolean;
+    previewMode: boolean;
     renderPhotocards: boolean;
     valueScale: number;
+    onOpenPhotocard: (photocardId: number) => void;
 }) {
     const { control } = useFormContext();
     const logicalWidth =
@@ -462,44 +526,90 @@ function BinderSlot({
         1;
     const logicalHeight = height - BINDER_PERFORATION_DOT_SIZE - 1;
 
-    const pageSlots = useWatch({
-        control,
-        name: `pages.${pageNum}.slots`,
-    }) as Record<string, BinderSlotCard[]> | undefined;
-    const slotCards = getSlotCardsFromSlotsRecord(pageSlots, pageNum, id);
-    const visibleCard = getVisibleSlotCard(slotCards, flipped);
+    const pageSlots =
+        (useWatch({
+            control,
+            name: `pages.${pageNum}.slots`,
+        }) as
+            | Record<string, z.infer<typeof stackedSlotSchema>[]>
+            | undefined) ?? {};
+    const stackedSlots = pageSlots[id] ?? [];
+    const visibleCardIndex = getVisibleStackedSlotIndex(stackedSlots, flipped);
+    const visibleCard =
+        visibleCardIndex === undefined
+            ? undefined
+            : stackedSlots[visibleCardIndex];
     const slotStyle = {
         backgroundImage: `${gradient}, ${gradient} ${isLastCol ? ", " + gradient : ""}`,
         backgroundPosition: `left bottom, left top ${isLastCol ? ", right top" : ""}`,
         backgroundSize: `${dotPctX}% ${dotPctY}%, ${dotPctX}% ${dotPctY}% ${isLastCol ? `, ${dotPctX}% ${dotPctY}%` : ""}`,
         backgroundRepeat: `repeat-x, repeat-y ${isLastCol ? ", repeat-y" : ""}`,
     };
+    const cardShowFront = visibleCard?.showFront !== flipped;
+    const cardScale = disabled ? valueScale : 1;
+    const cardPositionStyle = visibleCard
+        ? {
+            position: "absolute" as const,
+            bottom: `calc(${visibleCard.y * cardScale}px + ${dotPctY}%)`,
+            left: `calc(${visibleCard.x * cardScale}px + ${dotPctX}%)`,
+        }
+        : undefined;
+    const cardTransformStyle = visibleCard
+        ? {
+            transform: `rotate(${visibleCard.rotation}deg)`,
+            transformOrigin: "center center" as const,
+        }
+        : undefined;
+    const selectedCardStyle = isSelected
+        ? {
+            boxShadow: "0 0 0 3px var(--accent-light)",
+            borderRadius: "0.5rem",
+        }
+        : undefined;
+    const cardContent =
+        renderPhotocards && visibleCard && valueScale > 0 ? (
+            disabled ? (
+                <div style={cardPositionStyle}>
+                    <PhotocardWithSize
+                        photocard={visibleCard.photocard}
+                        showFront={cardShowFront}
+                        width={visibleCard.width * valueScale}
+                        height={visibleCard.height * valueScale}
+                        className={flipped ? "flip-horizontal!" : ""}
+                        style={{
+                            ...cardTransformStyle,
+                            ...selectedCardStyle,
+                        }}
+                    />
+                </div>
+            ) : (
+                <PhotocardWithDragContent
+                    photocard={visibleCard.photocard}
+                    slotId={id}
+                    pageNum={pageNum}
+                    pageKey={pageKey}
+                    showFront={cardShowFront}
+                    width={visibleCard.width}
+                    height={visibleCard.height}
+                    slotWidth={logicalWidth}
+                    slotHeight={logicalHeight}
+                    z={visibleCard.z}
+                    disabled={flipped || previewMode}
+                    className={flipped ? "flip-horizontal!" : ""}
+                    style={{
+                        ...cardPositionStyle,
+                        transform: cardTransformStyle?.transform,
+                        boxShadow: selectedCardStyle?.boxShadow,
+                        borderRadius: selectedCardStyle?.borderRadius,
+                    }}
+                />
+            )
+        ) : null;
 
     if (disabled) {
         return (
             <div className="relative" style={slotStyle}>
-                {renderPhotocards && visibleCard && valueScale > 0 && (
-                    <div
-                        style={{
-                            position: "absolute",
-                            bottom: `calc(${visibleCard.y * valueScale}px + ${dotPctY}%)`,
-                            left: `calc(${visibleCard.x * valueScale}px + ${dotPctX}%)`,
-                            opacity: isSelected ? 1 : 0.6,
-                        }}
-                    >
-                        <PhotocardWithSize
-                            photocard={visibleCard.photocard}
-                            showFront={visibleCard.showFront !== flipped}
-                            width={visibleCard.width * valueScale}
-                            height={visibleCard.height * valueScale}
-                            className={flipped ? "flip-horizontal!" : ""}
-                            style={{
-                                transform: `rotate(${visibleCard.rotation}deg)`,
-                                transformOrigin: "center center",
-                            }}
-                        />
-                    </div>
-                )}
+                {cardContent}
             </div>
         );
     }
@@ -508,37 +618,18 @@ function BinderSlot({
         <InteractiveSlotContent
             slotId={id}
             pageNum={pageNum}
-            pageFieldId={pageFieldId}
+            pageKey={pageKey}
             logicalWidth={logicalWidth}
             logicalHeight={logicalHeight}
             flipped={flipped}
-            slotCards={slotCards}
+            stackedSlots={stackedSlots}
             onSelectSlot={onSelectSlot}
             slotStyle={slotStyle}
+            previewMode={previewMode}
+            visiblePhotocardId={visibleCard?.photocard.id}
+            onOpenPhotocard={onOpenPhotocard}
         >
-            {renderPhotocards && visibleCard && valueScale > 0 && (
-                <PhotocardWithDragContent
-                    photocard={visibleCard.photocard}
-                    slotId={id}
-                    pageNum={pageNum}
-                    pageFieldId={pageFieldId}
-                    showFront={visibleCard.showFront !== flipped}
-                    width={visibleCard.width}
-                    height={visibleCard.height}
-                    slotWidth={logicalWidth}
-                    slotHeight={logicalHeight}
-                    z={visibleCard.z}
-                    disabled={flipped}
-                    className={flipped ? "flip-horizontal!" : ""}
-                    style={{
-                        position: "absolute",
-                        bottom: `calc(${visibleCard.y}px + ${dotPctY}%)`,
-                        left: `calc(${visibleCard.x}px + ${dotPctX}%)`,
-                        opacity: isSelected ? 1 : 0.6,
-                        transform: `rotate(${visibleCard.rotation}deg)`,
-                    }}
-                />
-            )}
+            {cardContent}
         </InteractiveSlotContent>
     );
 }
@@ -546,33 +637,39 @@ function BinderSlot({
 function InteractiveSlotContent({
     slotId,
     pageNum,
-    pageFieldId,
+    pageKey,
     logicalWidth,
     logicalHeight,
     flipped,
-    slotCards,
+    stackedSlots,
     onSelectSlot,
     slotStyle,
+    previewMode,
+    visiblePhotocardId,
+    onOpenPhotocard,
     children,
 }: {
     slotId: string;
     pageNum: number;
-    pageFieldId: string;
+    pageKey: number;
     logicalWidth: number;
     logicalHeight: number;
     flipped: boolean;
-    slotCards?: BinderSlotCard[];
+    stackedSlots: z.infer<typeof stackedSlotSchema>[];
     onSelectSlot: (id: string, width: number, height: number) => void;
     slotStyle: React.CSSProperties;
+    previewMode: boolean;
+    visiblePhotocardId?: number;
+    onOpenPhotocard: (photocardId: number) => void;
     children?: React.ReactNode;
 }) {
     const { setNodeRef, isOver } = useDroppable({
-        id: `page-slot-${pageFieldId}-${slotId}`,
-        disabled: flipped,
+        id: `slot-${pageKey}-${slotId}`,
+        disabled: flipped || previewMode,
         data: {
             slotId,
             pageNum,
-            pageFieldId,
+            pageKey,
             width: logicalWidth,
             height: logicalHeight,
         },
@@ -582,7 +679,11 @@ function InteractiveSlotContent({
         <div
             ref={setNodeRef}
             onClick={() => {
-                if (slotCards && slotCards.length > 0 && !flipped) {
+                if (previewMode && visiblePhotocardId !== undefined) {
+                    onOpenPhotocard(visiblePhotocardId);
+                    return;
+                }
+                if (stackedSlots.length > 0 && !flipped) {
                     onSelectSlot(slotId, logicalWidth, logicalHeight);
                 }
             }}
@@ -598,7 +699,7 @@ function PhotocardWithDragContent({
     photocard,
     slotId,
     pageNum,
-    pageFieldId,
+    pageKey,
     showFront,
     width,
     height,
@@ -612,7 +713,7 @@ function PhotocardWithDragContent({
     photocard: Selectable<Photocards>;
     slotId: string;
     pageNum: number;
-    pageFieldId: string;
+    pageKey: number;
     showFront: boolean;
     width: number;
     height: number;
@@ -624,13 +725,13 @@ function PhotocardWithDragContent({
     disabled?: boolean;
 }) {
     const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
-        id: `slot-card-${pageFieldId}-${slotId}-${z}`,
+        id: `slot-card-${pageKey}-${slotId}`,
         disabled,
         data: {
             photocard,
             sourceSlotId: slotId,
             sourcePageNum: pageNum,
-            sourcePageFieldId: pageFieldId,
+            sourcePageKey: pageKey,
             sourceSlotWidth: slotWidth,
             sourceSlotHeight: slotHeight,
             sourceCardZ: z,
@@ -667,12 +768,14 @@ function SortablePagePreview({
     currentPage,
     onSelect,
     children,
+    disabled = false,
 }: {
     id: string;
     index: number;
     currentPage: number;
     onSelect: (index: number) => void;
     children: React.ReactNode;
+    disabled?: boolean;
 }) {
     const {
         attributes,
@@ -687,6 +790,7 @@ function SortablePagePreview({
             type: "page-preview",
             index,
         },
+        disabled,
         transition: {
             duration: 150, // Animation duration in ms
             easing: "cubic-bezier(0.25, 1, 0.5, 1)", // Animation easing
@@ -699,7 +803,9 @@ function SortablePagePreview({
             type="button"
             onClick={() => onSelect(index)}
             style={{
-                transform: translateTransformToString(transform),
+                transform: transform
+                    ? `translate3d(${transform.x}px, ${transform.y}px, 0) scaleX(${transform.scaleX ?? 1}) scaleY(${transform.scaleY ?? 1})`
+                    : undefined,
                 transition,
                 opacity: isDragging ? 0.7 : 1,
             }}
@@ -894,6 +1000,7 @@ enum SearchType {
     Wishlisted = "Wishlisted",
 }
 
+// NOTE: Do not change ordering, since this is stored in the database
 enum SnapToGrid {
     BottomLeft,
     BottomRight,
@@ -901,50 +1008,36 @@ enum SnapToGrid {
     Manual,
 }
 
-const formSchema = z.object({
-    binderType: z.custom<BinderType>(),
-    name: z.string(),
-    description: z.string().optional(),
-    pages: z.array(
-        z.object({
-            pageType: z.custom<BinderPage>(),
-            slots: z.record(
-                z.string(), // Slot ID
-                z
-                    .array(
-                        z.object({
-                            photocard: z.custom<Selectable<Photocards>>(),
-                            snap: z.custom<SnapToGrid>(),
-                            showFront: z.boolean(),
-                            rotation: z.number(),
-                            width: z.number(),
-                            height: z.number(),
-                            x: z.number(),
-                            y: z.number(),
-                            z: z.number(),
-                        }),
-                    )
-                    .optional(),
-            ),
-        }),
-    ),
-});
+enum ZPosition {
+    Top,
+    Bottom,
+}
 
 export default function BinderClient({
     userBinder,
+    binderPages,
     collections,
     cardTypes,
     cardSizes,
     ownedPhotocards,
     wishlistedPhotocards,
+    savedPhotocards,
+    isOwner,
 }: {
     userBinder: Selectable<UserBinders>;
+    binderPages: Selectable<BinderPages>[];
     collections: Selectable<Collections>[];
     cardTypes: Selectable<CardTypes>[];
     cardSizes: Selectable<CardSizes>[];
     ownedPhotocards: Selectable<Photocards>[];
     wishlistedPhotocards: Selectable<Photocards>[];
+    savedPhotocards: Selectable<Photocards>[];
+    isOwner: boolean;
 }) {
+    const router = useRouter();
+    const pathname = usePathname();
+    const [isPreview, setIsPreview] = useState(false);
+    const previewMode = !isOwner || isPreview;
     const [currentPage, setCurrentPage] = useState(0);
     const [needsSaving, setNeedsSaving] = useState(false);
     const [snapToGrid, setSnapToGrid] = useState<SnapToGrid>(SnapToGrid.Center);
@@ -965,24 +1058,27 @@ export default function BinderClient({
         width: number;
         height: number;
     } | null>(null);
+    const defaultPages = buildDefaultPages(
+        binderPages,
+        savedPhotocards,
+        cardSizes,
+    );
+    const nextPageKeyRef = useRef(
+        Math.max(...defaultPages.map((page) => page.pageKey), -1) + 1,
+    );
     const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
         defaultValues: {
             binderType: BinderType.OneInch,
             name: userBinder.name,
             description: userBinder.description ?? "",
-            pages: [
-                {
-                    pageType: BinderPage.Standard9PP,
-                    slots: {}, // TODO: Load slots from userBinder
-                },
-            ],
+            pages: defaultPages,
         },
     });
 
     // Pages
-    const [pageType, setPageType] = useState<BinderPage>(
-        BinderPage.Standard9PP,
+    const [pageType, setPageType] = useState<BinderPageDimensions>(
+        defaultPages[0]?.pageType ?? DEFAULT_BINDER_PAGE_DIMENSIONS,
     );
     const {
         fields: pages,
@@ -993,10 +1089,12 @@ export default function BinderClient({
         control: form.control,
         name: "pages",
     });
+    const currentPageData = pages[currentPage];
 
     // Resize Observer State
     const [binderWidth, setBinderWidth] = useState(0);
     const binderRef = useRef<HTMLDivElement>(null);
+    const initializedLoadedCardDimensionsRef = useRef(false);
     const binderType = form.watch("binderType");
     const activeCardSize =
         activePhotocard && cardSizes.length > 0
@@ -1026,47 +1124,164 @@ export default function BinderClient({
         return () => observer.disconnect();
     }, []);
 
-    function getSlotCards(pageNum: number, slotId: string) {
-        const slots = form.getValues(`pages.${pageNum}.slots`) as
-            | Record<string, BinderSlotCard[]>
-            | undefined;
-        return getSlotCardsFromSlotsRecord(slots, pageNum, slotId);
+    // Reset card sizes after the scale has been calculated
+    useEffect(() => {
+        if (scale <= 0 || initializedLoadedCardDimensionsRef.current) {
+            return;
+        }
+
+        const pages = form.getValues("pages");
+        for (let pageNum = 0; pageNum < pages.length; pageNum++) {
+            const page = pages[pageNum];
+            for (const [slotId, stackedSlots] of Object.entries(page.slots)) {
+                const next = stackedSlots.map((card) => {
+                    const cardSize = cardSizes.find(
+                        (size) => size.id === card.photocard.size_id,
+                    );
+                    if (!cardSize) {
+                        return card;
+                    }
+                    return {
+                        ...card,
+                        width: cardSize.width * scale,
+                        height: cardSize.height * scale,
+                    };
+                });
+                setStackedSlots(pageNum, slotId, next);
+            }
+        }
+
+        initializedLoadedCardDimensionsRef.current = true;
+    }, [cardSizes, form, scale]);
+
+    useEffect(() => {
+        if (previewMode) {
+            return;
+        }
+        function confirmLeave() {
+            return window.confirm(
+                "You have unsaved binder changes. Leave without saving?",
+            );
+        }
+
+        function handleBeforeUnload(event: BeforeUnloadEvent) {
+            if (!needsSaving) {
+                return;
+            }
+            event.preventDefault();
+            event.returnValue = "";
+        }
+
+        function handleDocumentClick(event: MouseEvent) {
+            if (!needsSaving) {
+                return;
+            }
+
+            const target = event.target;
+            if (!(target instanceof Element)) {
+                return;
+            }
+
+            const link = target.closest("a[href]");
+            if (!(link instanceof HTMLAnchorElement)) {
+                return;
+            }
+
+            if (
+                link.target === "_blank" ||
+                event.metaKey ||
+                event.ctrlKey ||
+                event.shiftKey ||
+                event.altKey
+            ) {
+                return;
+            }
+
+            const href = link.href;
+            if (!href || href === window.location.href) {
+                return;
+            }
+
+            if (!confirmLeave()) {
+                event.preventDefault();
+            }
+        }
+
+        window.addEventListener("beforeunload", handleBeforeUnload);
+        document.addEventListener("click", handleDocumentClick, true);
+
+        return () => {
+            window.removeEventListener("beforeunload", handleBeforeUnload);
+            document.removeEventListener("click", handleDocumentClick, true);
+        };
+    }, [needsSaving, previewMode]);
+
+    function openPhotocard(photocardId: number) {
+        window.open(
+            `/photocard/${photocardId}`,
+            "_blank",
+            "noopener,noreferrer",
+        );
     }
 
-    function setSlotCards(
+    function getStackedSlots(pageNum: number, slotId: string) {
+        const slots =
+            (form.getValues(`pages.${pageNum}.slots`) as Record<
+                string,
+                z.infer<typeof stackedSlotSchema>[]
+            >) ?? {};
+        return slots[slotId] ?? [];
+    }
+
+    function setStackedSlots(
         pageNum: number,
         slotId: string,
-        cards: BinderSlotCard[],
+        cards: z.infer<typeof stackedSlotSchema>[],
     ) {
-        form.setValue(`pages.${pageNum}.slots.${slotId}`, cards);
-        const legacySlotId = `${pageNum}-${slotId}`;
-        const slots = form.getValues(`pages.${pageNum}.slots`) as
-            | Record<string, BinderSlotCard[]>
-            | undefined;
-        if (slots && legacySlotId in slots) {
-            form.unregister(`pages.${pageNum}.slots.${legacySlotId}`);
-        }
+        form.setValue(
+            `pages.${pageNum}.slots.${slotId}`,
+            sortStackedSlots(cards),
+        );
     }
 
     function unregisterSlot(pageNum: number, slotId: string) {
-        form.unregister(`pages.${pageNum}.slots.${slotId}`);
-        form.unregister(`pages.${pageNum}.slots.${pageNum}-${slotId}`);
+        const slots =
+            (form.getValues(`pages.${pageNum}.slots`) as Record<
+                string,
+                z.infer<typeof stackedSlotSchema>[]
+            >) ?? {};
+        const nextSlots = { ...slots };
+        delete nextSlots[slotId];
+        form.setValue(`pages.${pageNum}.slots`, nextSlots);
     }
 
     function onDragStart(event: DragStartEvent) {
+        if (previewMode) {
+            return;
+        }
         const data = event.active.data.current;
+        // Reordering pages
         if (data?.type === "page-preview") {
             return;
         }
+        // Dragging a photocard from search/slot
         if (data?.photocard) {
             setActivePhotocard(data.photocard);
         }
+        // Dragging a photocard from a slot
         if (data?.sourceSlotId !== undefined) {
-            const sourceSlotCards = getSlotCards(
+            const sourceStackedSlots = getStackedSlots(
                 data.sourcePageNum,
                 data.sourceSlotId,
             );
-            const sourceCard = getVisibleSlotCard(sourceSlotCards, false);
+            const sourceCardIndex = getVisibleStackedSlotIndex(
+                sourceStackedSlots,
+                false,
+            );
+            const sourceCard =
+                sourceCardIndex === undefined
+                    ? undefined
+                    : sourceStackedSlots[sourceCardIndex];
             setActivePhotocardRotation(sourceCard?.rotation ?? 0);
             setActivePhotocardShowFront(sourceCard?.showFront ?? true);
             setDragSourceSlot({
@@ -1084,6 +1299,7 @@ export default function BinderClient({
                 });
             }
         } else {
+            // Dragging a photocard from search
             setDragSourceSlot(null);
             setActivePhotocardRotation(0);
             setActivePhotocardShowFront(true);
@@ -1141,7 +1357,11 @@ export default function BinderClient({
     }
 
     function onDragEnd(event: DragEndEvent) {
+        if (previewMode) {
+            return;
+        }
         const activeData = event.active.data.current;
+        // Reordering pages
         if (activeData?.type === "page-preview" && event.over) {
             const oldIndex = pages.findIndex(
                 (page) => page.id === event.active.id,
@@ -1169,6 +1389,7 @@ export default function BinderClient({
             return;
         }
 
+        // Dragging a photocard. If it's not over a slot, delete it
         if (!event.over) {
             if (dragSourceSlot) {
                 deleteSelectedSlot();
@@ -1177,16 +1398,19 @@ export default function BinderClient({
             setActivePhotocardRotation(0);
             setActivePhotocardShowFront(true);
             setDragSourceSlot(null);
+            setNeedsSaving(true);
             return;
         }
 
-        const slotWidth = event.over.data.current!.width * scale;
+        const slotWidth = Number(event.over.data.current!.width) * scale;
         const width = activeCardSize!.width * scale;
         const height = activeCardSize!.height * scale;
         const sourceCards = dragSourceSlot
-            ? getSlotCards(dragSourceSlot.pageNum, dragSourceSlot.slotId)
-            : null;
-        const source = getVisibleSlotCard(sourceCards ?? undefined, false);
+            ? getStackedSlots(dragSourceSlot.pageNum, dragSourceSlot.slotId)
+            : [];
+        const sourceIndex = getVisibleStackedSlotIndex(sourceCards, false);
+        const source =
+            sourceIndex === undefined ? undefined : sourceCards[sourceIndex];
         const sourceSnap = source?.snap ?? snapToGrid;
         const sourceRotation = source?.rotation ?? 0;
 
@@ -1203,39 +1427,46 @@ export default function BinderClient({
         const overPageNum = Number(event.over.data.current!.pageNum);
         const overSlotWidth = Number(event.over.data.current!.width);
         const overSlotHeight = Number(event.over.data.current!.height);
-        const existingCards = getSlotCards(overPageNum, overSlotId) ?? [];
-        let nextCards = sortSlotCards(existingCards);
+        const existingCards = getStackedSlots(overPageNum, overSlotId);
+        let nextCards = sortStackedSlots(existingCards);
 
         if (dragSourceSlot) {
-            const sourceCardZ = Number(event.active.data.current?.sourceCardZ);
-            const removal = removeSlotCardByZ(sourceCards ?? [], sourceCardZ);
+            // Dragging back into itself, do nothing
             if (
                 dragSourceSlot.slotId === overSlotId &&
                 dragSourceSlot.pageNum === overPageNum
             ) {
-                nextCards = removal.cards;
+                return;
+            }
+
+            const sourceCardIndex = getVisibleStackedSlotIndex(
+                sourceCards,
+                false,
+            );
+            const removalCards = [...sourceCards];
+            if (sourceCardIndex !== undefined) {
+                removalCards.splice(sourceCardIndex, 1);
+            }
+
+            // Delete card from original slot
+            if (removalCards.length === 0) {
+                unregisterSlot(dragSourceSlot.pageNum, dragSourceSlot.slotId);
             } else {
-                if (removal.cards.length === 0) {
-                    unregisterSlot(
-                        dragSourceSlot.pageNum,
-                        dragSourceSlot.slotId,
-                    );
-                } else {
-                    setSlotCards(
-                        dragSourceSlot.pageNum,
-                        dragSourceSlot.slotId,
-                        removal.cards,
-                    );
-                }
+                setStackedSlots(
+                    dragSourceSlot.pageNum,
+                    dragSourceSlot.slotId,
+                    removalCards,
+                );
             }
         }
 
+        // Set new slot
         const highestZ = nextCards.reduce(
             (maxZ, card) => Math.max(maxZ, card.z),
             -1,
         );
 
-        setSlotCards(overPageNum, overSlotId, [
+        setStackedSlots(overPageNum, overSlotId, [
             ...nextCards,
             {
                 photocard: activePhotocard!,
@@ -1262,31 +1493,53 @@ export default function BinderClient({
         setDragSourceSlot(null);
     }
 
-    function onPreview() { }
+    function onPreview() {
+        setIsPreview(true);
+    }
 
-    function onShare() { }
+    function onShare() {
+        navigator.clipboard.writeText(window.location.href);
+        toast.success("Binder URL copied to clipboard");
+    }
+
+    function onEdit() {
+        setIsPreview(false);
+    }
 
     async function onSubmit(data: z.infer<typeof formSchema>) {
         const pageRows = data.pages.map((page) => {
-            const slotCards = Object.values(page.slots).flatMap((slotCards) =>
-                slotCards ? sortSlotCards(slotCards) : [],
+            const stackedSlots = Object.entries(page.slots).flatMap(
+                ([slotId, stackedSlots]) =>
+                    stackedSlots.map((card) => ({
+                        slotId,
+                        card,
+                    })),
             );
 
             return {
+                page_key: page.pageKey,
                 page_type: page.pageType.id,
-                description: null,
+                description: page.description ?? null,
                 creation_ids: [],
                 creation_rotations: [],
                 creation_show_front: [],
                 creation_x_positions: [],
                 creation_y_positions: [],
                 creation_z_indices: [],
-                photocard_ids: slotCards.map((card) => card.photocard.id!),
-                photocard_rotations: slotCards.map((card) => card.rotation),
-                photocard_show_front: slotCards.map((card) => card.showFront),
-                photocard_x_positions: slotCards.map((card) => card.x),
-                photocard_y_positions: slotCards.map((card) => card.y),
-                photocard_z_indices: slotCards.map((card) => card.z),
+                photocard_ids: stackedSlots.map(
+                    ({ card }) => card.photocard.id!,
+                ),
+                photocard_rotations: stackedSlots.map(
+                    ({ card }) => card.rotation,
+                ),
+                photocard_slot_ids: stackedSlots.map(({ slotId }) => slotId),
+                photocard_snaps: stackedSlots.map(({ card }) => card.snap),
+                photocard_show_front: stackedSlots.map(
+                    ({ card }) => card.showFront,
+                ),
+                photocard_x_positions: stackedSlots.map(({ card }) => card.x),
+                photocard_y_positions: stackedSlots.map(({ card }) => card.y),
+                photocard_z_indices: stackedSlots.map(({ card }) => card.z),
             };
         });
 
@@ -1322,7 +1575,9 @@ export default function BinderClient({
 
     function addPage() {
         insertPage(currentPage + 1, {
+            pageKey: nextPageKeyRef.current++,
             pageType: pageType,
+            description: "",
             slots: {},
         });
         setNeedsSaving(true);
@@ -1334,7 +1589,6 @@ export default function BinderClient({
     }
 
     function setPage(page: number) {
-        console.log("Setting page to", page);
         setCurrentPage(page);
         setSelectedSlot(null);
         setActivePhotocard(null);
@@ -1342,18 +1596,23 @@ export default function BinderClient({
 
     function onSelectSlot(id: string, width: number, height: number) {
         setSelectedSlot({ id, width, height });
-        const slotCards = getSlotCards(currentPage, id);
-        const slotData = getVisibleSlotCard(slotCards, false);
-        if (slotData) {
+        const stackedSlots = getStackedSlots(currentPage, id);
+        const visibleIndex = getVisibleStackedSlotIndex(stackedSlots, false);
+        if (visibleIndex !== undefined) {
+            const slotData = stackedSlots[visibleIndex];
             setSnapToGrid(slotData.snap);
         }
     }
 
     function alignSelectedSlot(snapToGrid: SnapToGrid) {
         if (selectedSlot) {
-            const slotCards = getSlotCards(currentPage, selectedSlot.id);
-            const slotData = getVisibleSlotCard(slotCards, false);
-            if (slotData) {
+            const stackedSlots = getStackedSlots(currentPage, selectedSlot.id);
+            const visibleIndex = getVisibleStackedSlotIndex(
+                stackedSlots,
+                false,
+            );
+            if (visibleIndex !== undefined) {
+                const slotData = stackedSlots[visibleIndex];
                 const slotWidth = selectedSlot.width * scale;
                 const slotHeight = selectedSlot.height * scale;
                 const { x, y } = calculatePhotocardPosition(
@@ -1364,16 +1623,14 @@ export default function BinderClient({
                     slotData.height,
                     slotData.rotation,
                 );
-                setSlotCards(
-                    currentPage,
-                    selectedSlot.id,
-                    updateSlotCardByZ(slotCards, slotData.z, (card) => ({
-                        ...card,
-                        snap: snapToGrid,
-                        x,
-                        y,
-                    })),
-                );
+                const next = [...stackedSlots];
+                next[visibleIndex] = {
+                    ...slotData,
+                    snap: snapToGrid,
+                    x,
+                    y,
+                };
+                setStackedSlots(currentPage, selectedSlot.id, next);
                 setNeedsSaving(true);
             }
         }
@@ -1382,17 +1639,19 @@ export default function BinderClient({
 
     function flipSelectedSlot() {
         if (selectedSlot) {
-            const slotCards = getSlotCards(currentPage, selectedSlot.id);
-            const slotData = getVisibleSlotCard(slotCards, false);
-            if (slotData) {
-                setSlotCards(
-                    currentPage,
-                    selectedSlot.id,
-                    updateSlotCardByZ(slotCards, slotData.z, (card) => ({
-                        ...card,
-                        showFront: !card.showFront,
-                    })),
-                );
+            const stackedSlots = getStackedSlots(currentPage, selectedSlot.id);
+            const visibleIndex = getVisibleStackedSlotIndex(
+                stackedSlots,
+                false,
+            );
+            if (visibleIndex !== undefined) {
+                const slotData = stackedSlots[visibleIndex];
+                const next = [...stackedSlots];
+                next[visibleIndex] = {
+                    ...slotData,
+                    showFront: !slotData.showFront,
+                };
+                setStackedSlots(currentPage, selectedSlot.id, next);
                 setNeedsSaving(true);
             }
         }
@@ -1400,18 +1659,20 @@ export default function BinderClient({
 
     function rotateSelectedSlot() {
         if (selectedSlot) {
-            const slotCards = getSlotCards(currentPage, selectedSlot.id);
-            const slotData = getVisibleSlotCard(slotCards, false);
-            if (slotData) {
+            const stackedSlots = getStackedSlots(currentPage, selectedSlot.id);
+            const visibleIndex = getVisibleStackedSlotIndex(
+                stackedSlots,
+                false,
+            );
+            if (visibleIndex !== undefined) {
+                const slotData = stackedSlots[visibleIndex];
                 // Rotate 90 degrees counter-clockwise
-                setSlotCards(
-                    currentPage,
-                    selectedSlot.id,
-                    updateSlotCardByZ(slotCards, slotData.z, (card) => ({
-                        ...card,
-                        rotation: (card.rotation - 90) % 360,
-                    })),
-                );
+                const next = [...stackedSlots];
+                next[visibleIndex] = {
+                    ...slotData,
+                    rotation: (slotData.rotation - 90) % 360,
+                };
+                setStackedSlots(currentPage, selectedSlot.id, next);
                 // Immediately realign according to existing snap
                 alignSelectedSlot(slotData.snap);
                 setNeedsSaving(true);
@@ -1419,16 +1680,20 @@ export default function BinderClient({
         }
     }
 
-    function changeSelectedSlotZ(position: "top" | "bottom") {
+    function changeSelectedSlotZ(position: ZPosition) {
         if (!selectedSlot) {
             return;
         }
-        const slotCards = getSlotCards(currentPage, selectedSlot.id);
-        const slotData = getVisibleSlotCard(slotCards, false);
-        if (!slotData) {
+        const stackedSlots = getStackedSlots(currentPage, selectedSlot.id);
+        const visibleIndex = getVisibleStackedSlotIndex(stackedSlots, false);
+        if (visibleIndex === undefined) {
             return;
         }
-        const sorted = sortSlotCards(slotCards);
+        const slotData = stackedSlots[visibleIndex];
+        if (stackedSlots.length <= 1) {
+            return;
+        }
+        const sorted = sortStackedSlots(stackedSlots);
         const highestZ = sorted.reduce(
             (maxZ, card) => Math.max(maxZ, card.z),
             slotData.z,
@@ -1437,32 +1702,31 @@ export default function BinderClient({
             (minZ, card) => Math.min(minZ, card.z),
             slotData.z,
         );
-        const nextZ = position === "top" ? highestZ + 1 : lowestZ - 1;
-        setSlotCards(
-            currentPage,
-            selectedSlot.id,
-            updateSlotCardByZ(slotCards, slotData.z, (card) => ({
-                ...card,
-                z: nextZ,
-            })),
-        );
+        const nextZ = position === ZPosition.Top ? highestZ + 1 : lowestZ - 1;
+        const next = [...stackedSlots];
+        next[visibleIndex] = {
+            ...slotData,
+            z: nextZ,
+        };
+        setStackedSlots(currentPage, selectedSlot.id, next);
         setNeedsSaving(true);
     }
 
     function deleteSelectedSlot() {
         if (selectedSlot) {
-            const slotCards = getSlotCards(currentPage, selectedSlot.id);
-            const slotData = getVisibleSlotCard(slotCards, false);
-            if (slotData) {
-                const updatedCards = removeSlotCardByZ(
-                    slotCards,
-                    slotData.z,
-                ).cards;
+            const stackedSlots = getStackedSlots(currentPage, selectedSlot.id);
+            const visibleIndex = getVisibleStackedSlotIndex(
+                stackedSlots,
+                false,
+            );
+            if (visibleIndex !== undefined) {
+                const updatedCards = [...stackedSlots];
+                updatedCards.splice(visibleIndex, 1);
                 if (updatedCards.length === 0) {
                     unregisterSlot(currentPage, selectedSlot.id);
                     setSelectedSlot(null);
                 } else {
-                    setSlotCards(currentPage, selectedSlot.id, updatedCards);
+                    setStackedSlots(currentPage, selectedSlot.id, updatedCards);
                 }
                 setNeedsSaving(true);
             }
@@ -1472,6 +1736,7 @@ export default function BinderClient({
     function deleteCurrentPage() {
         removePage(currentPage);
         setSelectedSlot(null);
+        setNeedsSaving(true);
     }
 
     function PagePreviewComponent() {
@@ -1491,25 +1756,30 @@ export default function BinderClient({
                                         index={index}
                                         currentPage={currentPage}
                                         onSelect={setPage}
+                                        disabled={previewMode}
                                     >
                                         <div className="flex flex-row">
                                             <BinderPageComponent
                                                 binderType={binderType}
                                                 index={index}
-                                                pageFieldId={page.id}
+                                                pageKey={page.pageKey}
                                                 flipped={false}
                                                 onSelectSlot={() => { }}
                                                 disabled={true}
+                                                previewMode={previewMode}
+                                                onOpenPhotocard={openPhotocard}
                                                 fixedHeight="10vh"
                                                 mainScale={scale}
                                             />
                                             <BinderPageComponent
                                                 binderType={binderType}
                                                 index={index}
-                                                pageFieldId={page.id}
+                                                pageKey={page.pageKey}
                                                 flipped={true}
                                                 onSelectSlot={() => { }}
                                                 disabled={true}
+                                                previewMode={previewMode}
+                                                onOpenPhotocard={openPhotocard}
                                                 fixedHeight="10vh"
                                                 mainScale={scale}
                                             />
@@ -1535,7 +1805,6 @@ export default function BinderClient({
             onDragEnd={onDragEnd}
         >
             <div className="flex flex-col gap-4 m-6 items-center">
-                <h1>Work in Progress!</h1>
                 <FormProvider {...form}>
                     <form
                         className="w-full flex flex-col gap-4"
@@ -1546,35 +1815,80 @@ export default function BinderClient({
                         <Controller
                             name="name"
                             control={form.control}
+                            render={({ field }) =>
+                                previewMode ? (
+                                    <h1 className="font-heading text-7xl! text-center leading-none w-[calc(100%-8rem)] mx-16">
+                                        {field.value || userBinder.name}
+                                    </h1>
+                                ) : (
+                                    <Input
+                                        {...field}
+                                        onChange={(event) => {
+                                            field.onChange(event);
+                                            setNeedsSaving(true);
+                                        }}
+                                        type="text"
+                                        placeholder="Binder Name"
+                                        className="font-heading text-7xl! text-center leading-none h-auto w-[calc(100%-8rem)] mx-16"
+                                    />
+                                )
+                            }
+                        />
+                        <Controller
+                            name="description"
+                            control={form.control}
                             render={({ field }) => (
                                 <Field orientation="horizontal">
                                     <Input
                                         {...field}
+                                        onChange={(event) => {
+                                            field.onChange(event);
+                                            setNeedsSaving(true);
+                                        }}
                                         type="text"
-                                        placeholder="Binder Name"
+                                        placeholder="Description"
+                                        disabled={previewMode}
                                     />
-                                    <p className="whitespace-nowrap px-4">
+                                    <p
+                                        className="whitespace-nowrap px-4"
+                                        hidden={previewMode}
+                                    >
                                         {needsSaving
                                             ? "Changes not saved"
                                             : "All changes saved"}
                                     </p>
-                                    <Button
-                                        size="icon"
-                                        type="submit"
-                                        className="px-3"
-                                        disabled={!needsSaving}
-                                    >
-                                        <SaveIcon />
-                                    </Button>
-                                    <Button
-                                        size="icon"
-                                        type="button"
-                                        className="px-3"
-                                        onClick={onPreview}
-                                        disabled={needsSaving}
-                                    >
-                                        <EyeIcon />
-                                    </Button>
+                                    {previewMode ? (
+                                        isOwner && (
+                                            <Button
+                                                size="icon"
+                                                type="button"
+                                                className="px-3"
+                                                onClick={onEdit}
+                                            >
+                                                <EditIcon />
+                                            </Button>
+                                        )
+                                    ) : (
+                                        <>
+                                            <Button
+                                                size="icon"
+                                                type="submit"
+                                                className="px-3"
+                                                disabled={!needsSaving}
+                                            >
+                                                <SaveIcon />
+                                            </Button>
+                                            <Button
+                                                size="icon"
+                                                type="button"
+                                                className="px-3"
+                                                onClick={onPreview}
+                                                disabled={needsSaving}
+                                            >
+                                                <EyeIcon />
+                                            </Button>
+                                        </>
+                                    )}
                                     <Button
                                         size="icon"
                                         type="button"
@@ -1588,136 +1902,148 @@ export default function BinderClient({
                             )}
                         />
                         <div className="flex flex-row w-full gap-4 items-stretch min-h-0">
-                            <div className="w-[85%] flex flex-col gap-4 items-center">
-                                <div className="flex flex-row gap-2 p-4 bg-main rounded-xl">
-                                    <Button
-                                        size="icon"
-                                        type="button"
-                                        variant="noShadow"
-                                        className="px-3"
-                                        onClick={flipSelectedSlot}
-                                        disabled={selectedSlot === null}
-                                        tooltip="Flip card"
-                                    >
-                                        <FlipHorizontalIcon />
-                                    </Button>
-                                    <Button
-                                        size="icon"
-                                        type="button"
-                                        variant="noShadow"
-                                        className="px-3"
-                                        onClick={rotateSelectedSlot}
-                                        disabled={selectedSlot === null}
-                                        tooltip="Rotate card 90° CCW"
-                                    >
-                                        <RotateCcwIcon />
-                                    </Button>
-                                    <Separator
-                                        orientation="vertical"
-                                        className="w-0.5! mx-3"
-                                    />
-                                    <Button
-                                        size="icon"
-                                        type="button"
-                                        variant="noShadow"
-                                        className="px-3"
-                                        onClick={() =>
-                                            changeSelectedSlotZ("top")
-                                        }
-                                        disabled={selectedSlot === null}
-                                        tooltip="Move to top"
-                                    >
-                                        <ArrowUpToLineIcon />
-                                    </Button>
-                                    <Button
-                                        size="icon"
-                                        type="button"
-                                        variant="noShadow"
-                                        className="px-3"
-                                        onClick={() =>
-                                            changeSelectedSlotZ("bottom")
-                                        }
-                                        disabled={selectedSlot === null}
-                                        tooltip="Move to bottom"
-                                    >
-                                        <ArrowDownToLineIcon />
-                                    </Button>
-                                    <Separator
-                                        orientation="vertical"
-                                        className="w-0.5! mx-3"
-                                    />
-                                    <Button
-                                        size="icon"
-                                        type="button"
-                                        variant="noShadow"
-                                        className={`px-3 ${selectedSlot && snapToGrid === SnapToGrid.BottomLeft ? "bg-white!" : ""}`}
-                                        onClick={() =>
-                                            alignSelectedSlot(
-                                                SnapToGrid.BottomLeft,
-                                            )
-                                        }
-                                        disabled={selectedSlot === null}
-                                        tooltip="Align to bottom left"
-                                    >
-                                        <AlignStartVerticalIcon />
-                                    </Button>
-                                    <Button
-                                        size="icon"
-                                        type="button"
-                                        variant="noShadow"
-                                        className={`px-3 ${selectedSlot && snapToGrid === SnapToGrid.Center ? "bg-white!" : ""}`}
-                                        onClick={() =>
-                                            alignSelectedSlot(SnapToGrid.Center)
-                                        }
-                                        disabled={selectedSlot === null}
-                                        tooltip="Align to center"
-                                    >
-                                        <AlignCenterVerticalIcon />
-                                    </Button>
-                                    <Button
-                                        size="icon"
-                                        type="button"
-                                        variant="noShadow"
-                                        className={`px-3 ${selectedSlot && snapToGrid === SnapToGrid.BottomRight ? "bg-white!" : ""}`}
-                                        onClick={() =>
-                                            alignSelectedSlot(
-                                                SnapToGrid.BottomRight,
-                                            )
-                                        }
-                                        disabled={selectedSlot === null}
-                                        tooltip="Align to bottom right"
-                                    >
-                                        <AlignEndVerticalIcon />
-                                    </Button>
-                                    <Button
-                                        size="icon"
-                                        type="button"
-                                        variant="noShadow"
-                                        className={`px-3 ${selectedSlot && snapToGrid === SnapToGrid.Manual ? "bg-white!" : ""}`}
-                                        onClick={() =>
-                                            alignSelectedSlot(SnapToGrid.Manual)
-                                        }
-                                        disabled={selectedSlot === null}
-                                        tooltip="Manually position"
-                                    >
-                                        <PointerIcon />
-                                    </Button>
-                                    <Separator
-                                        orientation="vertical"
-                                        className="w-0.5! mx-3"
-                                    />
-                                    <Button
-                                        size="icon"
-                                        type="button"
-                                        variant="noShadow"
-                                        className="px-3"
-                                        onClick={() => deleteSelectedSlot()}
-                                        disabled={selectedSlot === null}
-                                        tooltip="Delete card from slot"
-                                    >
-                                        <Trash2Icon />
-                                    </Button>
-                                </div>
+                            <div
+                                className={`${previewMode ? "w-full" : "w-[85%]"} flex flex-col gap-4 items-center`}
+                            >
+                                {!previewMode && (
+                                    <div className="flex flex-row gap-2 p-4 bg-main rounded-xl">
+                                        <Button
+                                            size="icon"
+                                            type="button"
+                                            variant="noShadow"
+                                            className="px-3"
+                                            onClick={flipSelectedSlot}
+                                            disabled={selectedSlot === null}
+                                            tooltip="Flip card"
+                                        >
+                                            <FlipHorizontalIcon />
+                                        </Button>
+                                        <Button
+                                            size="icon"
+                                            type="button"
+                                            variant="noShadow"
+                                            className="px-3"
+                                            onClick={rotateSelectedSlot}
+                                            disabled={selectedSlot === null}
+                                            tooltip="Rotate card 90° CCW"
+                                        >
+                                            <RotateCcwIcon />
+                                        </Button>
+                                        <Separator
+                                            orientation="vertical"
+                                            className="w-0.5! mx-3"
+                                        />
+                                        <Button
+                                            size="icon"
+                                            type="button"
+                                            variant="noShadow"
+                                            className="px-3"
+                                            onClick={() =>
+                                                changeSelectedSlotZ(
+                                                    ZPosition.Top,
+                                                )
+                                            }
+                                            disabled={selectedSlot === null}
+                                            tooltip="Move to top"
+                                        >
+                                            <ArrowUpToLineIcon />
+                                        </Button>
+                                        <Button
+                                            size="icon"
+                                            type="button"
+                                            variant="noShadow"
+                                            className="px-3"
+                                            onClick={() =>
+                                                changeSelectedSlotZ(
+                                                    ZPosition.Bottom,
+                                                )
+                                            }
+                                            disabled={selectedSlot === null}
+                                            tooltip="Move to bottom"
+                                        >
+                                            <ArrowDownToLineIcon />
+                                        </Button>
+                                        <Separator
+                                            orientation="vertical"
+                                            className="w-0.5! mx-3"
+                                        />
+                                        <Button
+                                            size="icon"
+                                            type="button"
+                                            variant="noShadow"
+                                            className={`px-3 ${selectedSlot && snapToGrid === SnapToGrid.BottomLeft ? "bg-white!" : ""}`}
+                                            onClick={() =>
+                                                alignSelectedSlot(
+                                                    SnapToGrid.BottomLeft,
+                                                )
+                                            }
+                                            disabled={selectedSlot === null}
+                                            tooltip="Align to bottom left"
+                                        >
+                                            <AlignStartVerticalIcon />
+                                        </Button>
+                                        <Button
+                                            size="icon"
+                                            type="button"
+                                            variant="noShadow"
+                                            className={`px-3 ${selectedSlot && snapToGrid === SnapToGrid.Center ? "bg-white!" : ""}`}
+                                            onClick={() =>
+                                                alignSelectedSlot(
+                                                    SnapToGrid.Center,
+                                                )
+                                            }
+                                            disabled={selectedSlot === null}
+                                            tooltip="Align to center"
+                                        >
+                                            <AlignCenterVerticalIcon />
+                                        </Button>
+                                        <Button
+                                            size="icon"
+                                            type="button"
+                                            variant="noShadow"
+                                            className={`px-3 ${selectedSlot && snapToGrid === SnapToGrid.BottomRight ? "bg-white!" : ""}`}
+                                            onClick={() =>
+                                                alignSelectedSlot(
+                                                    SnapToGrid.BottomRight,
+                                                )
+                                            }
+                                            disabled={selectedSlot === null}
+                                            tooltip="Align to bottom right"
+                                        >
+                                            <AlignEndVerticalIcon />
+                                        </Button>
+                                        <Button
+                                            size="icon"
+                                            type="button"
+                                            variant="noShadow"
+                                            className={`px-3 ${selectedSlot && snapToGrid === SnapToGrid.Manual ? "bg-white!" : ""}`}
+                                            onClick={() =>
+                                                alignSelectedSlot(
+                                                    SnapToGrid.Manual,
+                                                )
+                                            }
+                                            disabled={selectedSlot === null}
+                                            tooltip="Manually position"
+                                        >
+                                            <PointerIcon />
+                                        </Button>
+                                        <Separator
+                                            orientation="vertical"
+                                            className="w-0.5! mx-3"
+                                        />
+                                        <Button
+                                            size="icon"
+                                            type="button"
+                                            variant="noShadow"
+                                            className="px-3"
+                                            onClick={() => deleteSelectedSlot()}
+                                            disabled={selectedSlot === null}
+                                            tooltip="Delete card from slot"
+                                        >
+                                            <Trash2Icon />
+                                        </Button>
+                                    </div>
+                                )}
                                 <div className="w-full">
                                     <Controller
                                         name="binderType"
@@ -1730,10 +2056,10 @@ export default function BinderClient({
                                                     <BinderPageComponent
                                                         binderType={field.value}
                                                         index={currentPage - 1}
-                                                        pageFieldId={
+                                                        pageKey={
                                                             pages[
                                                                 currentPage - 1
-                                                            ]?.id ?? "left-page"
+                                                            ]?.pageKey ?? -1
                                                         }
                                                         flipped={true}
                                                         photocardRenderAnchorIndex={
@@ -1754,8 +2080,8 @@ export default function BinderClient({
                                                                     index,
                                                                 ) => ({
                                                                     index,
-                                                                    pageFieldId:
-                                                                        page.id,
+                                                                    pageKey:
+                                                                        page.pageKey,
                                                                 }),
                                                             )}
                                                         onSelectSlot={
@@ -1764,6 +2090,12 @@ export default function BinderClient({
                                                         selectedSlotId={
                                                             selectedSlot?.id
                                                         }
+                                                        previewMode={
+                                                            previewMode
+                                                        }
+                                                        onOpenPhotocard={
+                                                            openPhotocard
+                                                        }
                                                         mainScale={scale}
                                                     />
                                                 }
@@ -1771,10 +2103,9 @@ export default function BinderClient({
                                                     <BinderPageComponent
                                                         binderType={field.value}
                                                         index={currentPage}
-                                                        pageFieldId={
+                                                        pageKey={
                                                             pages[currentPage]
-                                                                ?.id ??
-                                                            "right-page"
+                                                                ?.pageKey ?? -2
                                                         }
                                                         flipped={false}
                                                         photocardRenderAnchorIndex={
@@ -1795,8 +2126,8 @@ export default function BinderClient({
                                                                             currentPage +
                                                                             1 +
                                                                             index,
-                                                                        pageFieldId:
-                                                                            page.id,
+                                                                        pageKey:
+                                                                            page.pageKey,
                                                                     }),
                                                                 ),
                                                         ].reverse()}
@@ -1806,6 +2137,12 @@ export default function BinderClient({
                                                         selectedSlotId={
                                                             selectedSlot?.id
                                                         }
+                                                        previewMode={
+                                                            previewMode
+                                                        }
+                                                        onOpenPhotocard={
+                                                            openPhotocard
+                                                        }
                                                         mainScale={scale}
                                                     />
                                                 }
@@ -1813,6 +2150,33 @@ export default function BinderClient({
                                         )}
                                     />
                                 </div>
+                                {currentPageData ? (
+                                    <Controller
+                                        name={`pages.${currentPage}.description`}
+                                        control={form.control}
+                                        render={({ field }) => (
+                                            <Input
+                                                {...field}
+                                                value={field.value ?? ""}
+                                                onChange={(event) => {
+                                                    field.onChange(event);
+                                                    setNeedsSaving(true);
+                                                }}
+                                                type="text"
+                                                placeholder="Notes for this page"
+                                                disabled={previewMode}
+                                            />
+                                        )}
+                                    />
+                                ) : (
+                                    <Input
+                                        value=""
+                                        type="text"
+                                        placeholder="Notes for this page"
+                                        disabled={true}
+                                    />
+                                )}
+
                                 <div className="flex flex-row gap-4">
                                     <Button
                                         size="icon"
@@ -1857,60 +2221,68 @@ export default function BinderClient({
                                     >
                                         <ChevronsRightIcon />
                                     </Button>
-                                    <Button
-                                        size="icon"
-                                        type="button"
-                                        onClick={addPage}
-                                        tooltip="Add a page"
-                                    >
-                                        <FilePlusIcon />
-                                    </Button>
-                                    <Button
-                                        size="icon"
-                                        type="button"
-                                        className="px-3"
-                                        onClick={deleteCurrentPage}
-                                        disabled={
-                                            pages.length === 1 ||
-                                            currentPage >= pages.length
-                                        }
-                                        tooltip="Delete current page"
-                                    >
-                                        <Trash2Icon />
-                                    </Button>
+                                    {!previewMode && (
+                                        <>
+                                            <Button
+                                                size="icon"
+                                                type="button"
+                                                onClick={addPage}
+                                                tooltip="Add a page"
+                                            >
+                                                <FilePlusIcon />
+                                            </Button>
+                                            <Button
+                                                size="icon"
+                                                type="button"
+                                                className="px-3"
+                                                onClick={deleteCurrentPage}
+                                                disabled={
+                                                    pages.length === 1 ||
+                                                    currentPage >= pages.length
+                                                }
+                                                tooltip="Delete current page"
+                                            >
+                                                <Trash2Icon />
+                                            </Button>
+                                        </>
+                                    )}
                                 </div>
                             </div>
-                            <div className="relative w-[15%]">
-                                <div className="absolute inset-0 overflow-hidden">
-                                    <SearchComponent
-                                        collections={collections}
-                                        cardTypes={cardTypes}
-                                        cardSizes={cardSizes}
-                                        ownedPhotocards={ownedPhotocards}
-                                        wishlistedPhotocards={
-                                            wishlistedPhotocards
-                                        }
-                                    />
+                            {!previewMode && (
+                                <div className="relative w-[15%]">
+                                    <div className="absolute inset-0 overflow-hidden">
+                                        <SearchComponent
+                                            collections={collections}
+                                            cardTypes={cardTypes}
+                                            cardSizes={cardSizes}
+                                            ownedPhotocards={ownedPhotocards}
+                                            wishlistedPhotocards={
+                                                wishlistedPhotocards
+                                            }
+                                        />
+                                    </div>
                                 </div>
-                            </div>
+                            )}
                         </div>
                     </form>
                     <PagePreviewComponent />
                 </FormProvider>
             </div>
-            <DragOverlay dropAnimation={null}>
-                {activePhotocard && activeCardSize ? (
-                    <PhotocardWithSize
-                        photocard={activePhotocard}
-                        showFront={activePhotocardShowFront}
-                        width={activeCardSize.width * scale}
-                        height={activeCardSize.height * scale}
-                        style={{
-                            transform: `rotate(${activePhotocardRotation}deg)`,
-                        }}
-                    />
-                ) : null}
-            </DragOverlay>
+            {!previewMode && (
+                <DragOverlay dropAnimation={null}>
+                    {activePhotocard && activeCardSize ? (
+                        <PhotocardWithSize
+                            photocard={activePhotocard}
+                            showFront={activePhotocardShowFront}
+                            width={activeCardSize.width * scale}
+                            height={activeCardSize.height * scale}
+                            style={{
+                                transform: `rotate(${activePhotocardRotation}deg)`,
+                            }}
+                        />
+                    ) : null}
+                </DragOverlay>
+            )}
         </DndContext>
     );
 }

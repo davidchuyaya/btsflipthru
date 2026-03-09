@@ -21,6 +21,7 @@ export const USERNAME_ERROR_TEXT =
 export const SPOTIFY_PLAYLIST_ID_LENGTH = 22;
 export const BINDER_PERFORATION_DOT_SIZE = 2;
 export const BINDER_MAX_RENDERING_PAGE_DEPTH = 10; // Number of pages past the current page to render in the binder
+export const BINDER_STACKED_PAGE_X_OFFSET = 4; // How many pixels to the right/left to render each stacked page
 
 // Important: Any number used by an enum should not be reused in the future
 export const Role = {
@@ -272,7 +273,7 @@ export function dateToString(date: Date) {
 }
 
 // See https://docs.google.com/spreadsheets/d/1lYh2wVfYnzr_Qk15vJ5XNiGNDf914r-I5LBklYK7PFc/edit?usp=sharing
-export const BinderPage = {
+export const BinderPageDimensions = {
     Standard9PP: {
         id: 0,
         name: "Standard 9PP",
@@ -328,7 +329,10 @@ export const BinderPage = {
         yPerforations: [290],
     },
 };
-export type BinderPage = (typeof BinderPage)[keyof typeof BinderPage];
+export type BinderPageDimensions = (typeof BinderPageDimensions)[keyof typeof BinderPageDimensions];
+export const BinderPageDimensionsById = Object.fromEntries(
+    Object.values(BinderPageDimensions).map((page) => [page.id, page]),
+) as Record<number, BinderPageDimensions>;
 
 export const BinderType = {
     OneInch: {

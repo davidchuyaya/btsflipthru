@@ -445,6 +445,26 @@ export async function getPhotocardFromDB(
         );
 }
 
+export async function getPhotocardsFromDB(
+    ids: number[],
+): Promise<Result<Selectable<Photocards>[]>> {
+    if (ids.length === 0) {
+        return { data: [] };
+    }
+
+    return await db
+        .selectFrom("photocards")
+        .where("id", "in", ids)
+        .selectAll()
+        .execute()
+        .then(
+            (photocards) => ({ data: photocards }),
+            (reason) => ({
+                error: "Could not fetch photocards: " + reason,
+            }),
+        );
+}
+
 export async function updatePhotocardInDB(
     id: number,
     imageId: string,
@@ -1191,7 +1211,7 @@ export async function getWishlistedPhotocards(): Promise<
 }
 
 export async function getUserBindersFromDB(
-    binderIds: string[],
+    binderIds: Array<number | string>,
 ): Promise<Result<Selectable<UserBinders>[]>> {
     "use cache";
     cacheTag(CACHE_TAG_USER_BINDERS);
@@ -1200,7 +1220,9 @@ export async function getUserBindersFromDB(
     }
 
     const binderIdsNum = binderIds
-        .map((id) => parseInt(id))
+        .map((id) =>
+            typeof id === "number" ? id : Number.parseInt(id, 10),
+        )
         .filter((id) => !isNaN(id));
     return await db
         .selectFrom("user_binders")
@@ -1211,6 +1233,28 @@ export async function getUserBindersFromDB(
             (data) => ({ data }),
             (reason) => ({
                 error: "Could not get binders: " + reason,
+            }),
+        );
+}
+
+export async function getBinderPagesFromDB(
+    binderPages: number[],
+): Promise<Result<Selectable<BinderPages>[]>> {
+    "use cache";
+    cacheTag(CACHE_TAG_USER_BINDERS);
+    return await db
+        .selectFrom("binder_pages")
+        .selectAll()
+        .where("id", "in", binderPages)
+        .execute()
+        .then(
+            (data) => ({
+                data: binderPages
+                    .map((pageId) => data.find((page) => page.id === pageId))
+                    .filter((page): page is Selectable<BinderPages> => !!page),
+            }),
+            (reason) => ({
+                error: "Could not get binder pages: " + reason,
             }),
         );
 }
@@ -1243,7 +1287,7 @@ export async function createBinder(): Promise<Result<number>> {
 
             await trx
                 .updateTable("user_data")
-                .set({ binders: [...existingBinders, String(data.id)] })
+                .set({ binders: [...existingBinders, data.id] })
                 .where("user_id", "=", session.data!.user.id)
                 .executeTakeFirstOrThrow();
 

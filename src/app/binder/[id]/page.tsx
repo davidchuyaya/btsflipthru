@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { BinderContent } from "./BinderContent";
+import { BinderContent } from "./binder-content";
 
 export default function BinderPage({
     params,
