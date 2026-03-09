@@ -59,6 +59,7 @@ function Button({
         tooltip?: string | React.ComponentProps<typeof TooltipContent>;
     }) {
     const Comp = asChild ? Slot : "button";
+    const isDisabled = !asChild && !!props.disabled;
 
     const button = (
         <Comp
@@ -66,6 +67,12 @@ function Button({
             className={cn(buttonVariants({ variant, size, className }))}
             {...props}
         />
+    );
+
+    const tooltipTrigger = isDisabled ? (
+        <span className="inline-flex">{button}</span>
+    ) : (
+        button
     );
 
     if (!tooltip) {
@@ -81,7 +88,7 @@ function Button({
     return (
         <TooltipProvider>
             <Tooltip>
-                <TooltipTrigger asChild>{button}</TooltipTrigger>
+                <TooltipTrigger asChild>{tooltipTrigger}</TooltipTrigger>
                 <TooltipContent className="font-bold px-3 py-2" {...tooltip} />
             </Tooltip>
         </TooltipProvider>

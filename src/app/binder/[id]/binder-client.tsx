@@ -2,6 +2,16 @@
 
 import { saveBinder } from "@/actions";
 import { cardSizeToString } from "@/actions-client";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -39,6 +49,7 @@ import {
     EditIcon,
     EyeIcon,
     FilePlusIcon,
+    FileSlidersIcon,
     FlipHorizontalIcon,
     PointerIcon,
     RotateCcwIcon,
@@ -304,7 +315,7 @@ function BinderPageComponent({
                 <div
                     key={layer.key}
                     aria-hidden={layer.disabled}
-                    className="absolute inset-0"
+                    className="absolute inset-0 flex items-center"
                     style={{
                         transform:
                             layer.offsetX !== 0 || layer.offsetY !== 0
@@ -352,6 +363,123 @@ function BinderPageComponent({
                     mainScale={mainScale}
                 />
             </div>
+        </div>
+    );
+}
+
+function getPageGridMetrics(pageType: BinderPageDimensions) {
+    const width =
+        pageType.xPerforations[pageType.xPerforations.length - 1] +
+        BINDER_PERFORATION_DOT_SIZE;
+    const height =
+        pageType.yPerforations[pageType.yPerforations.length - 1] +
+        BINDER_PERFORATION_DOT_SIZE;
+    const xPerfs = [0, ...pageType.xPerforations];
+    const yPerfs = [0, ...pageType.yPerforations];
+    const colWidths = xPerfs.slice(1).map((x, i) => {
+        if (i === xPerfs.length - 1) {
+            return x - xPerfs[i] + BINDER_PERFORATION_DOT_SIZE;
+        }
+        return x - xPerfs[i];
+    });
+    const rowHeights = yPerfs.slice(1).map((y, i) => y - yPerfs[i]);
+
+    return {
+        width,
+        height,
+        colWidths,
+        rowHeights,
+    };
+}
+
+function PagePerforationGrid({
+    pageType,
+    perforationColor,
+    previewStyle = "perforations",
+    className,
+    style,
+    containerRef,
+    renderCell,
+}: {
+    pageType: BinderPageDimensions;
+    perforationColor: string;
+    previewStyle?: "perforations" | "lines";
+    className?: string;
+    style?: React.CSSProperties;
+    containerRef?: React.RefObject<HTMLDivElement | null>;
+    renderCell: (args: {
+        key: string;
+        width: number;
+        height: number;
+        dotPctX: number;
+        dotPctY: number;
+        isLastCol: boolean;
+        rowIndex: number;
+        colIndex: number;
+    }) => React.ReactNode;
+}) {
+    const { width, height, colWidths, rowHeights } = getPageGridMetrics(pageType);
+    const gradient = `radial-gradient(circle, transparent 40%, ${perforationColor} 40%, ${perforationColor} 50%, transparent 50%)`;
+
+    return (
+        <div
+            ref={containerRef}
+            className={className}
+            style={{
+                aspectRatio: `${width}/${height}`,
+                gridTemplateColumns: colWidths.map((w) => `${w}fr`).join(" "),
+                gridTemplateRows: rowHeights.map((h) => `${h}fr`).join(" "),
+                ...style,
+            }}
+        >
+            {rowHeights.map((h, rIndex) =>
+                colWidths.map((w, cIndex) => {
+                    const dotPctX = (BINDER_PERFORATION_DOT_SIZE / w) * 100;
+                    const dotPctY = (BINDER_PERFORATION_DOT_SIZE / h) * 100;
+                    const isLastCol = cIndex === colWidths.length - 1;
+                    const key = `${pageType.id}-${rIndex}-${cIndex}`;
+                    const sharedCellStyle =
+                        previewStyle === "lines"
+                            ? {
+                                  backgroundColor: "transparent",
+                                  borderLeft: `1px solid ${perforationColor}`,
+                                  borderTop: `1px solid ${perforationColor}`,
+                                  ...(isLastCol
+                                      ? {
+                                            borderRight: `1px solid ${perforationColor}`,
+                                        }
+                                      : {}),
+                                  ...(rIndex === rowHeights.length - 1
+                                      ? {
+                                            borderBottom: `1px solid ${perforationColor}`,
+                                        }
+                                      : {}),
+                              }
+                            : {
+                                  backgroundImage: `${gradient}, ${gradient} ${isLastCol ? ", " + gradient : ""}`,
+                                  backgroundPosition: `left bottom, left top ${isLastCol ? ", right top" : ""}`,
+                                  backgroundSize: `${dotPctX}% ${dotPctY}%, ${dotPctX}% ${dotPctY}% ${isLastCol ? `, ${dotPctX}% ${dotPctY}%` : ""}`,
+                                  backgroundRepeat: `repeat-x, repeat-y ${isLastCol ? ", repeat-y" : ""}`,
+                              };
+
+                    return renderCell({
+                        key,
+                        width: w,
+                        height: h,
+                        dotPctX,
+                        dotPctY,
+                        isLastCol,
+                        rowIndex: rIndex,
+                        colIndex: cIndex,
+                    }) ?? (
+                        <div
+                            key={key}
+                            className="relative"
+                            style={sharedCellStyle}
+                        />
+                    );
+                }),
+            )}
         </div>
     );
 }
@@ -405,28 +533,8 @@ function BinderPageLayer({
         return null;
     }
 
-    const width =
-        page.pageType.xPerforations[page.pageType.xPerforations.length - 1] +
-        BINDER_PERFORATION_DOT_SIZE;
-    const height =
-        page.pageType.yPerforations[page.pageType.yPerforations.length - 1] +
-        BINDER_PERFORATION_DOT_SIZE;
+    const { width, height } = getPageGridMetrics(page.pageType);
     const widthPercent = (width / binderType.coverWidth) * 100;
-
-    const xPerfs = [0, ...page.pageType.xPerforations];
-    const yPerfs = [0, ...page.pageType.yPerforations];
-
-    const colWidths = xPerfs.slice(1).map((x, i) => {
-        // Last column gets needs extra space to draw the rightmost perforations
-        if (i === xPerfs.length - 1) {
-            return x - xPerfs[i] + BINDER_PERFORATION_DOT_SIZE;
-        }
-        return x - xPerfs[i];
-    });
-    const rowHeights = yPerfs.slice(1).map((y, i) => y - yPerfs[i]);
-
-    const gradient =
-        "radial-gradient(circle, transparent 40%, white 40%, white 50%, transparent 50%)";
     const previewScale =
         fixedHeight && mainScale > 0
             ? renderedWidth > 0
@@ -436,47 +544,75 @@ function BinderPageLayer({
     const pageStyle: React.CSSProperties = {
         width: fixedHeight ? "auto" : `${widthPercent}%`,
         height: fixedHeight,
-        aspectRatio: `${width}/${height}`,
-        gridTemplateColumns: colWidths.map((w) => `${w}fr`).join(" "),
-        gridTemplateRows: rowHeights.map((h) => `${h}fr`).join(" "),
     };
     const pageClassName = `relative bg-white/20 border border-black/10 ${flipped ? "ml-auto flip-horizontal" : ""} grid`;
 
-    function renderPageContent() {
-        return rowHeights.map((h, rIndex) =>
-            colWidths.map((w, cIndex) => {
-                const dotPctX = (BINDER_PERFORATION_DOT_SIZE / w) * 100;
-                const dotPctY = (BINDER_PERFORATION_DOT_SIZE / h) * 100;
-                const isLastCol = cIndex === colWidths.length - 1;
-                const key = `${page.pageKey}-${rIndex}-${cIndex}`;
-                const slotProps = {
-                    id: key,
-                    pageNum: index,
-                    pageKey,
-                    width: w,
-                    height: h,
-                    gradient,
-                    isLastCol,
-                    dotPctX,
-                    dotPctY,
-                    onSelectSlot,
-                    isSelected: selectedSlotId === key,
-                    flipped,
-                    disabled,
-                    previewMode,
-                    renderPhotocards,
-                    valueScale: previewScale,
-                    onOpenPhotocard,
-                };
-                return <BinderSlot key={key} {...slotProps} />;
-            }),
-        );
-    }
-
     return (
-        <div ref={pageRef} className={pageClassName} style={pageStyle}>
-            {renderPageContent()}
-        </div>
+        <PagePerforationGrid
+            pageType={page.pageType}
+            perforationColor="white"
+            previewStyle={fixedHeight ? "lines" : "perforations"}
+            className={pageClassName}
+            containerRef={pageRef}
+            style={{
+                ...pageStyle,
+                ...(pageStyle.aspectRatio
+                    ? {}
+                    : { aspectRatio: `${width}/${height}` }),
+            }}
+            renderCell={({
+                key,
+                width,
+                height,
+                dotPctX,
+                dotPctY,
+                isLastCol,
+                rowIndex,
+                colIndex,
+            }) => {
+                const slotId = `${page.pageKey}-${rowIndex}-${colIndex}`;
+                const perforationColor = "white";
+
+                return (
+                    <BinderSlot
+                        key={key}
+                        id={slotId}
+                        pageNum={index}
+                        pageKey={pageKey}
+                        width={width}
+                        height={height}
+                        dotPctX={dotPctX}
+                        dotPctY={dotPctY}
+                        isLastCol={isLastCol}
+                        gradient={`radial-gradient(circle, transparent 40%, ${perforationColor} 40%, ${perforationColor} 50%, transparent 50%)`}
+                        onSelectSlot={onSelectSlot}
+                        isSelected={selectedSlotId === slotId}
+                        flipped={flipped}
+                        disabled={disabled}
+                        previewMode={previewMode}
+                        renderPhotocards={renderPhotocards}
+                        valueScale={previewScale}
+                        onOpenPhotocard={onOpenPhotocard}
+                    />
+                );
+            }}
+        />
+    );
+}
+
+function EmptyBinderPageDimensionPreview({
+    pageType,
+}: {
+    pageType: BinderPageDimensions;
+}) {
+    return (
+        <PagePerforationGrid
+            pageType={pageType}
+            perforationColor="black"
+            previewStyle="lines"
+            className="mx-auto grid w-full max-w-28 overflow-hidden border border-black/10 bg-white/20"
+            renderCell={() => null}
+        />
     );
 }
 
@@ -1089,7 +1225,17 @@ export default function BinderClient({
         control: form.control,
         name: "pages",
     });
-    const currentPageData = pages[currentPage];
+    const watchedPages = useWatch({
+        control: form.control,
+        name: "pages",
+    });
+    const currentPageData = watchedPages?.[currentPage];
+    const currentPageHasCards =
+        !!currentPageData &&
+        Object.values(currentPageData.slots).some((stack) => stack.length > 0);
+    const [isPageTypeDialogOpen, setIsPageTypeDialogOpen] = useState(false);
+    const [selectedPageType, setSelectedPageType] =
+        useState<BinderPageDimensions>(currentPageData?.pageType ?? pageType);
 
     // Resize Observer State
     const [binderWidth, setBinderWidth] = useState(0);
@@ -1169,6 +1315,12 @@ export default function BinderClient({
 
         previousScaleRef.current = scale;
     }, [cardSizes, form, scale]);
+
+    useEffect(() => {
+        if (currentPageData) {
+            setPageType(currentPageData.pageType);
+        }
+    }, [currentPageData]);
 
     useEffect(() => {
         if (previewMode) {
@@ -1628,6 +1780,24 @@ export default function BinderClient({
         setCurrentPage(page);
         setSelectedSlot(null);
         setActivePhotocard(null);
+    }
+
+    function openPageTypeDialog() {
+        if (!currentPageData) {
+            return;
+        }
+        setSelectedPageType(currentPageData.pageType);
+        setIsPageTypeDialogOpen(true);
+    }
+
+    function acceptPageTypeChange() {
+        if (!currentPageData) {
+            return;
+        }
+        form.setValue(`pages.${currentPage}.pageType`, selectedPageType);
+        setPageType(selectedPageType);
+        setNeedsSaving(true);
+        setIsPageTypeDialogOpen(false);
     }
 
     function onSelectSlot(id: string, width: number, height: number) {
@@ -2268,6 +2438,18 @@ export default function BinderClient({
                                             <Button
                                                 size="icon"
                                                 type="button"
+                                                onClick={openPageTypeDialog}
+                                                disabled={
+                                                    !currentPageData ||
+                                                    currentPageHasCards
+                                                }
+                                                tooltip="Change page type"
+                                            >
+                                                <FileSlidersIcon />
+                                            </Button>
+                                            <Button
+                                                size="icon"
+                                                type="button"
                                                 className="px-3"
                                                 onClick={deleteCurrentPage}
                                                 disabled={
@@ -2302,6 +2484,50 @@ export default function BinderClient({
                     <PagePreviewComponent />
                 </FormProvider>
             </div>
+            <AlertDialog
+                open={isPageTypeDialogOpen}
+                onOpenChange={setIsPageTypeDialogOpen}
+            >
+                <AlertDialogContent className="max-w-4xl">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Change Page Type</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Select a binder page layout for the current page.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <div className="grid max-h-[70vh] grid-cols-1 gap-4 overflow-y-auto pr-1 sm:grid-cols-2 lg:grid-cols-3">
+                        {Object.values(BinderPageDimensions).map((dimension) => {
+                            const isSelected =
+                                selectedPageType.id === dimension.id;
+
+                            return (
+                                <button
+                                    key={dimension.id}
+                                    type="button"
+                                    className={`rounded-base border-2 p-4 text-center transition ${isSelected ? "border-main bg-main/10" : "border-border bg-background"}`}
+                                    onClick={() => setSelectedPageType(dimension)}
+                                >
+                                    <EmptyBinderPageDimensionPreview
+                                        pageType={dimension}
+                                    />
+                                    <p className="mt-3 text-sm font-semibold">
+                                        {dimension.name}
+                                    </p>
+                                </button>
+                            );
+                        })}
+                    </div>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                            className="bg-third"
+                            onClick={acceptPageTypeChange}
+                        >
+                            Accept
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
             {!previewMode && (
                 <DragOverlay dropAnimation={null}>
                     {activePhotocard && activeCardSize ? (
