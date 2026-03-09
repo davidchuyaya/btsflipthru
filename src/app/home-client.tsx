@@ -75,7 +75,7 @@ export default function HomeClient({
         <div className="page gap-4">
             <div className="flex flex-row gap-8 items-stretch">
                 <BigProgressBar
-                    progress={80}
+                    progress={95}
                     description="% V1 features implemented"
                     className="max-xl:hidden"
                 />
@@ -106,9 +106,10 @@ export default function HomeClient({
                                 (About, Contact, etc.).
                             </li>
                             <li>
-                                Our next priority is pushing interactive
-                                features currently in the pipeline (Binder,
-                                Profile, etc.)
+                                The binder page has been released! Add your owned/wishlisted photocards to the binders today!
+                            </li>
+                            <li>
+                                We are adding finishing touches, like mobile responsiveness, and cleaning some things up.
                             </li>
                         </ul>
                     </div>
