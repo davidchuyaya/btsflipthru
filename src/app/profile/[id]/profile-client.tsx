@@ -734,7 +734,11 @@ export default function ProfileClient({
             </form>
             <div className="flex flex-col gap-4 items-center justify-center">
                 <h2>Binders</h2>
-                <BindersComponent binders={binders} isSelf={isSelf} />
+                <BindersComponent
+                    binders={binders}
+                    isSelf={isSelf}
+                    isSignedIn={session !== null}
+                />
             </div>
             <div className="flex flex-col gap-4 items-center justify-center">
                 <h2>Wishlist</h2>

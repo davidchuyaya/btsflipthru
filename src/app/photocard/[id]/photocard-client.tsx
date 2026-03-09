@@ -2,10 +2,9 @@
 
 import PhotocardComponent from "@/app/photocard";
 import {
-    AlertDialogHeader,
-    AlertDialogFooter,
     AlertDialogWithButton,
 } from "@/components/ui/alert-dialog";
+import SignInRequiredDialog from "@/components/sign-in-required-dialog";
 import { Button } from "@/components/ui/button";
 import {
     collectionDisplayName,
@@ -21,18 +20,9 @@ import {
     Role,
 } from "@/constants";
 import { useMetadata } from "@/metadata-context";
-import {
-    AlertDialog,
-    AlertDialogTrigger,
-    AlertDialogContent,
-    AlertDialogTitle,
-    AlertDialogDescription,
-    AlertDialogCancel,
-    AlertDialogAction,
-} from "@/components/ui/alert-dialog";
 import Link from "next/link";
-import { useState, cloneElement, useMemo, useEffect } from "react";
-import { ClientSession, signInGoogle } from "@/auth-client";
+import { useState, cloneElement, useEffect } from "react";
+import { ClientSession } from "@/auth-client";
 import PhotocardGrid from "@/app/photocard-grid";
 import { Selectable, Updateable } from "kysely";
 import { CardSizes, CardTypes, Collections, Photocards, UserData } from "@/db";
@@ -159,7 +149,7 @@ function SubmitAltImageDialog({ id }: { id: number }) {
                         <DialogDescription>
                             Contribute to our database by submitting the front
                             and back image of the photocard! Please only use
-                            images that you've taken yourself and refer to the
+                            images that you&apos;ve taken yourself and refer to the
                             steps in the
                             <Button variant="underline" asChild>
                                 <Link href="/faq#how-do-i-upload-cards">
@@ -446,16 +436,15 @@ function CardActionsComponent({
     }
 
     function DialogIfNotSignedIn(children: React.ReactNode) {
-        return OptionalDialog(
-            session === null,
-            children,
-            "Sign In Required",
-            "Please sign in to access this feature.",
-            "Sign In",
-            () => {
-                signInGoogle("/photocard/" + photocard.id);
-            },
-        );
+        if (session === null) {
+            return (
+                <SignInRequiredDialog callbackURL={`/photocard/${photocard.id}`}>
+                    {children}
+                </SignInRequiredDialog>
+            );
+        }
+
+        return children;
     }
 
     function MarkFavoriteDialog(children: React.ReactNode) {
