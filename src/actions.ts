@@ -1044,6 +1044,7 @@ export async function addPhotocardsToOwned(
     const values = photocardIds.map((id) => ({
         user_id: session.data!.user.id,
         photocard_id: id,
+        saved_at: new Date(),
     }));
 
     const result: [Result<boolean>, Result<boolean>] = await Promise.all([
@@ -1077,6 +1078,7 @@ export async function addPhotocardsToWishlist(
     const values = photocardIds.map((id) => ({
         user_id: session.data!.user.id,
         photocard_id: id,
+        saved_at: new Date(),
     }));
 
     const result: [Result<boolean>, Result<boolean>] = await Promise.all([
@@ -1209,6 +1211,26 @@ export async function getWishlistedPhotocards(): Promise<
             }),
         );
 }
+
+export async function getRecentlyWishlistedPhotocards(userId: string): Promise<
+    Result<Selectable<Photocards>[]>
+> {
+    return await db
+        .selectFrom("user_wishlists")
+        .innerJoin("photocards", "photocards.id", "user_wishlists.photocard_id")
+        .where("user_wishlists.user_id", "=", userId)
+        .selectAll("photocards")
+        .limit(NUM_HOME_PHOTOCARDS)
+        .orderBy("user_wishlists.saved_at", "desc")
+        .execute()
+        .then(
+            (data) => ({ data }),
+            (reason) => ({
+                error: "Could not get wishlisted photocards: " + reason,
+            }),
+        );
+}
+
 
 export async function getUserBindersFromDB(
     binderIds: Array<number | string>,

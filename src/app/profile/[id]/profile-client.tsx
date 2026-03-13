@@ -19,7 +19,7 @@ import {
 import { useMetadata } from "@/metadata-context";
 import { Button } from "@/components/ui/button";
 import { Selectable, Updateable } from "kysely";
-import { Collections, UserBinders, UserData } from "@/db";
+import { Collections, Photocards, UserBinders, UserData } from "@/db";
 import { useState, useMemo } from "react";
 import { Input } from "@/components/ui/input";
 import { z } from "zod";
@@ -54,6 +54,7 @@ import { shareOrCopyCurrentUrl, uploadImage } from "@/actions-client";
 import { toast } from "sonner";
 import BindersComponent from "@/app/binder/binders";
 import { Share2Icon } from "lucide-react";
+import PhotocardGrid from "@/app/photocard-grid";
 
 const formSchema = z.object({
     username: z
@@ -258,10 +259,12 @@ export default function ProfileClient({
     userData: serverUserData,
     collections,
     binders,
+    wishlist,
 }: {
     userData: Selectable<UserData>;
     collections: Selectable<Collections>[];
     binders: Selectable<UserBinders>[];
+    wishlist: Selectable<Photocards>[];
 }) {
     const {
         userData: freshestUserData,
@@ -374,7 +377,7 @@ export default function ProfileClient({
                     console.log(error);
                 })}
             >
-                <div className="flex flex-col md:flex-row gap-8 m-12">
+                <div className="flex flex-col md:flex-row gap-8 m-12 mb-0">
                     <div className="flex flex-col gap-4 items-center md:w-1/4 shrink-0">
                         {isEditing ? (
                             <Controller
@@ -487,14 +490,14 @@ export default function ProfileClient({
                                             Edit Profile
                                         </Button>
                                     ))}
-                                    <Button
-                                        size="icon"
-                                        type="button"
-                                        className="px-3"
-                                        onClick={onShare}
-                                    >
-                                        <Share2Icon />
-                                    </Button>
+                                <Button
+                                    size="icon"
+                                    type="button"
+                                    className="px-3"
+                                    onClick={onShare}
+                                >
+                                    <Share2Icon />
+                                </Button>
                             </div>
                             {isEditing ? (
                                 <Controller
@@ -780,9 +783,9 @@ export default function ProfileClient({
                     isSignedIn={session !== null}
                 />
             </div>
-            <div className="flex flex-col gap-4 items-center justify-center">
+            <div className="flex flex-col gap-4 items-center justify-center mt-4">
                 <h2>Wishlist</h2>
-                <p>Coming soon!</p>
+                <PhotocardGrid photocards={wishlist} />
             </div>
         </div>
     );

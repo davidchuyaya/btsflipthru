@@ -1,4 +1,4 @@
-import { getCollectionsFromDB, getUserBindersFromDB, getUserDataFromDB } from "@/actions";
+import { getCollectionsFromDB, getRecentlyWishlistedPhotocards, getUserBindersFromDB, getUserDataFromDB } from "@/actions";
 import ProfileClient from "./profile-client";
 import { notFound } from "next/navigation";
 import { Suspense, cache } from "react";
@@ -10,6 +10,7 @@ async function ProfileContent({ params }: { params: Promise<{ id: string }> }) {
     const { id } = await params;
     const userData = await getUserData(id);
     const collections = await getCollectionsFromDB();
+    const wishlist = await getRecentlyWishlistedPhotocards(id);
 
     if (userData.error || collections.error) {
         notFound();
@@ -25,6 +26,7 @@ async function ProfileContent({ params }: { params: Promise<{ id: string }> }) {
             userData={userData.data!}
             collections={collections.data!}
             binders={binders.data!}
+            wishlist={wishlist.data!}
         />
     );
 }
