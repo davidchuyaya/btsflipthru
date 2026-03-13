@@ -91,7 +91,6 @@ import {
 } from "@dnd-kit/sortable";
 import { PhotocardWithSize } from "../../photocard";
 import { Separator } from "@/components/ui/separator";
-import { usePathname, useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 const DEFAULT_BINDER_PAGE_DIMENSIONS = BinderPageDimensions.Standard9PP;
@@ -234,13 +233,23 @@ function BinderCoverComponent({
                 {leftPage}
             </div>
             <div
-                className="rounded-lg bg-main border-2"
+                className="relative rounded-lg bg-main border-2 flex flex-col items-center justify-evenly overflow-hidden"
                 style={{
                     aspectRatio: `${binderType.spineWidth}/${binderType.coverHeight}`,
                     flex: binderType.spineWidth,
                     borderColor: "var(--primary-dark)",
                 }}
-            ></div>
+            >
+                {[0, 1, 2].map((ringIndex) => (
+                    <div
+                        key={ringIndex}
+                        className="relative w-4/5 aspect-10/9"
+                    >
+                        <div className="h-full w-full rounded-full border-[6px] border-[#c7ccd3] bg-transparent" />
+                        <div className="absolute -bottom-px left-0 right-0 h-[26%] bg-main" />
+                    </div>
+                ))}
+            </div>
             <div
                 className="rounded-lg bg-main flex flex-col justify-center"
                 style={{
@@ -1167,8 +1176,6 @@ export default function BinderClient({
     savedPhotocards: Selectable<Photocards>[];
     isOwner: boolean;
 }) {
-    const router = useRouter();
-    const pathname = usePathname();
     const [isPreview, setIsPreview] = useState(false);
     const previewMode = !isOwner || isPreview;
     const [currentPage, setCurrentPage] = useState(0);

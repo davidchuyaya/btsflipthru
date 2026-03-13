@@ -23,16 +23,12 @@ export async function BinderContent({
         collectionsRes,
         cardTypesRes,
         cardSizesRes,
-        ownedPhotocardsRes,
-        wishlistedPhotocardsRes,
         session,
     ] = await Promise.all([
         getUserBindersFromDB([id]),
         getCollectionsFromDB(),
         getCardTypesFromDB(),
         getCardSizesFromDB(),
-        getOwnedPhotocards(),
-        getWishlistedPhotocards(),
         getSession(),
     ]);
 
@@ -58,8 +54,11 @@ export async function BinderContent({
         notFound();
     }
 
-    let ownedPhotocards = ownedPhotocardsRes.data || [];
-    let wishlistedPhotocards = wishlistedPhotocardsRes.data || [];
+    const [ownedPhotocardsRes, wishlistedPhotocardsRes] = isOwner
+        ? await Promise.all([getOwnedPhotocards(), getWishlistedPhotocards()])
+        : [{ data: [] }, { data: [] }];
+    const ownedPhotocards = ownedPhotocardsRes.data || [];
+    const wishlistedPhotocards = wishlistedPhotocardsRes.data || [];
     const savedPhotocardIds = [
         ...new Set(
             binderPages.data!.flatMap((page) => page.photocard_ids),
