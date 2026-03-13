@@ -50,9 +50,10 @@ import {
     FieldError,
     FieldLabel,
 } from "@/components/ui/field";
-import { uploadImage } from "@/actions-client";
+import { shareOrCopyCurrentUrl, uploadImage } from "@/actions-client";
 import { toast } from "sonner";
 import BindersComponent from "@/app/binder/binders";
+import { Share2Icon } from "lucide-react";
 
 const formSchema = z.object({
     username: z
@@ -206,6 +207,53 @@ function SocialsComponent({
     );
 }
 
+function AllSocialsComponents({
+    userData,
+    isEditing,
+    form,
+    className,
+}: {
+    userData: Selectable<UserData>;
+    isEditing: boolean;
+    form: ReturnType<typeof useForm<z.infer<typeof formSchema>>>;
+    className?: string;
+}) {
+    return (
+        <div className={`flex flex-col gap-2 items-center ${className}`}>
+            <SocialsComponent
+                fieldName="bcd_id"
+                userData={userData}
+                isEditing={isEditing}
+                control={form.control}
+            />
+            <SocialsComponent
+                fieldName="bluesky_id"
+                userData={userData}
+                isEditing={isEditing}
+                control={form.control}
+            />
+            <SocialsComponent
+                fieldName="instagram_id"
+                userData={userData}
+                isEditing={isEditing}
+                control={form.control}
+            />
+            <SocialsComponent
+                fieldName="twitter_id"
+                userData={userData}
+                isEditing={isEditing}
+                control={form.control}
+            />
+            <SocialsComponent
+                fieldName="discord_id"
+                userData={userData}
+                isEditing={isEditing}
+                control={form.control}
+            />
+        </div>
+    );
+}
+
 export default function ProfileClient({
     userData: serverUserData,
     collections,
@@ -315,6 +363,10 @@ export default function ProfileClient({
         );
     }
 
+    async function onShare() {
+        await shareOrCopyCurrentUrl("Profile");
+    }
+
     return (
         <div className="flex flex-col gap-8 items-stretch justify-center mb-8">
             <form
@@ -322,8 +374,8 @@ export default function ProfileClient({
                     console.log(error);
                 })}
             >
-                <div className="flex flex-row gap-8 m-12">
-                    <div className="flex flex-col gap-4 items-center w-1/4 shrink-0">
+                <div className="flex flex-col md:flex-row gap-8 m-12">
+                    <div className="flex flex-col gap-4 items-center md:w-1/4 shrink-0">
                         {isEditing ? (
                             <Controller
                                 control={form.control}
@@ -370,42 +422,16 @@ export default function ProfileClient({
                                 large
                             />
                         )}
-                        <div className="flex flex-col gap-2 items-center">
-                            <SocialsComponent
-                                fieldName="bcd_id"
-                                userData={userData}
-                                isEditing={isEditing}
-                                control={form.control}
-                            />
-                            <SocialsComponent
-                                fieldName="bluesky_id"
-                                userData={userData}
-                                isEditing={isEditing}
-                                control={form.control}
-                            />
-                            <SocialsComponent
-                                fieldName="instagram_id"
-                                userData={userData}
-                                isEditing={isEditing}
-                                control={form.control}
-                            />
-                            <SocialsComponent
-                                fieldName="twitter_id"
-                                userData={userData}
-                                isEditing={isEditing}
-                                control={form.control}
-                            />
-                            <SocialsComponent
-                                fieldName="discord_id"
-                                userData={userData}
-                                isEditing={isEditing}
-                                control={form.control}
-                            />
-                        </div>
+                        <AllSocialsComponents
+                            userData={userData}
+                            isEditing={isEditing}
+                            form={form}
+                            className="hidden md:block"
+                        />
                     </div>
-                    <div className="flex flex-col gap-4 w-1/2">
+                    <div className="flex flex-col gap-4 md:w-1/2">
                         <div className="flex flex-col gap">
-                            <div className="flex flex-row gap-2">
+                            <div className="flex flex-row gap-4 justify-center">
                                 {isEditing ? (
                                     <Controller
                                         control={form.control}
@@ -431,7 +457,7 @@ export default function ProfileClient({
                                         )}
                                     />
                                 ) : (
-                                    <h2 className="grow">
+                                    <h2 className="md:grow">
                                         {userData.username ?? "N/A"}
                                     </h2>
                                 )}
@@ -461,6 +487,14 @@ export default function ProfileClient({
                                             Edit Profile
                                         </Button>
                                     ))}
+                                    <Button
+                                        size="icon"
+                                        type="button"
+                                        className="px-3"
+                                        onClick={onShare}
+                                    >
+                                        <Share2Icon />
+                                    </Button>
                             </div>
                             {isEditing ? (
                                 <Controller
@@ -490,11 +524,17 @@ export default function ProfileClient({
                                     )}
                                 />
                             ) : (
-                                <p className="text-2xl">
+                                <p className="text-2xl text-center md:text-start">
                                     {userData.description ?? "No description"}
                                 </p>
                             )}
                         </div>
+                        <AllSocialsComponents
+                            userData={userData}
+                            isEditing={isEditing}
+                            form={form}
+                            className="block md:hidden"
+                        />
                         <div className="flex flex-row gap-8">
                             <div className="flex flex-col gap-4 rounded-2xl p-8 bg-accent-light grow">
                                 <div className="flex flex-row gap-4 items-center">
@@ -709,7 +749,7 @@ export default function ProfileClient({
                             ></iframe>
                         )}
                     </div>
-                    <div className="flex flex-col gap-4 w-1/4 items-left justify-center">
+                    <div className="flex-col gap-4 w-1/4 items-left justify-center hidden md:flex">
                         <Label className="flex flex-row" hidden={!isSelf}>
                             <Switch
                                 defaultChecked={!cursorDisabled}

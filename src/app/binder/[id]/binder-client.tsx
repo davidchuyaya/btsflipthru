@@ -1,7 +1,7 @@
 "use client";
 
 import { saveBinder } from "@/actions";
-import { cardSizeToString } from "@/actions-client";
+import { cardSizeToString, shareOrCopyCurrentUrl } from "@/actions-client";
 import {
     AlertDialog,
     AlertDialogAction,
@@ -1670,9 +1670,8 @@ export default function BinderClient({
         setSelectedSlot(null);
     }
 
-    function onShare() {
-        navigator.clipboard.writeText(window.location.href);
-        toast.success("Binder URL copied to clipboard");
+    async function onShare() {
+        await shareOrCopyCurrentUrl("Binder");
     }
 
     function onEdit() {

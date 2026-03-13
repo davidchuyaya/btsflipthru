@@ -1,6 +1,7 @@
 "use client";
 
 import { Insertable } from "kysely";
+import { toast } from "sonner";
 import {
     CLOUDINARY_API_KEY,
     CLOUDINARY_CLOUD_NAME,
@@ -76,4 +77,28 @@ export function createCardSizeFromString(
 
 export function cardSizeToString(cardSize: Insertable<CardSizes>): string {
     return `${cardSize.name} ${cardSize.width}x${cardSize.height}`;
+}
+
+export async function shareOrCopyCurrentUrl(resourceName: string): Promise<void> {
+    const url = window.location.href;
+    const userAgentData = (
+        navigator as Navigator & { userAgentData?: { mobile?: boolean } }
+    ).userAgentData;
+    const isMobileDevice =
+        userAgentData?.mobile ??
+        /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+
+    if (isMobileDevice && navigator.share) {
+        try {
+            await navigator.share({ url });
+            return;
+        } catch (error) {
+            if (error instanceof DOMException && error.name === "AbortError") {
+                return;
+            }
+        }
+    }
+
+    await navigator.clipboard.writeText(url);
+    toast.success(`${resourceName} URL copied to clipboard`);
 }
