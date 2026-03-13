@@ -121,6 +121,92 @@ const formSchema = z.object({
     ),
 });
 
+enum PageTurnDirection {
+    Forward,
+    Backward,
+}
+enum PageTurnPhase {
+    First,
+    Second,
+}
+
+type PageTurnAnimation = {
+    fromPage: number;
+    toPage: number;
+    direction: PageTurnDirection;
+    progress: number;
+};
+
+function getPageTurnHalfOverlayStyle({
+    direction,
+    progress,
+    phase,
+    spineLeftPercent,
+    spineRightPercent,
+}: {
+    direction: PageTurnDirection;
+    progress: number;
+    phase: PageTurnPhase;
+    spineLeftPercent: number;
+    spineRightPercent: number;
+}): React.CSSProperties {
+    const spineWidthPercent = spineRightPercent - spineLeftPercent;
+    const startLeftPercent =
+        direction === PageTurnDirection.Forward ? spineRightPercent : 0;
+    const firstHalfEndLeftPercent =
+        direction === PageTurnDirection.Forward
+            ? spineLeftPercent + spineWidthPercent / 2
+            : spineWidthPercent / 2;
+    const firstHalfProgress = Math.min(progress / 0.5, 1);
+    const secondHalfProgress = Math.max((progress - 0.5) / 0.5, 0);
+    const secondHalfStartLeftPercent =
+        direction === PageTurnDirection.Forward
+            ? spineWidthPercent / 2
+            : spineRightPercent - spineWidthPercent / 2;
+    const secondHalfEndLeftPercent =
+        direction === PageTurnDirection.Forward ? 0 : spineRightPercent;
+    const leftPercent =
+        phase === PageTurnPhase.First
+            ? startLeftPercent +
+            (firstHalfEndLeftPercent - startLeftPercent) * firstHalfProgress
+            : secondHalfStartLeftPercent +
+            (secondHalfEndLeftPercent - secondHalfStartLeftPercent) *
+            secondHalfProgress;
+    const angle =
+        phase === PageTurnPhase.First
+            ? (direction === PageTurnDirection.Forward ? -90 : 90) *
+            firstHalfProgress
+            : (direction === PageTurnDirection.Forward ? 90 : -90) *
+            (1 - secondHalfProgress);
+    const transformOrigin =
+        phase === PageTurnPhase.First
+            ? direction === PageTurnDirection.Forward
+                ? "left center"
+                : "right center"
+            : direction === PageTurnDirection.Forward
+                ? "right center"
+                : "left center";
+    const distortion = Math.sin(Math.PI * progress);
+    const perspectivePx = 1800 - distortion * 1050;
+    const skewDeg =
+        (direction === PageTurnDirection.Forward ? -1 : 1) * distortion * 7;
+    const stackedLandingShiftPx =
+        phase === PageTurnPhase.Second
+            ? (direction === PageTurnDirection.Forward ? -1 : 1) *
+            BINDER_STACKED_PAGE_X_OFFSET *
+            secondHalfProgress
+            : 0;
+
+    return {
+        left: `${leftPercent}%`,
+        width: `${spineLeftPercent}%`, // Equivalent to the page width
+        transformOrigin,
+        transform: `translateX(${stackedLandingShiftPx}px) perspective(${perspectivePx}px) rotateY(${angle}deg) skewY(${skewDeg}deg)`,
+        transformStyle: "preserve-3d",
+        backfaceVisibility: "visible",
+    };
+}
+
 function sortStackedSlots(
     cards: z.infer<typeof stackedSlotSchema>[] = [],
 ): z.infer<typeof stackedSlotSchema>[] {
@@ -240,11 +326,9 @@ function BinderCoverComponent({
                     borderColor: "var(--primary-dark)",
                 }}
             >
+                {/* Binder rings */}
                 {[0, 1, 2].map((ringIndex) => (
-                    <div
-                        key={ringIndex}
-                        className="relative w-4/5 aspect-10/9"
-                    >
+                    <div key={ringIndex} className="relative w-4/5 aspect-10/9">
                         <div className="h-full w-full rounded-full border-[6px] border-[#c7ccd3] bg-transparent" />
                         <div className="absolute -bottom-px left-0 right-0 h-[26%] bg-main" />
                     </div>
@@ -273,10 +357,13 @@ function BinderPageComponent({
     onSelectSlot,
     selectedSlotId,
     disabled = false,
+    hideFlippingPage = false,
     previewMode = false,
     onOpenPhotocard,
     fixedHeight,
     mainScale = 1,
+    stackDepthShift = 0,
+    mainLayerDepthShift = 0,
 }: {
     binderType: BinderType;
     index: number;
@@ -287,33 +374,44 @@ function BinderPageComponent({
     onSelectSlot: (id: string, width: number, height: number) => void;
     selectedSlotId?: string;
     disabled?: boolean;
+    hideFlippingPage?: boolean;
     previewMode?: boolean;
     onOpenPhotocard: (photocardId: number) => void;
     fixedHeight?: string;
     mainScale?: number;
+    stackDepthShift?: number;
+    mainLayerDepthShift?: number;
 }) {
+    const stackDirection = flipped ? -1 : 1;
+    const sideKey = flipped ? "left" : "right";
     const layers = [
         ...stackPages.map((stackPage, stackIndex) => ({
-            key: stackPage.pageKey,
+            key: `stack-${sideKey}-${stackPage.pageKey}-${stackPage.index}`,
             index: stackPage.index,
             pageKey: stackPage.pageKey,
             disabled: true,
+            hidden: false,
             offsetX:
-                (stackPages.length - stackIndex) *
-                (flipped
-                    ? -BINDER_STACKED_PAGE_X_OFFSET
-                    : BINDER_STACKED_PAGE_X_OFFSET),
+                (stackPages.length - stackIndex + stackDepthShift) *
+                stackDirection *
+                BINDER_STACKED_PAGE_X_OFFSET,
             offsetY: 0,
             pointerEvents: "none" as const,
         })),
         {
-            key: pageKey,
+            key: `main-${sideKey}-${pageKey}-${index}`,
             index,
             pageKey,
             disabled,
-            offsetX: 0,
+            hidden: hideFlippingPage,
+            offsetX:
+                mainLayerDepthShift *
+                stackDirection *
+                BINDER_STACKED_PAGE_X_OFFSET,
             offsetY: 0,
-            pointerEvents: "auto" as const,
+            pointerEvents: hideFlippingPage
+                ? ("none" as const)
+                : ("auto" as const),
         },
     ];
 
@@ -329,10 +427,12 @@ function BinderPageComponent({
                             layer.offsetX !== 0 || layer.offsetY !== 0
                                 ? `translate(${layer.offsetX}px, ${layer.offsetY}px)`
                                 : undefined,
+                        opacity: layer.hidden ? 0 : 1,
                         pointerEvents: layer.pointerEvents,
                     }}
                 >
                     <BinderPageLayer
+                        key={`layer-${layer.key}`}
                         binderType={binderType}
                         index={layer.index}
                         pageKey={layer.pageKey}
@@ -354,6 +454,7 @@ function BinderPageComponent({
             ))}
             <div className="invisible">
                 <BinderPageLayer
+                    key={`ghost-${sideKey}-${pageKey}-${index}`}
                     binderType={binderType}
                     index={index}
                     pageKey={pageKey}
@@ -716,15 +817,20 @@ function BinderSlot({
     const cardContent =
         renderPhotocards && visibleCard && valueScale > 0 ? (
             disabled ? (
-                <div style={cardPositionStyle}>
+                <div
+                    style={{
+                        ...cardPositionStyle,
+                        ...cardTransformStyle,
+                    }}
+                >
                     <PhotocardWithSize
                         photocard={visibleCard.photocard}
                         showFront={cardShowFront}
                         width={visibleCard.width * valueScale}
                         height={visibleCard.height * valueScale}
-                        className={flipped ? "flip-horizontal!" : ""}
                         style={{
-                            ...cardTransformStyle,
+                            transform: flipped ? "scaleX(-1)" : undefined,
+                            transformOrigin: "center center",
                             ...selectedCardStyle,
                         }}
                     />
@@ -1179,6 +1285,8 @@ export default function BinderClient({
     const [isPreview, setIsPreview] = useState(false);
     const previewMode = !isOwner || isPreview;
     const [currentPage, setCurrentPage] = useState(0);
+    const [pageTurnAnimation, setPageTurnAnimation] =
+        useState<PageTurnAnimation | null>(null);
     const [needsSaving, setNeedsSaving] = useState(false);
     const [snapToGrid, setSnapToGrid] = useState<SnapToGrid>(SnapToGrid.Center);
     // The one being dragged & dropped
@@ -1239,8 +1347,9 @@ export default function BinderClient({
         : [];
     const canReorderSelectedSlot = selectedSlotCards.length > 1;
     const currentPageSlots = currentPageData?.slots ?? {};
-    const currentPageHasCards =
-        Object.values(currentPageSlots).some((stack) => stack.length > 0);
+    const currentPageHasCards = Object.values(currentPageSlots).some(
+        (stack) => stack.length > 0,
+    );
     const [isPageTypeDialogOpen, setIsPageTypeDialogOpen] = useState(false);
     const [selectedPageType, setSelectedPageType] =
         useState<BinderPageDimensions>(currentPageData?.pageType ?? pageType);
@@ -1255,6 +1364,25 @@ export default function BinderClient({
             ? cardSizes.find((cs) => cs.id === activePhotocard.size_id)
             : null;
     const totalLogicalWidth = binderType.coverWidth * 2 + binderType.spineWidth;
+
+    // Page turning animation
+    const spineLeftPercent = (binderType.coverWidth / totalLogicalWidth) * 100;
+    const spineRightPercent =
+        ((binderType.coverWidth + binderType.spineWidth) / totalLogicalWidth) *
+        100;
+    const turnAnimationFrameRef = useRef<number | null>(null);
+    const isPageTurning = pageTurnAnimation !== null;
+    const turningPageIndex = pageTurnAnimation
+        ? pageTurnAnimation.direction === PageTurnDirection.Forward
+            ? pageTurnAnimation.fromPage
+            : pageTurnAnimation.toPage
+        : null;
+    const turningPage =
+        turningPageIndex !== null ? pages[turningPageIndex] : undefined;
+    const signedDepthShift =
+        (pageTurnAnimation?.progress ?? 0) *
+        (pageTurnAnimation?.direction === PageTurnDirection.Forward ? 1 : -1);
+
     const scale = binderWidth ? binderWidth / totalLogicalWidth : 0;
     const sensors = useSensors(
         useSensor(PointerSensor, {
@@ -1790,9 +1918,62 @@ export default function BinderClient({
     }
 
     function setPage(page: number) {
-        setCurrentPage(page);
+        const boundedPage = Math.max(0, Math.min(page, pages.length));
+        if (isPageTurning || boundedPage === currentPage) {
+            return;
+        }
         setSelectedSlot(null);
         setActivePhotocard(null);
+        if (Math.abs(boundedPage - currentPage) !== 1) {
+            setCurrentPage(boundedPage);
+            return;
+        }
+
+        const fromPage = currentPage;
+        const toPage = boundedPage;
+        const direction: PageTurnDirection =
+            toPage > fromPage
+                ? PageTurnDirection.Forward
+                : PageTurnDirection.Backward;
+        const durationMs = 500;
+        const startTime = performance.now();
+
+        if (turnAnimationFrameRef.current !== null) {
+            cancelAnimationFrame(turnAnimationFrameRef.current);
+        }
+
+        setPageTurnAnimation({
+            fromPage,
+            toPage,
+            direction,
+            progress: 0,
+        });
+
+        const animate = (timestamp: number) => {
+            const rawProgress = Math.min(
+                1,
+                (timestamp - startTime) / durationMs,
+            );
+            const easedProgress = 0.5 - Math.cos(Math.PI * rawProgress) / 2;
+
+            setPageTurnAnimation({
+                fromPage,
+                toPage,
+                direction,
+                progress: easedProgress,
+            });
+
+            if (rawProgress >= 1) {
+                turnAnimationFrameRef.current = null;
+                setCurrentPage(toPage);
+                setPageTurnAnimation(null);
+                return;
+            }
+
+            turnAnimationFrameRef.current = requestAnimationFrame(animate);
+        };
+
+        turnAnimationFrameRef.current = requestAnimationFrame(animate);
     }
 
     function openPageTypeDialog() {
@@ -2241,7 +2422,7 @@ export default function BinderClient({
                                         </Button>
                                     </div>
                                 )}
-                                <div className="w-full">
+                                <div className="relative w-full">
                                     <Controller
                                         name="binderType"
                                         control={form.control}
@@ -2287,6 +2468,9 @@ export default function BinderClient({
                                                         selectedSlotId={
                                                             selectedSlot?.id
                                                         }
+                                                        hideFlippingPage={
+                                                            isPageTurning && turningPageIndex === currentPage - 1
+                                                        }
                                                         previewMode={
                                                             previewMode
                                                         }
@@ -2294,6 +2478,16 @@ export default function BinderClient({
                                                             openPhotocard
                                                         }
                                                         mainScale={scale}
+                                                        stackDepthShift={
+                                                            signedDepthShift
+                                                        }
+                                                        mainLayerDepthShift={
+                                                            pageTurnAnimation?.direction ===
+                                                                PageTurnDirection.Forward
+                                                                ? (pageTurnAnimation?.progress ??
+                                                                    0)
+                                                                : 0
+                                                        }
                                                     />
                                                 }
                                                 rightPage={
@@ -2334,6 +2528,9 @@ export default function BinderClient({
                                                         selectedSlotId={
                                                             selectedSlot?.id
                                                         }
+                                                        hideFlippingPage={
+                                                            isPageTurning && turningPageIndex === currentPage
+                                                        }
                                                         previewMode={
                                                             previewMode
                                                         }
@@ -2341,11 +2538,133 @@ export default function BinderClient({
                                                             openPhotocard
                                                         }
                                                         mainScale={scale}
+                                                        stackDepthShift={
+                                                            -signedDepthShift
+                                                        }
+                                                        mainLayerDepthShift={
+                                                            pageTurnAnimation?.direction ===
+                                                                PageTurnDirection.Backward
+                                                                ? (pageTurnAnimation?.progress ??
+                                                                    0)
+                                                                : 0
+                                                        }
                                                     />
                                                 }
                                             />
                                         )}
                                     />
+                                    {turningPageIndex !== null && turningPage && (
+                                        <div className="pointer-events-none absolute inset-0">
+                                            {pageTurnAnimation !== null &&
+                                                pageTurnAnimation.progress <=
+                                                0.5 && (
+                                                    <div
+                                                        key={`turning-first-${turningPageIndex}-${turningPage.pageKey}`}
+                                                        className="absolute top-0 bottom-0 flex flex-col justify-center"
+                                                        style={getPageTurnHalfOverlayStyle(
+                                                            {
+                                                                direction:
+                                                                    pageTurnAnimation.direction,
+                                                                progress:
+                                                                    pageTurnAnimation.progress,
+                                                                phase: PageTurnPhase.First,
+                                                                spineLeftPercent,
+                                                                spineRightPercent,
+                                                            },
+                                                        )}
+                                                    >
+                                                        <BinderPageComponent
+                                                            key={`turning-first-page-${turningPageIndex}-${turningPage.pageKey}`}
+                                                            binderType={
+                                                                binderType
+                                                            }
+                                                            index={
+                                                                turningPageIndex
+                                                            }
+                                                            pageKey={
+                                                                turningPage.pageKey
+                                                            }
+                                                            flipped={
+                                                                pageTurnAnimation?.direction ===
+                                                                PageTurnDirection.Backward
+                                                            }
+                                                            photocardRenderAnchorIndex={
+                                                                turningPageIndex
+                                                            }
+                                                            stackPages={[]}
+                                                            onSelectSlot={
+                                                                onSelectSlot
+                                                            }
+                                                            selectedSlotId={
+                                                                selectedSlot?.id
+                                                            }
+                                                            disabled={true}
+                                                            previewMode={
+                                                                previewMode
+                                                            }
+                                                            onOpenPhotocard={
+                                                                openPhotocard
+                                                            }
+                                                            mainScale={scale}
+                                                        />
+                                                    </div>
+                                                )}
+                                            {pageTurnAnimation !== null &&
+                                                pageTurnAnimation.progress >=
+                                                0.5 && (
+                                                    <div
+                                                        key={`turning-second-${turningPageIndex}-${turningPage.pageKey}`}
+                                                        className="absolute top-0 bottom-0 flex flex-col justify-center"
+                                                        style={getPageTurnHalfOverlayStyle(
+                                                            {
+                                                                direction:
+                                                                    pageTurnAnimation.direction,
+                                                                progress:
+                                                                    pageTurnAnimation.progress,
+                                                                phase: PageTurnPhase.Second,
+                                                                spineLeftPercent,
+                                                                spineRightPercent,
+                                                            },
+                                                        )}
+                                                    >
+                                                        <BinderPageComponent
+                                                            key={`turning-second-page-${turningPageIndex}-${turningPage.pageKey}`}
+                                                            binderType={
+                                                                binderType
+                                                            }
+                                                            index={
+                                                                turningPageIndex
+                                                            }
+                                                            pageKey={
+                                                                turningPage.pageKey
+                                                            }
+                                                            flipped={
+                                                                pageTurnAnimation?.direction ===
+                                                                PageTurnDirection.Forward
+                                                            }
+                                                            photocardRenderAnchorIndex={
+                                                                turningPageIndex
+                                                            }
+                                                            stackPages={[]}
+                                                            onSelectSlot={
+                                                                onSelectSlot
+                                                            }
+                                                            selectedSlotId={
+                                                                selectedSlot?.id
+                                                            }
+                                                            disabled={true}
+                                                            previewMode={
+                                                                previewMode
+                                                            }
+                                                            onOpenPhotocard={
+                                                                openPhotocard
+                                                            }
+                                                            mainScale={scale}
+                                                        />
+                                                    </div>
+                                                )}
+                                        </div>
+                                    )}
                                 </div>
                                 {currentPageData ? (
                                     <Controller
@@ -2380,7 +2699,9 @@ export default function BinderClient({
                                         type="button"
                                         className="px-3"
                                         onClick={() => setPage(0)}
-                                        disabled={currentPage === 0}
+                                        disabled={
+                                            currentPage === 0 || isPageTurning
+                                        }
                                         tooltip="Go to first page"
                                     >
                                         <ChevronsLeftIcon />
@@ -2390,7 +2711,9 @@ export default function BinderClient({
                                         type="button"
                                         className="px-3"
                                         onClick={() => setPage(currentPage - 1)}
-                                        disabled={currentPage === 0}
+                                        disabled={
+                                            currentPage === 0 || isPageTurning
+                                        }
                                         tooltip="Go to previous page"
                                     >
                                         <ChevronLeftIcon />
@@ -2403,7 +2726,10 @@ export default function BinderClient({
                                         type="button"
                                         className="px-3"
                                         onClick={() => setPage(currentPage + 1)}
-                                        disabled={currentPage === pages.length}
+                                        disabled={
+                                            currentPage === pages.length ||
+                                            isPageTurning
+                                        }
                                         tooltip="Go to next page"
                                     >
                                         <ChevronRightIcon />
@@ -2413,7 +2739,10 @@ export default function BinderClient({
                                         type="button"
                                         className="px-3"
                                         onClick={() => setPage(pages.length)}
-                                        disabled={currentPage === pages.length}
+                                        disabled={
+                                            currentPage === pages.length ||
+                                            isPageTurning
+                                        }
                                         tooltip="Go to last page"
                                     >
                                         <ChevronsRightIcon />

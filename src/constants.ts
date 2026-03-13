@@ -21,7 +21,7 @@ export const USERNAME_ERROR_TEXT =
 export const SPOTIFY_PLAYLIST_ID_LENGTH = 22;
 export const BINDER_PERFORATION_DOT_SIZE = 2;
 export const BINDER_MAX_RENDERING_PAGE_DEPTH = 10; // Number of pages past the current page to render in the binder
-export const BINDER_STACKED_PAGE_X_OFFSET = 4; // How many pixels to the right/left to render each stacked page
+export const BINDER_STACKED_PAGE_X_OFFSET = 2; // How many pixels to the right/left to render each stacked page
 
 // Important: Any number used by an enum should not be reused in the future
 export const Role = {
