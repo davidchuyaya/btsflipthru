@@ -47,8 +47,8 @@ export default function ReportForm({
     title: string | null;
     url: string | null;
 }) {
-    const { reportTitle, descriptionPlaceholder, descriptionSmallText } =
-        reportTypeToFields(reportType);
+    const fields = reportTypeToFields(reportType) || reportTypeToFields(ReportType.Error);
+    const { reportTitle, descriptionPlaceholder, descriptionSmallText } = fields;
     const { session, setError } = useMetadata();
     const { browser, device, os } = UAParser();
 

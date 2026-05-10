@@ -35,16 +35,21 @@ We use the following technologies:
 9. Import old database data: `psql -U postgres -d postgres -h 127.0.0.1 -f exported.sql`. Note: This file is not in the repo.
 10. Refresh materialized views: `psql -U postgres -d postgres -h 127.0.0.1 -f refresh.sql`
 11. Build the app: `npm run build`
-12. Start the app and keep it running: `npx pm2 start "pnpm start" --name "Flipthru"`
-13. Point DNS records to the server and set up [caddy](https://caddyserver.com/docs/quick-starts/https) with HTTPS, run `caddy start`
-14. Add a cron job to refresh materialized views: `sudo crontab -e`
+12. Start the app and keep it running: `npx pm2 start ecosystem.config.js`
+13. Make PM2 persist across reboots:
+    - Run `npx pm2 startup` and execute the command it provides.
+    - Run `npx pm2 save` to save the process list.
+14. Point DNS records to the server and set up [caddy](https://caddyserver.com/docs/quick-starts/https) with HTTPS.
+    - Link the project Caddyfile: `sudo ln -sf $(pwd)/Caddyfile /etc/caddy/Caddyfile`
+    - Reload Caddy: `sudo systemctl reload caddy`
+15. Add a cron job to refresh materialized views: `sudo crontab -e`
 
 ### Deploying
 
 1. Pull changes: `git pull`
 2. Update postgres if schema changed: `npm run load-local-db`
 3. Build: `npm run build`
-4. Restart the app: `npx pm2 restart all`
+4. Restart the app: `npx pm2 restart Flipthru`
 
 ### Backing up the database
 
